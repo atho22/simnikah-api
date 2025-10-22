@@ -75,6 +75,15 @@ func main() {
 	cronJobService := services.NewCronJobService(DB)
 	cronJobService.StartReminderCronJobWithSchedule(8, 0) // Setiap hari jam 08:00
 
+	// Health check endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "healthy",
+			"service":   "SimNikah API",
+			"timestamp": time.Now().Format(time.RFC3339),
+		})
+	})
+
 	// Routes
 	r.POST("/register", RegisterUser)
 	r.POST("/login", Login)

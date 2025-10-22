@@ -1,0 +1,68 @@
+# LeapCell Deployment Configuration for SimNikah
+name: simnikah-api
+version: 1.0.0
+
+# Application Configuration
+app:
+  name: "SimNikah API"
+  description: "Sistem Informasi Nikah - KUA Management System"
+  port: 8080
+  health_check: "/health"
+
+# Build Configuration
+build:
+  dockerfile: "Dockerfile"
+  context: "."
+  target: "production"
+
+# Environment Variables
+env:
+  # Database Configuration (LeapCell will provide these)
+  DB_HOST: "${LEAPCELL_DB_HOST}"
+  DB_PORT: "3306"
+  DB_USER: "${LEAPCELL_DB_USER}"
+  DB_PASSWORD: "${LEAPCELL_DB_PASSWORD}"
+  DB_NAME: "${LEAPCELL_DB_NAME}"
+  
+  # JWT Configuration
+  JWT_KEY: "${JWT_SECRET_KEY}"
+  
+  # Server Configuration
+  PORT: "8080"
+  GIN_MODE: "release"
+
+# Scaling Configuration
+scaling:
+  min_replicas: 1
+  max_replicas: 3
+  target_cpu: 70
+  target_memory: 80
+
+# Health Check Configuration
+health_check:
+  path: "/health"
+  interval: 30
+  timeout: 10
+  retries: 3
+  start_period: 60
+
+# Resource Limits
+resources:
+  cpu:
+    request: "100m"
+    limit: "500m"
+  memory:
+    request: "128Mi"
+    limit: "512Mi"
+
+# Network Configuration
+network:
+  port: 8080
+  protocol: "http"
+  
+# Database Requirements
+database:
+  type: "mysql"
+  version: "8.0"
+  storage: "10Gi"
+  backup_enabled: true

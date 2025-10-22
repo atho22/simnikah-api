@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16
+    container_name: simnikah-postgres
+    environment:
+      POSTGRES_PASSWORD: simnikah123
+      POSTGRES_DB: simnikah
+      POSTGRES_USER: simnikah_user
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - simnikah-network
+    restart: unless-stopped
+
+  # SimNikah API
+  simnikah-api:
+    build: .
+    container_name: simnikah-api
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: simnikah_user
+      DB_PASSWORD: simnikah123
+      DB_NAME: simnikah
+      JWT_KEY: simnikah-jwt-secret-key-32-chars-minimum
+      PORT: 8080
+      GIN_MODE: debug
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - simnikah-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  postgres_data:
+
+networks:
+  simnikah-network:
+    driver: bridge

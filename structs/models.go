@@ -10,7 +10,7 @@ type CalonPasangan struct {
 	Nama_lengkap        string    `gorm:"size:100;not null" json:"nama_lengkap"`
 	Tempat_lahir        string    `gorm:"size:50;not null" json:"tempat_lahir"`
 	Tanggal_lahir       time.Time `gorm:"not null" json:"tanggal_lahir"`
-	Jenis_kelamin       string    `gorm:"type:enum('L','P');not null" json:"jenis_kelamin"`
+	Jenis_kelamin       string    `gorm:"type:VARCHAR(1);not null" json:"jenis_kelamin"` // postgres: gunakan VARCHAR(1) untuk L/P
 	Alamat              string    `gorm:"size:200;not null" json:"alamat"`
 	RT                  string    `gorm:"size:3" json:"rt"`
 	RW                  string    `gorm:"size:3" json:"rw"`
@@ -19,7 +19,7 @@ type CalonPasangan struct {
 	Kabupaten           string    `gorm:"size:50;not null" json:"kabupaten"`
 	Provinsi            string    `gorm:"size:50;not null" json:"provinsi"`
 	Agama               string    `gorm:"size:20;not null" json:"agama"`
-	Status_perkawinan   string    `gorm:"type:enum('Belum Kawin','Cerai Hidup','Cerai Mati');default:'Belum Kawin'" json:"status_perkawinan"`
+	Status_perkawinan   string    `gorm:"type:VARCHAR(20);default:'Belum Kawin'" json:"status_perkawinan"` // enum -> varchar + constraint di migration
 	Pekerjaan           string    `gorm:"size:50" json:"pekerjaan"`
 	Deskripsi_pekerjaan string    `gorm:"size:200" json:"deskripsi_pekerjaan"`
 	Penghasilan         string    `gorm:"size:50" json:"penghasilan"`
@@ -36,8 +36,8 @@ type CalonPasangan struct {
 type DataOrangTua struct {
 	ID                  uint       `gorm:"primaryKey" json:"id"`
 	User_id             string     `gorm:"size:20;not null" json:"id_pengguna"`
-	Jenis_kelamin_calon string     `gorm:"type:enum('L','P');not null" json:"jenis_kelamin_calon"` // L = Suami, P = Istri
-	Hubungan            string     `gorm:"type:enum('Ayah','Ibu');not null" json:"hubungan"`
+	Jenis_kelamin_calon string     `gorm:"type:VARCHAR(1);not null" json:"jenis_kelamin_calon"` // L = Suami, P = Istri
+	Hubungan            string     `gorm:"type:VARCHAR(10);not null" json:"hubungan"`           // enum -> varchar
 	Nama_lengkap        string     `gorm:"size:100;not null" json:"nama_lengkap"`
 	NIK                 string     `gorm:"size:16" json:"nik"`
 	Warga_negara        string     `gorm:"size:20" json:"warga_negara"`
@@ -49,8 +49,8 @@ type DataOrangTua struct {
 	Tanggal_lahir       *time.Time `json:"tanggal_lahir"`
 	Pekerjaan_lain      string     `gorm:"size:50" json:"pekerjaan_lain"`
 	Alamat              string     `gorm:"size:200" json:"alamat"`
-	Status_keberadaan   string     `gorm:"type:enum('Hidup','Meninggal','Tidak Diketahui');default:'Hidup'" json:"status_keberadaan"`
-	Jenis_kelamin       string     `gorm:"type:enum('L','P');not null" json:"jenis_kelamin"` // L = Ayah, P = Ibu
+	Status_keberadaan   string     `gorm:"type:VARCHAR(20);default:'Hidup'" json:"status_keberadaan"` // enum -> varchar
+	Jenis_kelamin       string     `gorm:"type:VARCHAR(1);not null" json:"jenis_kelamin"`             // L = Ayah, P = Ibu
 	Created_at          time.Time  `json:"dibuat_pada"`
 	Updated_at          time.Time  `json:"diperbarui_pada"`
 }
@@ -66,12 +66,12 @@ type PendaftaranNikah struct {
 	Waktu_nikah          string     `gorm:"size:10;not null" json:"waktu_nikah"` // format: HH:MM
 	Tempat_nikah         string     `gorm:"size:100;not null" json:"tempat_nikah"`
 	Nomor_dispensasi     string     `gorm:"size:50" json:"nomor_dispensasi"`
-	Alamat_akad          string     `gorm:"size:200" json:"alamat_akad"` // Alamat lengkap lokasi akad
-	Status_pendaftaran   string     `gorm:"type:enum('Draft','Menunggu Verifikasi','Menunggu Pengumpulan Berkas','Berkas Diterima','Menunggu Penugasan','Penghulu Ditugaskan','Menunggu Verifikasi Penghulu','Menunggu Bimbingan','Sudah Bimbingan','Selesai');default:'Draft'" json:"status_pendaftaran"`
-	Status_bimbingan     string     `gorm:"type:enum('Belum','Sudah','Sertifikat Diterbitkan');default:'Belum'" json:"status_bimbingan"`
-	Penghulu_id          *uint      `json:"id_penghulu"`                             // ID penghulu yang ditugaskan
-	Penghulu_assigned_by string     `gorm:"size:20" json:"penghulu_ditugaskan_oleh"` // ID kepala KUA yang assign
-	Penghulu_assigned_at *time.Time `json:"penghulu_ditugaskan_pada"`                // Waktu assign penghulu
+	Alamat_akad          string     `gorm:"size:200" json:"alamat_akad"`
+	Status_pendaftaran   string     `gorm:"type:VARCHAR(40);default:'Draft'" json:"status_pendaftaran"` // enum -> varchar
+	Status_bimbingan     string     `gorm:"type:VARCHAR(30);default:'Belum'" json:"status_bimbingan"`   // enum -> varchar
+	Penghulu_id          *uint      `json:"id_penghulu"`                                                // ID penghulu yang ditugaskan
+	Penghulu_assigned_by string     `gorm:"size:20" json:"penghulu_ditugaskan_oleh"`                    // ID kepala KUA yang assign
+	Penghulu_assigned_at *time.Time `json:"penghulu_ditugaskan_pada"`                                   // Waktu assign penghulu
 	Catatan              string     `gorm:"size:500" json:"catatan"`
 	Disetujui_oleh       string     `gorm:"size:20" json:"disetujui_oleh"`
 	Disetujui_pada       *time.Time `json:"disetujui_pada"`
@@ -84,7 +84,7 @@ type WaliNikah struct {
 	Pendaftaran_id    uint       `gorm:"not null" json:"id_pendaftaran"`
 	NIK               string     `gorm:"size:16;not null" json:"nik"`
 	Nama_lengkap      string     `gorm:"size:100;not null" json:"nama_lengkap"`
-	Hubungan_wali     string     `gorm:"size:50;not null" json:"hubungan_wali"` // Ayah, Kakek, dll
+	Hubungan_wali     string     `gorm:"size:50;not null" json:"hubungan_wali"`
 	Alamat            string     `gorm:"size:200;not null" json:"alamat"`
 	No_hp             string     `gorm:"size:15" json:"nomor_telepon"`
 	Email             string     `gorm:"size:100" json:"email"`
@@ -96,8 +96,8 @@ type WaliNikah struct {
 	Pekerjaan         string     `gorm:"size:50" json:"pekerjaan"`
 	No_paspor         string     `gorm:"size:20" json:"nomor_paspor"`
 	Pekerjaan_lain    string     `gorm:"size:50" json:"pekerjaan_lain"`
-	Status_keberadaan string     `gorm:"type:enum('Hidup','Meninggal','Tidak Diketahui');default:'Hidup'" json:"status_keberadaan"`
-	Status_kehadiran  string     `gorm:"type:enum('Hadir','Tidak Hadir','Belum Diketahui');default:'Belum Diketahui'" json:"status_kehadiran"`
+	Status_keberadaan string     `gorm:"type:VARCHAR(20);default:'Hidup'" json:"status_keberadaan"`          // enum -> varchar
+	Status_kehadiran  string     `gorm:"type:VARCHAR(20);default:'Belum Diketahui'" json:"status_kehadiran"` // enum -> varchar
 	Created_at        time.Time  `json:"dibuat_pada"`
 	Updated_at        time.Time  `json:"diperbarui_pada"`
 }
@@ -110,10 +110,10 @@ type Users struct {
 	User_id    string    `gorm:"size:20;not null;unique" json:"id_pengguna"`
 	Username   string    `gorm:"size:50;not null;unique" json:"nama_pengguna"`
 	Email      string    `gorm:"size:100;not null;unique" json:"email"`
-	Password   string    `gorm:"size:255;not null" json:"kata_sandi"` // hashed with bcrypt
-	Role       string    `gorm:"size:20;not null" json:"peran"`       // user_biasa, penghulu, staff, kepala_kua
-	Status     string    `gorm:"type:enum('Aktif','Tidak Aktif');default:'Aktif'" json:"status"`
-	Nama       string    `gorm:"size:100;not null" json:"nama"` // Nama lengkap user
+	Password   string    `gorm:"size:255;not null" json:"kata_sandi"`            // hashed with bcrypt
+	Role       string    `gorm:"size:20;not null" json:"peran"`                  // user_biasa, penghulu, staff, kepala_kua
+	Status     string    `gorm:"type:VARCHAR(20);default:'Aktif'" json:"status"` // enum -> varchar
+	Nama       string    `gorm:"size:100;not null" json:"nama"`                  // Nama lengkap user
 	Created_at time.Time `json:"dibuat_pada"`
 	Updated_at time.Time `json:"diperbarui_pada"`
 }
@@ -136,7 +136,7 @@ type StaffKUA struct {
 	No_hp        string    `gorm:"size:15" json:"nomor_telepon"`
 	Email        string    `gorm:"size:100" json:"email"`
 	Alamat       string    `gorm:"size:200" json:"alamat"`
-	Status       string    `gorm:"type:enum('Aktif','Tidak Aktif');default:'Aktif'" json:"status"`
+	Status       string    `gorm:"type:VARCHAR(20);default:'Aktif'" json:"status"` // enum -> varchar
 	Created_at   time.Time `json:"dibuat_pada"`
 	Updated_at   time.Time `json:"diperbarui_pada"`
 }
@@ -150,9 +150,9 @@ type Penghulu struct {
 	No_hp        string    `gorm:"size:15" json:"nomor_telepon"`
 	Email        string    `gorm:"size:100" json:"email"`
 	Alamat       string    `gorm:"size:200" json:"alamat"`
-	Status       string    `gorm:"type:enum('Aktif','Tidak Aktif');default:'Aktif'" json:"status"`
-	Jumlah_nikah int       `gorm:"default:0" json:"jumlah_nikah"` // Jumlah nikah yang sudah dipimpin
-	Rating       float64   `gorm:"default:0" json:"rating"`       // Rating dari user
+	Status       string    `gorm:"type:VARCHAR(20);default:'Aktif'" json:"status"` // enum -> varchar
+	Jumlah_nikah int       `gorm:"default:0" json:"jumlah_nikah"`
+	Rating       float64   `gorm:"default:0" json:"rating"`
 	Created_at   time.Time `json:"dibuat_pada"`
 	Updated_at   time.Time `json:"diperbarui_pada"`
 }
@@ -165,9 +165,9 @@ type Notifikasi struct {
 	User_id     string    `gorm:"size:20;not null" json:"id_pengguna"`
 	Judul       string    `gorm:"size:100;not null" json:"judul"`
 	Pesan       string    `gorm:"size:500;not null" json:"pesan"`
-	Tipe        string    `gorm:"type:enum('Info','Warning','Error','Success');default:'Info'" json:"tipe"`
-	Status_baca string    `gorm:"type:enum('Belum Dibaca','Sudah Dibaca');default:'Belum Dibaca'" json:"status_dibaca"`
-	Link        string    `gorm:"size:200" json:"tautan"` // Link ke halaman terkait
+	Tipe        string    `gorm:"type:VARCHAR(10);default:'Info'" json:"tipe"`                  // enum -> varchar
+	Status_baca string    `gorm:"type:VARCHAR(20);default:'Belum Dibaca'" json:"status_dibaca"` // enum -> varchar
+	Link        string    `gorm:"size:200" json:"tautan"`
 	Created_at  time.Time `json:"dibuat_pada"`
 	Updated_at  time.Time `json:"diperbarui_pada"`
 }
@@ -175,13 +175,13 @@ type Notifikasi struct {
 // BimbinganPerkawinan model untuk sesi bimbingan perkawinan
 type BimbinganPerkawinan struct {
 	ID                uint      `gorm:"primaryKey" json:"id"`
-	Tanggal_bimbingan time.Time `gorm:"not null" json:"tanggal_bimbingan"`     // Hari Rabu
-	Waktu_mulai       string    `gorm:"size:10;not null" json:"waktu_mulai"`   // format: HH:MM
-	Waktu_selesai     string    `gorm:"size:10;not null" json:"waktu_selesai"` // format: HH:MM
+	Tanggal_bimbingan time.Time `gorm:"not null" json:"tanggal_bimbingan"`
+	Waktu_mulai       string    `gorm:"size:10;not null" json:"waktu_mulai"`
+	Waktu_selesai     string    `gorm:"size:10;not null" json:"waktu_selesai"`
 	Tempat_bimbingan  string    `gorm:"size:100;not null" json:"tempat_bimbingan"`
 	Pembimbing        string    `gorm:"size:100;not null" json:"pembimbing"`
-	Kapasitas         int       `gorm:"default:10" json:"kapasitas"` // 10 pasangan per hari Rabu
-	Status            string    `gorm:"type:enum('Aktif','Selesai','Dibatalkan');default:'Aktif'" json:"status"`
+	Kapasitas         int       `gorm:"default:10" json:"kapasitas"`
+	Status            string    `gorm:"type:VARCHAR(20);default:'Aktif'" json:"status"` // enum -> varchar
 	Catatan           string    `gorm:"size:500" json:"catatan"`
 	Created_at        time.Time `json:"dibuat_pada"`
 	Updated_at        time.Time `json:"diperbarui_pada"`
@@ -193,7 +193,7 @@ type BimbinganPerkawinan struct {
 type DataFormPendaftaranNikah struct {
 	JadwalDanLokasi struct {
 		LokasiNikah     string `json:"weddingLocation" binding:"required"` // "Di KUA" atau "Di Luar KUA"
-		AlamatNikah     string `json:"weddingAddress"`                     // Alamat spesifik jika Di Luar KUA
+		AlamatNikah     string `json:"weddingAddress"`
 		TanggalNikah    string `json:"weddingDate" binding:"required"`
 		WaktuNikah      string `json:"weddingTime" binding:"required"`
 		NomorDispensasi string `json:"dispensationNumber"`
@@ -315,8 +315,8 @@ type PendaftaranBimbingan struct {
 	Bimbingan_perkawinan_id uint      `gorm:"not null" json:"id_bimbingan_perkawinan"`
 	Calon_suami_id          string    `gorm:"size:20;not null" json:"id_calon_suami"`
 	Calon_istri_id          string    `gorm:"size:20;not null" json:"id_calon_istri"`
-	Status_kehadiran        string    `gorm:"type:enum('Hadir','Tidak Hadir','Belum');default:'Belum'" json:"status_kehadiran"`
-	Status_sertifikat       string    `gorm:"type:enum('Belum','Sudah','Diterbitkan');default:'Belum'" json:"status_sertifikat"`
+	Status_kehadiran        string    `gorm:"type:VARCHAR(20);default:'Belum'" json:"status_kehadiran"`  // enum -> varchar
+	Status_sertifikat       string    `gorm:"type:VARCHAR(20);default:'Belum'" json:"status_sertifikat"` // enum -> varchar
 	No_sertifikat           string    `gorm:"size:50" json:"nomor_sertifikat"`
 	Catatan                 string    `gorm:"size:500" json:"catatan"`
 	Created_at              time.Time `json:"dibuat_pada"`
