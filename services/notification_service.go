@@ -119,7 +119,7 @@ func (ns *NotificationService) SendStatusUpdateNotification(pendaftaranID uint, 
 
 	// Notifikasi untuk calon suami
 	suamiNotification := structs.Notifikasi{
-		User_id:     pendaftaran.Calon_suami_id,
+		User_id:     calonSuami.User_id,
 		Judul:       "Update Status Pendaftaran Nikah",
 		Pesan:       pesan,
 		Tipe:        tipe,
@@ -134,7 +134,7 @@ func (ns *NotificationService) SendStatusUpdateNotification(pendaftaranID uint, 
 	// Notifikasi untuk calon istri (jika berbeda dengan suami)
 	if pendaftaran.Calon_istri_id != pendaftaran.Calon_suami_id {
 		istriNotification := structs.Notifikasi{
-			User_id:     pendaftaran.Calon_istri_id,
+			User_id:     calonIstri.User_id,
 			Judul:       "Update Status Pendaftaran Nikah",
 			Pesan:       pesan,
 			Tipe:        tipe,
@@ -193,8 +193,13 @@ func (ns *NotificationService) SendBimbinganNotification(bimbinganID uint, actio
 
 	// Kirim notifikasi ke semua peserta
 	for _, peserta := range pendaftarBimbingan {
+		// Ambil data calon pasangan untuk mendapatkan user_id
+		var calonSuami, calonIstri structs.CalonPasangan
+		ns.DB.First(&calonSuami, peserta.Calon_suami_id)
+		ns.DB.First(&calonIstri, peserta.Calon_istri_id)
+
 		notification := structs.Notifikasi{
-			User_id:     peserta.Calon_suami_id,
+			User_id:     calonSuami.User_id,
 			Judul:       judul,
 			Pesan:       pesan,
 			Tipe:        tipe,
@@ -208,7 +213,7 @@ func (ns *NotificationService) SendBimbinganNotification(bimbinganID uint, actio
 
 		// Notifikasi untuk calon istri juga
 		if peserta.Calon_istri_id != peserta.Calon_suami_id {
-			notification.User_id = peserta.Calon_istri_id
+			notification.User_id = calonIstri.User_id
 			if err := ns.DB.Create(&notification).Error; err != nil {
 				log.Printf("Gagal mengirim notifikasi ke calon istri %s: %v", peserta.Calon_istri_id, err)
 			}
@@ -262,7 +267,7 @@ func (ns *NotificationService) SendPenghuluAssignmentNotification(pendaftaranID 
 
 	// Notifikasi untuk calon pasangan
 	calonNotification := structs.Notifikasi{
-		User_id:     pendaftaran.Calon_suami_id,
+		User_id:     calonSuami.User_id,
 		Judul:       "Penghulu Ditugaskan",
 		Pesan:       fmt.Sprintf("Penghulu %s telah ditugaskan untuk memimpin nikah Anda dengan %s.", penghulu.Nama_lengkap, calonIstri.Nama_lengkap),
 		Tipe:        "Success",
@@ -276,7 +281,7 @@ func (ns *NotificationService) SendPenghuluAssignmentNotification(pendaftaranID 
 
 	// Notifikasi untuk calon istri juga
 	if pendaftaran.Calon_istri_id != pendaftaran.Calon_suami_id {
-		calonNotification.User_id = pendaftaran.Calon_istri_id
+		calonNotification.User_id = calonIstri.User_id
 		if err := ns.DB.Create(&calonNotification).Error; err != nil {
 			log.Printf("Gagal mengirim notifikasi ke calon istri: %v", err)
 		}
@@ -299,16 +304,16 @@ func (ns *NotificationService) SendReminderNotification() error {
 	for _, pendaftaran := range pendaftaranBesok {
 		// Ambil data calon suami dan istri
 		var calonSuami, calonIstri structs.CalonPasangan
-		if err := ns.DB.Where("user_id = ?", pendaftaran.Calon_suami_id).First(&calonSuami).Error; err != nil {
+		if err := ns.DB.Where("id = ?", pendaftaran.Calon_suami_id).First(&calonSuami).Error; err != nil {
 			continue
 		}
-		if err := ns.DB.Where("user_id = ?", pendaftaran.Calon_istri_id).First(&calonIstri).Error; err != nil {
+		if err := ns.DB.Where("id = ?", pendaftaran.Calon_istri_id).First(&calonIstri).Error; err != nil {
 			continue
 		}
 
 		// Notifikasi pengingat untuk calon suami
 		reminderNotification := structs.Notifikasi{
-			User_id: pendaftaran.Calon_suami_id,
+			User_id: calonSuami.User_id,
 			Judul:   "Pengingat Nikah Besok",
 			Pesan: fmt.Sprintf("Pengingat: Nikah Anda dengan %s akan dilaksanakan besok (%s) pukul %s di %s. Pastikan semua persiapan sudah siap!",
 				calonIstri.Nama_lengkap,
@@ -326,7 +331,7 @@ func (ns *NotificationService) SendReminderNotification() error {
 
 		// Notifikasi pengingat untuk calon istri juga
 		if pendaftaran.Calon_istri_id != pendaftaran.Calon_suami_id {
-			reminderNotification.User_id = pendaftaran.Calon_istri_id
+			reminderNotification.User_id = calonIstri.User_id
 			if err := ns.DB.Create(&reminderNotification).Error; err != nil {
 				log.Printf("Gagal mengirim notifikasi pengingat ke calon istri: %v", err)
 			}

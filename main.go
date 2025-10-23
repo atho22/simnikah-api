@@ -709,11 +709,11 @@ func GetKalenderTanggalDetail(c *gin.Context) {
 			}
 		}
 
-		// Ambil nama calon suami & istri berdasarkan user_id
+		// Ambil nama calon suami & istri berdasarkan ID
 		var calonSuami structs.CalonPasangan
 		var calonIstri structs.CalonPasangan
-		_ = DB.Where("user_id = ?", p.Calon_suami_id).First(&calonSuami).Error
-		_ = DB.Where("user_id = ?", p.Calon_istri_id).First(&calonIstri).Error
+		_ = DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami).Error
+		_ = DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri).Error
 
 		entries = append(entries, map[string]interface{}{
 			"id":                p.ID,
