@@ -2,7 +2,6 @@ package helper
 
 import "strings"
 
-// StartsWith checks if string starts with prefix
 func StartsWith(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }

@@ -542,11 +542,30 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 
 	// Determine wedding address based on location
 	var alamatAkad string
+	var latitude, longitude *float64
+
 	if dataFormPendaftaran.JadwalDanLokasi.LokasiNikah == "Di KUA" {
-		alamatAkad = "KUA Banjarmasin Utara, Jl. Ahmad Yani No. 123, Banjarmasin Utara, Kota Banjarmasin, Kalimantan Selatan"
+		alamatAkad = "KUA Kecamatan Banjarmasin Utara, Kelurahan Pangeran, Kecamatan Banjarmasin Utara, Kota Banjarmasin, Kalimantan Selatan"
+		// Koordinat KUA Banjarmasin Utara (contoh)
+		lat := -3.3148
+		lon := 114.5925
+		latitude = &lat
+		longitude = &lon
 	} else {
 		// Use provided address for outside KUA
 		alamatAkad = dataFormPendaftaran.JadwalDanLokasi.AlamatNikah
+
+		// Dapatkan koordinat dari alamat menggunakan OpenStreetMap Nominatim API (GRATIS)
+		lat, lon, err := helper.GetCoordinatesFromAddress(alamatAkad)
+		if err != nil {
+			// Log error tapi tidak menghentikan proses pendaftaran
+			fmt.Printf("Warning: Gagal mendapatkan koordinat untuk alamat '%s': %v\n", alamatAkad, err)
+			// Koordinat akan tetap nil jika gagal
+		} else {
+			latitude = &lat
+			longitude = &lon
+			fmt.Printf("Koordinat berhasil didapatkan: %.6f, %.6f untuk alamat '%s'\n", lat, lon, alamatAkad)
+		}
 	}
 
 	// Create marriage registration
@@ -561,6 +580,8 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		Tempat_nikah:        dataFormPendaftaran.JadwalDanLokasi.LokasiNikah,
 		Nomor_dispensasi:    dataFormPendaftaran.JadwalDanLokasi.NomorDispensasi,
 		Alamat_akad:         alamatAkad,
+		Latitude:            latitude,
+		Longitude:           longitude,
 		Status_pendaftaran:  "Menunggu Verifikasi",
 		Created_at:          time.Now(),
 		Updated_at:          time.Now(),

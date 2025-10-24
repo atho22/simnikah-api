@@ -30,6 +30,11 @@ env:
   # Server Configuration
   PORT: "8080"
   GIN_MODE: "release"
+  
+  # CORS Configuration
+  # Set your frontend domain(s) here, comma-separated
+  # Example: "https://your-frontend.com,https://app.your-domain.com"
+  ALLOWED_ORIGINS: "${ALLOWED_ORIGINS}"
 
 # Scaling Configuration
 scaling:

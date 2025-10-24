@@ -146,7 +146,7 @@ Authorization: Bearer <jwt_token>
       "status_pendaftaran": "Menunggu Verifikasi",
       "tanggal_nikah": "2024-02-14T00:00:00Z",
       "tempat_nikah": "Di KUA",
-      "alamat_akad": "KUA Banjarmasin Utara",
+      "alamat_akad": "KUA Kecamatan Banjarmasin Utara, Kelurahan Pangeran, Kecamatan Banjarmasin Utara, Kota Banjarmasin, Kalimantan Selatan",
       "created_at": "2024-01-01T00:00:00Z"
     }
   }
@@ -745,9 +745,11 @@ GET /simnikah/kalender-ketersediaan?bulan=02&tahun=2024
     "kapasitas_harian": 9,
     "penghulu_info": {
       "total_penghulu": 4,
-      "penghulu_aktif": 3,
-      "penghulu_cadangan": 1,
-      "nikah_per_penghulu": 3
+      "penghulu_aktif": 4,
+      "penghulu_cadangan": 0,
+      "slot_waktu_per_hari": 9,
+      "nikah_per_slot": 4,
+      "total_kapasitas_harian": 9
     },
     "kalender": [
       {
@@ -874,7 +876,7 @@ GET /simnikah/penghulu-jadwal/2024-02-14
   "message": "Jadwal penghulu berhasil diambil",
   "data": {
     "tanggal": "2024-02-14",
-    "total_penghulu": 3,
+    "total_penghulu": 4,
     "total_kapasitas": 9,
     "total_terisi": 2,
     "total_sisa": 7,
@@ -995,7 +997,7 @@ Authorization: Bearer <jwt_token>
         "tanggal_nikah": "2024-02-14",
         "waktu_nikah": "09:00",
         "tempat_nikah": "Di KUA",
-        "alamat_akad": "KUA Banjarmasin Utara",
+        "alamat_akad": "KUA Kecamatan Banjarmasin Utara, Kelurahan Pangeran, Kecamatan Banjarmasin Utara, Kota Banjarmasin, Kalimantan Selatan",
         "status_pendaftaran": "Menunggu Penugasan",
         "created_at": "2024-01-01T00:00:00Z"
       }
@@ -1088,7 +1090,7 @@ Authorization: Bearer <jwt_token>
   "tanggal_bimbingan": "2024-02-07",
   "waktu_mulai": "08:00",
   "waktu_selesai": "12:00",
-  "tempat_bimbingan": "Aula KUA Banjarmasin Utara",
+  "tempat_bimbingan": "Aula KUA Kecamatan Banjarmasin Utara",
   "pembimbing": "Ustadz Ahmad",
   "kapasitas": 10,
   "catatan": "Bimbingan untuk calon pasangan yang akan menikah"
@@ -1104,7 +1106,7 @@ Authorization: Bearer <jwt_token>
     "tanggal_bimbingan": "2024-02-07T00:00:00Z",
     "waktu_mulai": "08:00",
     "waktu_selesai": "12:00",
-    "tempat_bimbingan": "Aula KUA Banjarmasin Utara",
+    "tempat_bimbingan": "Aula KUA Kecamatan Banjarmasin Utara",
     "pembimbing": "Ustadz Ahmad",
     "kapasitas": 10,
     "status": "Aktif",
@@ -1148,7 +1150,7 @@ GET /simnikah/bimbingan?bulan=02&tahun=2024&status=Aktif
         "tanggal_bimbingan": "2024-02-07",
         "waktu_mulai": "08:00",
         "waktu_selesai": "12:00",
-        "tempat_bimbingan": "Aula KUA Banjarmasin Utara",
+        "tempat_bimbingan": "Aula KUA Kecamatan Banjarmasin Utara",
         "pembimbing": "Ustadz Ahmad",
         "kapasitas": 10,
         "jumlah_peserta": 5,
@@ -1182,7 +1184,7 @@ Authorization: Bearer <jwt_token>
     "tanggal_bimbingan": "2024-02-07",
     "waktu_mulai": "08:00",
     "waktu_selesai": "12:00",
-    "tempat_bimbingan": "Aula KUA Banjarmasin Utara",
+    "tempat_bimbingan": "Aula KUA Kecamatan Banjarmasin Utara",
     "pembimbing": "Ustadz Ahmad",
     "kapasitas": 10,
     "jumlah_peserta": 5,
@@ -1210,7 +1212,7 @@ Authorization: Bearer <jwt_token>
 {
   "waktu_mulai": "09:00",
   "waktu_selesai": "13:00",
-  "tempat_bimbingan": "Aula KUA Banjarmasin Utara (Updated)",
+  "tempat_bimbingan": "Aula KUA Kecamatan Banjarmasin Utara (Updated)",
   "pembimbing": "Ustadz Ahmad (Updated)",
   "kapasitas": 15,
   "status": "Aktif",
@@ -1226,7 +1228,7 @@ Authorization: Bearer <jwt_token>
     "id": 1,
     "waktu_mulai": "09:00",
     "waktu_selesai": "13:00",
-    "tempat_bimbingan": "Aula KUA Banjarmasin Utara (Updated)",
+    "tempat_bimbingan": "Aula KUA Kecamatan Banjarmasin Utara (Updated)",
     "pembimbing": "Ustadz Ahmad (Updated)",
     "kapasitas": 15,
     "status": "Aktif",
@@ -1276,7 +1278,7 @@ GET /simnikah/bimbingan-kalender?bulan=02&tahun=2024
           "id": 1,
           "waktu_mulai": "08:00",
           "waktu_selesai": "12:00",
-          "tempat_bimbingan": "Aula KUA Banjarmasin Utara",
+          "tempat_bimbingan": "Aula KUA Kecamatan Banjarmasin Utara",
           "pembimbing": "Ustadz Ahmad",
           "kapasitas": 10,
           "jumlah_peserta": 5
@@ -1307,7 +1309,7 @@ Authorization: Bearer <jwt_token>
     "bimbingan_id": 1,
     "tanggal": "2024-02-07",
     "waktu": "08:00 - 12:00",
-    "tempat": "Aula KUA Banjarmasin Utara",
+    "tempat": "Aula KUA Kecamatan Banjarmasin Utara",
     "pembimbing": "Ustadz Ahmad"
   }
 }
@@ -1333,7 +1335,7 @@ Authorization: Bearer <jwt_token>
     "bimbingan_id": 1,
     "tanggal": "2024-02-07",
     "waktu": "08:00 - 12:00",
-    "tempat": "Aula KUA Banjarmasin Utara",
+    "tempat": "Aula KUA Kecamatan Banjarmasin Utara",
     "pembimbing": "Ustadz Ahmad",
     "kapasitas": 10,
     "jumlah_peserta": 5,
@@ -1841,7 +1843,7 @@ GET /simnikah/pendaftaran?page=1&limit=10&status=Menunggu Verifikasi&search=Ahma
         "tanggal_nikah": "2024-02-14T00:00:00Z",
         "waktu_nikah": "09:00",
         "tempat_nikah": "Di KUA",
-        "alamat_akad": "KUA Banjarmasin Utara",
+        "alamat_akad": "KUA Kecamatan Banjarmasin Utara, Kelurahan Pangeran, Kecamatan Banjarmasin Utara, Kota Banjarmasin, Kalimantan Selatan",
         "nomor_dispensasi": "",
         "penghulu_id": null,
         "catatan": "",

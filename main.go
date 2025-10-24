@@ -18,6 +18,7 @@ import (
 	"simnikah/staff"
 	"simnikah/structs"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
@@ -65,6 +66,23 @@ func main() {
 	}
 
 	r := gin.Default()
+
+	// Configure CORS middleware
+	corsConfig := cors.Config{
+		AllowOrigins: getAllowedOrigins(),
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Type",
+			"Accept",
+			"Authorization",
+			"X-Requested-With",
+		},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}
+	r.Use(cors.New(corsConfig))
 
 	catinHandler := &catin.InDB{DB: DB}
 	staffHandler := &staff.InDB{DB: DB}
@@ -159,6 +177,9 @@ func main() {
 		simnikahRoutes.GET("/bimbingan/:id/undangan", AuthMiddleware(), CetakUndanganBimbingan)
 		simnikahRoutes.GET("/bimbingan/:id/undangan-semua", AuthMiddleware(), MultiRoleMiddleware("staff", "kepala_kua"), CetakUndanganBimbinganSemua)
 
+		// Geocoding API untuk mendapatkan koordinat alamat (GRATIS menggunakan OpenStreetMap)
+		simnikahRoutes.GET("/geocoding/coordinates", AuthMiddleware(), GetAddressCoordinates)
+
 		// Status Management
 		simnikahRoutes.GET("/pendaftaran/:id/status-flow", AuthMiddleware(), GetStatusFlow)
 		simnikahRoutes.PUT("/pendaftaran/:id/complete-bimbingan", AuthMiddleware(), MultiRoleMiddleware("staff", "kepala_kua"), CompleteBimbingan)
@@ -207,6 +228,34 @@ func getJWTKey() []byte {
 		return []byte("secret-key-boleh-diubah-untuk-simnikah")
 	}
 	return []byte(key)
+}
+
+// getAllowedOrigins returns allowed origins for CORS from environment or uses defaults
+func getAllowedOrigins() []string {
+	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+
+	if allowedOrigins == "" {
+		// Default origins for development
+		log.Println("Info: Using default CORS origins. Set ALLOWED_ORIGINS environment variable for production.")
+		return []string{
+			"http://localhost:3000",
+			"http://localhost:3001",
+			"http://localhost:5173", // Vite default
+			"http://localhost:5174",
+			"http://localhost:8080",
+			"http://127.0.0.1:3000",
+			"http://127.0.0.1:5173",
+		}
+	}
+
+	// Split comma-separated origins from environment variable
+	origins := strings.Split(allowedOrigins, ",")
+	for i, origin := range origins {
+		origins[i] = strings.TrimSpace(origin)
+	}
+
+	log.Printf("Info: CORS allowed origins: %v", origins)
+	return origins
 }
 
 // RegisterUser handles user registration
@@ -571,19 +620,29 @@ func GetKalenderKetersediaan(c *gin.Context) {
 		return
 	}
 
-	// Hitung kapasitas per hari berdasarkan penghulu
-	// 4 penghulu (3 aktif + 1 cadangan), setiap penghulu maksimal 3 nikah per hari
-	jumlahPenghuluAktif := 3
-	nikahPerPenghulu := 3
-	kapasitasPerHari := jumlahPenghuluAktif * nikahPerPenghulu // 3 * 3 = 9 nikah per hari
+	// Hitung kapasitas per hari: maksimal 9 pernikahan di KUA per hari
+	// Nikah di KUA: 1 per slot waktu (tidak bisa bersamaan)
+	// Nikah di luar KUA: tidak dibatasi (4 penghulu bisa bersamaan)
+	kapasitasPerHari := 9 // Total maksimal 9 pernikahan di KUA per hari
 
 	// Buat map untuk menghitung jumlah per hari dan kategori warna
 	totalPerHari := make(map[string]int)
-	kuningPerHari := make(map[string]int) // status awal (belum selesai berkas)
-	hijauPerHari := make(map[string]int)  // status sudah fix
+	kuningPerHari := make(map[string]int)         // status awal (belum selesai berkas)
+	hijauPerHari := make(map[string]int)          // status sudah fix
+	nikahDiKUAPerHari := make(map[string]int)     // nikah di KUA per hari
+	nikahDiLuarKUAPerHari := make(map[string]int) // nikah di luar KUA per hari
+
 	for _, p := range pendaftaran {
 		tanggal := p.Tanggal_nikah.Format("2006-01-02")
 		totalPerHari[tanggal]++
+
+		// Hitung nikah di KUA dan di luar KUA
+		if p.Tempat_nikah == "Di KUA" {
+			nikahDiKUAPerHari[tanggal]++
+		} else {
+			nikahDiLuarKUAPerHari[tanggal]++
+		}
+
 		// Kategori warna: kuning untuk status awal; hijau untuk status setelah berkas fix
 		s := p.Status_pendaftaran
 		if s == "Menunggu Verifikasi" || s == "Menunggu Pengumpulan Berkas" {
@@ -602,7 +661,9 @@ func GetKalenderKetersediaan(c *gin.Context) {
 		tanggalTime := time.Date(tahunInt, time.Month(bulanInt), tanggal, 0, 0, 0, 0, time.UTC)
 
 		// Hitung jumlah nikah yang sudah terjadwal
-		jumlahNikah := totalPerHari[tanggalStr]
+		jumlahNikahTotal := totalPerHari[tanggalStr]
+		jumlahNikahKUA := nikahDiKUAPerHari[tanggalStr]
+		jumlahNikahLuarKUA := nikahDiLuarKUAPerHari[tanggalStr]
 		kuningCount := kuningPerHari[tanggalStr]
 		hijauCount := hijauPerHari[tanggalStr]
 
@@ -614,7 +675,7 @@ func GetKalenderKetersediaan(c *gin.Context) {
 			warnaHari = "kuning"
 		}
 
-		// Tentukan status ketersediaan
+		// Tentukan status ketersediaan (hanya untuk nikah di KUA)
 		var status string
 		var tersedia bool
 		var sisaKuota int
@@ -624,8 +685,8 @@ func GetKalenderKetersediaan(c *gin.Context) {
 			status = "Terlewat"
 			tersedia = false
 			sisaKuota = 0
-		} else if jumlahNikah >= kapasitasPerHari {
-			// Sudah penuh
+		} else if jumlahNikahKUA >= kapasitasPerHari {
+			// Sudah penuh untuk nikah di KUA
 			status = "Penuh"
 			tersedia = false
 			sisaKuota = 0
@@ -633,21 +694,23 @@ func GetKalenderKetersediaan(c *gin.Context) {
 			// Masih tersedia
 			status = "Tersedia"
 			tersedia = true
-			sisaKuota = kapasitasPerHari - jumlahNikah
+			sisaKuota = kapasitasPerHari - jumlahNikahKUA
 		}
 
 		// Tambahkan ke kalender
 		kalender = append(kalender, map[string]interface{}{
-			"tanggal":      tanggal,
-			"tanggal_str":  tanggalStr,
-			"status":       status,
-			"tersedia":     tersedia,
-			"jumlah_nikah": jumlahNikah,
-			"kuning_count": kuningCount,
-			"hijau_count":  hijauCount,
-			"warna":        warnaHari,
-			"sisa_kuota":   sisaKuota,
-			"kapasitas":    kapasitasPerHari,
+			"tanggal":            tanggal,
+			"tanggal_str":        tanggalStr,
+			"status":             status,
+			"tersedia":           tersedia,
+			"jumlah_nikah_total": jumlahNikahTotal,
+			"jumlah_nikah_kua":   jumlahNikahKUA,
+			"jumlah_nikah_luar":  jumlahNikahLuarKUA,
+			"kuning_count":       kuningCount,
+			"hijau_count":        hijauCount,
+			"warna":              warnaHari,
+			"sisa_kuota_kua":     sisaKuota,
+			"kapasitas_kua":      kapasitasPerHari,
 		})
 	}
 
@@ -660,10 +723,12 @@ func GetKalenderKetersediaan(c *gin.Context) {
 			"nama_bulan":       awalBulan.Month().String(),
 			"kapasitas_harian": kapasitasPerHari,
 			"penghulu_info": gin.H{
-				"total_penghulu":     4,
-				"penghulu_aktif":     jumlahPenghuluAktif,
-				"penghulu_cadangan":  1,
-				"nikah_per_penghulu": nikahPerPenghulu,
+				"total_penghulu":         4,
+				"penghulu_aktif":         4,
+				"penghulu_cadangan":      0,
+				"slot_waktu_per_hari":    9,
+				"nikah_per_slot":         4,
+				"total_kapasitas_harian": kapasitasPerHari,
 			},
 			"kalender": kalender,
 		},
@@ -766,12 +831,28 @@ func GetKetersediaanTanggal(c *gin.Context) {
 		return
 	}
 
-	// Kapasitas per hari berdasarkan penghulu
-	// 4 penghulu (3 aktif + 1 cadangan), setiap penghulu maksimal 3 nikah per hari
-	jumlahPenghuluAktif := 3
-	nikahPerPenghulu := 3
-	kapasitasPerHari := jumlahPenghuluAktif * nikahPerPenghulu // 3 * 3 = 9 nikah per hari
-	jumlahNikah := len(pendaftaran)
+	// Hitung kapasitas berdasarkan lokasi nikah
+	// Nikah di KUA: maksimal 9 pernikahan per hari (1 per slot)
+	// Nikah di luar KUA: tidak ada batasan (4 penghulu bisa bersamaan)
+	var kapasitasPerHari int
+	var jumlahNikah int
+
+	// Hitung nikah di KUA dan di luar KUA
+	nikahDiKUA := 0
+	nikahDiLuarKUA := 0
+
+	for _, p := range pendaftaran {
+		if p.Tempat_nikah == "Di KUA" {
+			nikahDiKUA++
+		} else {
+			nikahDiLuarKUA++
+		}
+	}
+
+	// Kapasitas untuk nikah di KUA: 9 per hari (1 per slot waktu)
+	kapasitasKUA := 9
+	kapasitasPerHari = kapasitasKUA
+	jumlahNikah = nikahDiKUA // Hanya hitung nikah di KUA untuk kapasitas
 	sisaKuota := kapasitasPerHari - jumlahNikah
 
 	// Tentukan status
@@ -801,13 +882,16 @@ func GetKetersediaanTanggal(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Detail ketersediaan tanggal berhasil diambil",
 		"data": gin.H{
-			"tanggal":       tanggalParam,
-			"status":        status,
-			"tersedia":      tersedia,
-			"jumlah_nikah":  jumlahNikah,
-			"sisa_kuota":    sisaKuota,
-			"kapasitas":     kapasitasPerHari,
-			"jadwal_detail": jadwalDetail,
+			"tanggal":           tanggalParam,
+			"status":            status,
+			"tersedia":          tersedia,
+			"jumlah_nikah_kua":  nikahDiKUA,
+			"jumlah_nikah_luar": nikahDiLuarKUA,
+			"total_nikah":       len(pendaftaran),
+			"sisa_kuota_kua":    sisaKuota,
+			"kapasitas_kua":     kapasitasPerHari,
+			"keterangan":        "Kapasitas hanya berlaku untuk nikah di KUA. Nikah di luar KUA tidak dibatasi.",
+			"jadwal_detail":     jadwalDetail,
 		},
 	})
 }
@@ -968,7 +1052,7 @@ func AssignPenghulu(c *gin.Context) {
 		[]string{"Menunggu Verifikasi Penghulu", "Menunggu Bimbingan", "Sudah Bimbingan", "Selesai"},
 	).Count(&count)
 
-	// Batasi total pernikahan per hari: maksimal 9 (global, semua penghulu)
+	// Batasi total pernikahan per hari: maksimal 9 pernikahan per hari
 	var totalPerHari int64
 	DB.Model(&structs.PendaftaranNikah{}).Where(
 		"DATE(tanggal_nikah) = ? AND status_pendaftaran IN ?",
@@ -1013,7 +1097,7 @@ func AssignPenghulu(c *gin.Context) {
 		}
 
 		// Jika selisih kurang dari 1 jam (60 menit), dianggap konflik
-		// Asumsi: setiap nikah membutuhkan minimal 1 jam (persiapan + akad + dokumentasi)
+		// Asumsi: setiap slot berjarak 1 jam, maksimal 4 pernikahan bersamaan per slot
 		if selisihMenit < 60 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Konflik jadwal! Penghulu sudah memiliki jadwal pada waktu yang berdekatan",
@@ -1156,7 +1240,7 @@ func ChangePenghulu(c *gin.Context) {
 					"waktu_konflik":   jadwal.Waktu_nikah,
 					"tempat":          jadwal.Tempat_nikah,
 					"selisih_menit":   selisihMenit,
-					"minimal_selisih": "120 menit (2 jam)",
+					"minimal_selisih": "60 menit (1 jam)",
 				},
 			})
 			return
@@ -2127,8 +2211,8 @@ func GetPenghuluKetersediaan(c *gin.Context) {
 		return
 	}
 
-	// Buat slot waktu yang tersedia (08:00 - 16:00, interval 2 jam)
-	slotWaktu := []string{"08:00", "10:00", "12:00", "14:00", "16:00"}
+	// Buat slot waktu yang tersedia (08:00 - 16:00, 9 slot per hari)
+	slotWaktu := []string{"08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"}
 	slotTersedia := make([]map[string]interface{}, 0)
 
 	for _, slot := range slotWaktu {
@@ -2154,8 +2238,8 @@ func GetPenghuluKetersediaan(c *gin.Context) {
 				selisihMenit = -selisihMenit
 			}
 
-			// Jika selisih kurang dari 2 jam, slot tidak tersedia
-			if selisihMenit < 120 {
+			// Jika selisih kurang dari 1 jam, slot tidak tersedia (untuk 4 penghulu bersamaan per slot)
+			if selisihMenit < 60 {
 				tersedia = false
 				konflikJadwal = append(konflikJadwal, map[string]interface{}{
 					"waktu":         jadwal.Waktu_nikah,
@@ -2469,5 +2553,45 @@ func RunReminderNotification(c *gin.Context) {
 		"message":     "Pengingat notifikasi berhasil dijalankan",
 		"executed_by": userID,
 		"executed_at": time.Now(),
+	})
+}
+
+// GetAddressCoordinates mendapatkan koordinat dari alamat menggunakan OpenStreetMap Nominatim API (GRATIS)
+func GetAddressCoordinates(c *gin.Context) {
+	// Ambil parameter alamat dari query string
+	address := c.Query("address")
+	if address == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Parameter alamat diperlukan",
+			"error":   "Parameter 'address' tidak boleh kosong",
+			"example": "/simnikah/geocoding/coordinates?address=Jl. Merdeka No. 123, Banjarmasin",
+		})
+		return
+	}
+
+	// Dapatkan koordinat menggunakan OpenStreetMap Nominatim API (GRATIS)
+	latitude, longitude, err := helper.GetCoordinatesFromAddress(address)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Gagal mendapatkan koordinat",
+			"error":   err.Error(),
+			"address": address,
+		})
+		return
+	}
+
+	// Response berhasil
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Koordinat berhasil didapatkan",
+		"data": gin.H{
+			"address":   address,
+			"latitude":  latitude,
+			"longitude": longitude,
+			"source":    "OpenStreetMap Nominatim API (GRATIS)",
+			"map_url":   fmt.Sprintf("https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=15", latitude, longitude),
+		},
 	})
 }

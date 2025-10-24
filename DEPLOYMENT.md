@@ -62,6 +62,10 @@ JWT_KEY=your-super-secret-jwt-key-minimum-32-characters-long
 # Server Configuration
 PORT=8080
 GIN_MODE=release
+
+# CORS Configuration
+# PENTING: Set domain frontend Anda di sini (comma-separated)
+ALLOWED_ORIGINS=https://your-frontend.vercel.app,https://your-frontend.netlify.app
 ```
 
 ### 3.2 Generate JWT Secret

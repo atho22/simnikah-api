@@ -67,6 +67,8 @@ type PendaftaranNikah struct {
 	Tempat_nikah         string     `gorm:"size:100;not null" json:"tempat_nikah"`
 	Nomor_dispensasi     string     `gorm:"size:50" json:"nomor_dispensasi"`
 	Alamat_akad          string     `gorm:"size:200" json:"alamat_akad"`
+	Latitude             *float64   `json:"latitude"`                                                   // Koordinat lintang untuk alamat nikah di luar KUA
+	Longitude            *float64   `json:"longitude"`                                                  // Koordinat bujur untuk alamat nikah di luar KUA
 	Status_pendaftaran   string     `gorm:"type:VARCHAR(40);default:'Draft'" json:"status_pendaftaran"` // enum -> varchar
 	Status_bimbingan     string     `gorm:"type:VARCHAR(30);default:'Belum'" json:"status_bimbingan"`   // enum -> varchar
 	Penghulu_id          *uint      `json:"id_penghulu"`                                                // ID penghulu yang ditugaskan
