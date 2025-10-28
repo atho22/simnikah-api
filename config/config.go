@@ -60,7 +60,8 @@ func ConnectDB() (*gorm.DB, error) {
 
 	// Create DSN string for MySQL
 	// Format: user:password@tcp(host:port)/dbname?charset=utf8mb4&parseTime=True&loc=Local
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Asia%%2FJakarta",
+	// Use UTC timezone for compatibility (both local and Railway)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=UTC",
 		dbUser, dbPass, dbHost, dbPort, dbName)
 
 	// Log connection details (without password)
