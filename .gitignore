@@ -64,3 +64,24 @@ build/
 # LeapCell specific
 .leapcell/
 leapcell-deploy.log
+
+# === Added by restructure ===
+# Build artifacts
+bin/
+*.exe
+*.exe~
+
+# Test artifacts
+*.test
+*.out
+coverage.html
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
