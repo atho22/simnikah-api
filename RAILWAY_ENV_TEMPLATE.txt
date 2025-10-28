@@ -1,0 +1,46 @@
+==========================================
+RAILWAY ENVIRONMENT VARIABLES
+Copy-Paste ke Raw Editor di Railway
+==========================================
+
+DB_HOST=MySQL.railway.internal
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=GANTI_INI_DENGAN_MYSQL_ROOT_PASSWORD
+DB_NAME=railway
+JWT_KEY=GANTI_INI_DENGAN_HASIL_OPENSSL
+PORT=8080
+GIN_MODE=release
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+
+==========================================
+CARA DAPAT DB_PASSWORD:
+==========================================
+1. Railway → Klik kotak MySQL
+2. Tab Variables
+3. Cari MYSQL_ROOT_PASSWORD
+4. Klik mata 👁️ untuk unhide
+5. COPY password
+6. Paste di DB_PASSWORD=...
+
+==========================================
+CARA DAPAT JWT_KEY:
+==========================================
+Di terminal laptop, jalankan:
+    openssl rand -base64 32
+
+COPY hasilnya, paste di JWT_KEY=...
+
+==========================================
+CARA PASTE DI RAILWAY:
+==========================================
+1. Railway → Klik kotak APLIKASI (simnikah-api)
+2. Tab Variables
+3. Klik "Raw Editor"
+4. HAPUS semua yang ada
+5. PASTE template ini (sudah diganti nilai)
+6. Klik "Update Variables" atau "Add"
+7. Tunggu auto-redeploy (2-3 menit)
+
+==========================================
+

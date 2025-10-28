@@ -43,8 +43,8 @@ func (h *InDB) GetCoordinatesFromAddressEndpoint(c *gin.Context) {
 		return
 	}
 
-	// Dapatkan koordinat menggunakan OpenStreetMap Nominatim API
-	lat, lon, err := helper.GetCoordinatesFromAddress(input.Alamat)
+	// Dapatkan koordinat menggunakan OpenStreetMap Nominatim API (dengan caching)
+	lat, lon, err := helper.GetCoordinatesFromAddressCached(input.Alamat)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -248,8 +248,8 @@ func (h *InDB) UpdateWeddingLocationWithCoordinates(c *gin.Context) {
 		latitude = input.Latitude
 		longitude = input.Longitude
 	} else {
-		// Auto-geocoding
-		lat, lon, err := helper.GetCoordinatesFromAddress(input.AlamatAkad)
+		// Auto-geocoding (dengan caching)
+		lat, lon, err := helper.GetCoordinatesFromAddressCached(input.AlamatAkad)
 		if err != nil {
 			// Log warning tapi tetap lanjut simpan alamat
 			fmt.Printf("Warning: Gagal mendapatkan koordinat untuk alamat '%s': %v\n", input.AlamatAkad, err)

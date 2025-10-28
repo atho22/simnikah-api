@@ -583,8 +583,8 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		// Use provided address for outside KUA
 		alamatAkad = dataFormPendaftaran.JadwalDanLokasi.AlamatNikah
 
-		// Dapatkan koordinat dari alamat menggunakan OpenStreetMap Nominatim API (GRATIS)
-		lat, lon, err := helper.GetCoordinatesFromAddress(alamatAkad)
+		// Dapatkan koordinat dari alamat menggunakan OpenStreetMap Nominatim API (GRATIS + CACHED)
+		lat, lon, err := helper.GetCoordinatesFromAddressCached(alamatAkad)
 		if err != nil {
 			// Log error tapi tidak menghentikan proses pendaftaran
 			fmt.Printf("Warning: Gagal mendapatkan koordinat untuk alamat '%s': %v\n", alamatAkad, err)

@@ -12,44 +12,60 @@ REST API untuk mengelola pendaftaran dan administrasi pernikahan di Kantor Urusa
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Go 1.23.6+
-- MySQL 8.0+
-- Git
+**Pilih deployment method:**
 
-### Installation
-
+### 🚂 Railway (Production - Recommended)
 ```bash
-# Clone repository
-git clone https://github.com/your-username/simpadu.git
-cd simpadu
+# 1. Push ke GitHub
+git push origin main
 
-# Install dependencies
+# 2. Deploy di Railway (30 menit)
+# Buka railway.app → Deploy from GitHub
+```
+📖 **[Tutorial Lengkap Deploy ke Railway](TUTORIAL_DEPLOY_RAILWAY.md)** ← Step-by-step guide
+
+### 🐳 Docker Compose (Local)
+```bash
+# 1. Setup & Run
+cp env.example .env
+docker-compose up -d
+
+# 2. Test
+curl http://localhost:8080/health
+```
+
+### 🖥️ Local Development
+```bash
+# 1. Install dependencies
 go mod download
 
-# Copy environment variables
+# 2. Setup database (MySQL 8.0+)
+# 3. Copy & edit .env
 cp env.example .env
 
-# Edit .env dengan database credentials Anda
-nano .env
-
-# Run application
+# 4. Run
 go run main.go
 ```
 
-Server akan berjalan di `http://localhost:8080`
+📖 **[Quick Start Guide](QUICK_START.md)** ← Panduan lengkap semua method
 
 ---
 
 ## 📚 Documentation
 
+### 🚀 Getting Started
+- **[Tutorial Deploy ke Railway](TUTORIAL_DEPLOY_RAILWAY.md)** - 🆕 Step-by-step deployment tutorial (30 menit)
+- **[Railway Deployment Guide](RAILWAY_DEPLOYMENT.md)** - Complete deployment reference
+
+### 📖 API & Features
 - **[API Documentation](API_DOCUMENTATION.md)** - Complete API reference (50+ endpoints)
 - **[API Testing](API_TESTING_DOCUMENTATION.md)** - Testing guide
 - **[Map Integration](MAP_INTEGRATION.md)** - 🆕 Map & location integration (100% FREE)
 - **[Wali Nikah Validation](WALI_NIKAH_VALIDATION.md)** - 🆕 Sharia-compliant guardian validation
 - **[Status Management](STATUS_MANAGEMENT.md)** - Status constants and best practices
+
+### ⚙️ Configuration
 - **[CORS Setup](CORS_SETUP.md)** - CORS configuration guide
-- **[Railway Deployment](RAILWAY_DEPLOYMENT.md)** - Railway deployment guide
 - **[Migration Guide](MIGRATION_GUIDE.md)** - LeapCell to Railway migration
 
 ---
