@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -14,17 +15,36 @@ import (
 func ConnectDB() (*gorm.DB, error) {
 	// Get database configuration from environment variables or use defaults
 	dbUser := getEnv("DB_USER", "root")
-	dbPass := getEnv("DB_PASSWORD", "")
+	dbPass := os.Getenv("DB_PASSWORD") // Get without fallback to detect if really empty
 	dbHost := getEnv("DB_HOST", "127.0.0.1")
 	dbPort := getEnv("DB_PORT", "3306") // MySQL default port
 	dbName := getEnv("DB_NAME", "simnikah")
 
+	// Log configuration (WITHOUT PASSWORD for security!)
+	log.Printf("=== DATABASE CONFIGURATION ===")
+	log.Printf("DB_HOST: %s", dbHost)
+	log.Printf("DB_PORT: %s", dbPort)
+	log.Printf("DB_USER: %s", dbUser)
+	log.Printf("DB_NAME: %s", dbName)
+	log.Printf("DB_PASSWORD: %s", maskPassword(dbPass))
+	log.Printf("==============================")
+
 	// Validate required environment variables
 	if dbPass == "" {
-		return nil, fmt.Errorf("DB_PASSWORD environment variable is required")
+		// Allow empty password for local development (localhost/127.0.0.1)
+		if dbHost != "127.0.0.1" && dbHost != "localhost" {
+			log.Printf("ERROR: DB_PASSWORD is EMPTY!")
+			log.Printf("Railway Troubleshooting:")
+			log.Printf("1. Check if MySQL service is added to your Railway project")
+			log.Printf("2. In your application service, go to Variables tab")
+			log.Printf("3. Make sure DB_PASSWORD variable is set (not empty)")
+			log.Printf("4. Try setting it manually by copying MYSQL_ROOT_PASSWORD from MySQL service")
+			return nil, fmt.Errorf("DB_PASSWORD environment variable is required for non-localhost connections (current host: %s)", dbHost)
+		}
+		log.Println("⚠️  Warning: Using empty password for localhost MySQL")
 	}
 	if dbHost == "127.0.0.1" || dbHost == "localhost" {
-		log.Println("Warning: Using localhost database. Make sure to set DB_HOST for production.")
+		log.Println("⚠️  Warning: Using localhost database. Make sure to set DB_HOST for production.")
 	}
 
 	// Configure GORM logger
@@ -83,4 +103,16 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// Helper function to mask password for logging (security!)
+func maskPassword(password string) string {
+	if password == "" {
+		return "[EMPTY]"
+	}
+	if len(password) <= 4 {
+		return "****"
+	}
+	// Show first 2 and last 2 characters, mask the rest
+	return password[:2] + strings.Repeat("*", len(password)-4) + password[len(password)-2:]
 }
