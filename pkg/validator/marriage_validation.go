@@ -1,8 +1,10 @@
-package helper
+package validator
 
 import (
 	"fmt"
 	"net/http"
+
+	"simnikah/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -164,7 +166,7 @@ func ValidatePersonFields(person interface{}, personType string, c *gin.Context)
 		}
 
 		// Validate phone number format
-		if len(p.NomorTelepon) < 10 || !StartsWith(p.NomorTelepon, "08") {
+		if len(p.NomorTelepon) < 10 || !utils.StartsWith(p.NomorTelepon, "08") {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "Validasi gagal",
@@ -176,7 +178,7 @@ func ValidatePersonFields(person interface{}, personType string, c *gin.Context)
 		}
 
 		// Validate email format (basic validation)
-		if !IsValidEmail(p.Email) {
+		if !utils.IsValidEmail(p.Email) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "Validasi gagal",

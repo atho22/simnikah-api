@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"simnikah/helper"
-	"simnikah/structs"
+	"simnikah/pkg/utils"
+	"simnikah/internal/models"
 	"time"
 
 	"github.com/gin-gonic/gin"

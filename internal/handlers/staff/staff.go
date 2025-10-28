@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"simnikah/helper"
-	"simnikah/services"
-	"simnikah/structs"
+	"simnikah/pkg/utils"
+	"simnikah/internal/services"
+	"simnikah/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

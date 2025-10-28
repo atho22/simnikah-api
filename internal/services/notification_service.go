@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"simnikah/structs"
+	"simnikah/internal/models"
 
 	"gorm.io/gorm"
 )
@@ -462,7 +462,7 @@ func (ns *NotificationService) SendStaffCreatedNotification(staffUserID, staffNa
 		Pesan:       fmt.Sprintf("Staff baru %s dengan jabatan %s telah berhasil dibuat dan dapat login ke sistem.", staffNama, jabatan),
 		Tipe:        structs.NotifikasiTipeInfo,
 		Status_baca: structs.NotifikasiStatusBelumDibaca,
-		Link:        "/simnikah/staff",
+		Link:        "/simnikah/internal/handlers/staff",
 	}
 
 	// Kirim ke semua kepala KUA

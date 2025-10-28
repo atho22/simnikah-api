@@ -1,9 +1,11 @@
-package helper
+package cache
 
 import (
 	"fmt"
 	"sync"
 	"time"
+
+	"simnikah/pkg/utils"
 )
 
 // GeocodingCache adalah in-memory cache untuk hasil geocoding
@@ -120,7 +122,7 @@ func GetCoordinatesFromAddressCached(address string) (float64, float64, error) {
 
 	// Cache miss - fetch from API
 	fmt.Printf("🌐 Cache MISS: Fetching geocoding untuk '%s' dari OpenStreetMap...\n", address)
-	lat, lon, err := GetCoordinatesFromAddress(address)
+	lat, lon, err := utils.GetCoordinatesFromAddress(address)
 	if err != nil {
 		return 0, 0, err
 	}

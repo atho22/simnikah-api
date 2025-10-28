@@ -1,5 +1,5 @@
 // File: helper/jwt.go
-package helper
+package utils
 
 import (
 	"errors"

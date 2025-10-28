@@ -116,8 +116,8 @@ type Users struct {
 	Role       string    `gorm:"size:20;not null" json:"peran"`                  // user_biasa, penghulu, staff, kepala_kua
 	Status     string    `gorm:"size:20;not null;default:'Aktif'" json:"status"` // Use constants from constants.go
 	Nama       string    `gorm:"size:100;not null" json:"nama"`                  // Nama lengkap user
-	Created_at time.Time `json:"dibuat_pada"`
-	Updated_at time.Time `json:"diperbarui_pada"`
+	Created_at time.Time `gorm:"autoCreateTime" json:"dibuat_pada"`
+	Updated_at time.Time `gorm:"autoUpdateTime" json:"diperbarui_pada"`
 }
 
 // Role definitions - role tersimpan langsung di tabel Users

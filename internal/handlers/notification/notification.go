@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"simnikah/structs"
+	"simnikah/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

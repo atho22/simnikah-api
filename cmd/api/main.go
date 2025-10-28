@@ -12,15 +12,19 @@ import (
 	"syscall"
 	"time"
 
-	"simnikah/catin"
 	"simnikah/config"
-	"simnikah/helper"
-	"simnikah/middleware"
-	"simnikah/notification"
-	"simnikah/penghulu"
-	"simnikah/services"
-	"simnikah/staff"
-	"simnikah/structs"
+	"simnikah/internal/handlers/catin"
+	"simnikah/internal/handlers/kepala_kua"
+	"simnikah/internal/handlers/notification"
+	"simnikah/internal/handlers/penghulu"
+	"simnikah/internal/handlers/staff"
+	"simnikah/internal/middleware"
+	structs "simnikah/internal/models"
+	"simnikah/internal/services"
+	"simnikah/pkg/cache"
+	"simnikah/pkg/crypto"
+	"simnikah/pkg/utils"
+	"simnikah/pkg/validator"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -203,19 +207,19 @@ func main() {
 
 		// ==================== MAP & LOCATION INTEGRATION ====================
 		// Endpoints untuk integrasi peta dan koordinat lokasi nikah
-		
+
 		// Geocoding: Alamat → Koordinat
 		simnikahRoutes.POST("/location/geocode", AuthMiddleware(), catinHandler.GetCoordinatesFromAddressEndpoint)
-		
+
 		// Reverse Geocoding: Koordinat → Alamat
 		simnikahRoutes.POST("/location/reverse-geocode", AuthMiddleware(), catinHandler.GetAddressFromCoordinates)
-		
+
 		// Search Address (untuk autocomplete)
 		simnikahRoutes.GET("/location/search", AuthMiddleware(), catinHandler.SearchAddress)
-		
+
 		// Update lokasi nikah dengan koordinat
 		simnikahRoutes.PUT("/pendaftaran/:id/location", AuthMiddleware(), catinHandler.UpdateWeddingLocationWithCoordinates)
-		
+
 		// Get detail lokasi nikah (untuk penghulu)
 		simnikahRoutes.GET("/pendaftaran/:id/location", AuthMiddleware(), catinHandler.GetWeddingLocationDetail)
 
@@ -258,7 +262,7 @@ func main() {
 		log.Printf("   ✅ Rate limiting (100 req/min per IP)")
 		log.Printf("   ✅ Graceful shutdown (zero downtime deploys)")
 		log.Printf("Environment: %s", os.Getenv("GIN_MODE"))
-		
+
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
@@ -360,7 +364,7 @@ func RegisterUser(c *gin.Context) {
 	userID := "USR" + fmt.Sprintf("%d", time.Now().Unix())
 
 	// Hash password menggunakan sistem KUA yang aman
-	hashedPassword, err := helper.HashPassword(input.Password)
+	hashedPassword, err := crypto.HashPassword(input.Password)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Password tidak memenuhi kriteria keamanan: " + err.Error()})
 		return
@@ -368,13 +372,15 @@ func RegisterUser(c *gin.Context) {
 
 	// Create new user
 	user := structs.Users{
-		User_id:  userID,
-		Username: input.Username,
-		Email:    input.Email,
-		Password: string(hashedPassword),
-		Role:     input.Role,
-		Nama:     input.Nama,
-		Status:   "Aktif",
+		User_id:    userID,
+		Username:   input.Username,
+		Email:      input.Email,
+		Password:   string(hashedPassword),
+		Role:       input.Role,
+		Nama:       input.Nama,
+		Status:     "Aktif",
+		Created_at: time.Now(),
+		Updated_at: time.Now(),
 	}
 
 	if err := DB.Create(&user).Error; err != nil {
@@ -420,7 +426,7 @@ func Login(c *gin.Context) {
 	}
 
 	// Validate password hash menggunakan sistem KUA yang aman
-	if err := helper.VerifyPassword(loginRequest.Password, user.Password); err != nil {
+	if err := crypto.VerifyPassword(loginRequest.Password, user.Password); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Password salah"})
 		return
 	}
@@ -2635,7 +2641,7 @@ func GetAddressCoordinates(c *gin.Context) {
 	}
 
 	// Dapatkan koordinat menggunakan OpenStreetMap Nominatim API (GRATIS)
-	latitude, longitude, err := helper.GetCoordinatesFromAddress(address)
+	latitude, longitude, err := utils.GetCoordinatesFromAddress(address)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,

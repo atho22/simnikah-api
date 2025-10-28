@@ -1,4 +1,8 @@
-package helper
+package validator
+
+import (
+	"simnikah/pkg/utils"
+)
 
 import (
 	"regexp"
