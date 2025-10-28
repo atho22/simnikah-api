@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Address Autocomplete - SimNikah</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .autocomplete-wrapper {
+            position: relative;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .suggestion-item {
+            padding: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .suggestion-item:hover {
+            background: #f8f9ff;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .loading {
+            padding: 15px;
+            text-align: center;
+            color: #666;
+        }
+
+        .no-results {
+            padding: 15px;
+            text-align: center;
+            color: #999;
+        }
+
+        .result-box {
+            background: #f8f9ff;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .result-box h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .result-item {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .result-label {
+            font-weight: 600;
+            color: #333;
+            min-width: 100px;
+        }
+
+        .result-value {
+            color: #666;
+            word-break: break-word;
+        }
+
+        .map-links {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .map-link {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .map-link:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .error-message {
+            background: #fee;
+            border: 2px solid #fcc;
+            color: #c00;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #1976d2;
+        }
+
+        .token-input {
+            background: #fff9e6;
+            border: 2px solid #ffd966;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ Address Autocomplete Demo</h1>
+        <p class="subtitle">SimNikah - OpenStreetMap Integration (100% FREE)</p>
+
+        <div class="info-box">
+            ℹ️ <strong>Cara pakai:</strong> Ketik minimal 3 karakter untuk mulai mencari alamat. Sistem akan otomatis mencari alamat di Indonesia menggunakan OpenStreetMap.
+        </div>
+
+        <div class="form-group">
+            <label for="token">JWT Token (dari login):</label>
+            <input type="text" id="token" class="token-input" placeholder="Paste token JWT Anda di sini..." />
+        </div>
+
+        <div class="form-group">
+            <label for="address">Cari Alamat:</label>
+            <div class="autocomplete-wrapper">
+                <input 
+                    type="text" 
+                    id="address" 
+                    placeholder="Contoh: Banjarmasin, Jl. Pangeran Antasari..." 
+                    autocomplete="off"
+                />
+                <div id="suggestions" class="suggestions" style="display: none;"></div>
+            </div>
+        </div>
+
+        <div id="result" style="display: none;"></div>
+        <div id="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8080/simnikah';
+        let debounceTimer;
+
+        const addressInput = document.getElementById('address');
+        const tokenInput = document.getElementById('token');
+        const suggestionsDiv = document.getElementById('suggestions');
+        const resultDiv = document.getElementById('result');
+        const errorDiv = document.getElementById('error');
+
+        // Debounced search function
+        addressInput.addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            const query = e.target.value.trim();
+
+            if (query.length < 3) {
+                hideSuggestions();
+                return;
+            }
+
+            debounceTimer = setTimeout(() => {
+                searchAddress(query);
+            }, 500); // Wait 500ms after user stops typing
+        });
+
+        async function searchAddress(query) {
+            const token = tokenInput.value.trim();
+            
+            if (!token) {
+                showError('Masukkan JWT token terlebih dahulu!');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                const response = await fetch(
+                    `${API_BASE_URL}/location/search?q=${encodeURIComponent(query)}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+
+                const data = await response.json();
+
+                if (data.success) {
+                    hideError();
+                    displaySuggestions(data.data.results);
+                } else {
+                    showError(data.message || 'Gagal mencari alamat');
+                    hideSuggestions();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Terjadi kesalahan: ' + error.message);
+                hideSuggestions();
+            }
+        }
+
+        function showLoading() {
+            suggestionsDiv.innerHTML = '<div class="loading">🔍 Mencari alamat...</div>';
+            suggestionsDiv.style.display = 'block';
+        }
+
+        function displaySuggestions(suggestions) {
+            if (!suggestions || suggestions.length === 0) {
+                suggestionsDiv.innerHTML = '<div class="no-results">Tidak ada hasil ditemukan</div>';
+                return;
+            }
+
+            let html = '';
+            suggestions.forEach((suggestion, index) => {
+                html += `
+                    <div class="suggestion-item" onclick="selectSuggestion(${index})">
+                        📍 ${suggestion.display_name}
+                    </div>
+                `;
+            });
+
+            suggestionsDiv.innerHTML = html;
+            suggestionsDiv.style.display = 'block';
+
+            // Store suggestions in window for onclick access
+            window.currentSuggestions = suggestions;
+        }
+
+        function selectSuggestion(index) {
+            const suggestion = window.currentSuggestions[index];
+            addressInput.value = suggestion.display_name;
+            hideSuggestions();
+            displayResult(suggestion);
+        }
+
+        function displayResult(data) {
+            const lat = parseFloat(data.latitude);
+            const lon = parseFloat(data.longitude);
+
+            resultDiv.innerHTML = `
+                <div class="result-box">
+                    <h3>✅ Lokasi Ditemukan</h3>
+                    <div class="result-item">
+                        <span class="result-label">Alamat:</span>
+                        <span class="result-value">${data.display_name}</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Latitude:</span>
+                        <span class="result-value">${lat}</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Longitude:</span>
+                        <span class="result-value">${lon}</span>
+                    </div>
+                    <div class="map-links">
+                        <a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" class="map-link">
+                            🗺️ Google Maps
+                        </a>
+                        <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}&zoom=16" target="_blank" class="map-link">
+                            🌍 OpenStreetMap
+                        </a>
+                        <a href="https://www.waze.com/ul?ll=${lat},${lon}&navigate=yes" target="_blank" class="map-link">
+                            🚗 Waze
+                        </a>
+                    </div>
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+        }
+
+        function hideSuggestions() {
+            suggestionsDiv.style.display = 'none';
+        }
+
+        function showError(message) {
+            errorDiv.innerHTML = `<div class="error-message">❌ ${message}</div>`;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            errorDiv.style.display = 'none';
+        }
+
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.autocomplete-wrapper')) {
+                hideSuggestions();
+            }
+        });
+    </script>
+</body>
+</html>
+
+

@@ -19,7 +19,7 @@ type CalonPasangan struct {
 	Kabupaten           string    `gorm:"size:50;not null" json:"kabupaten"`
 	Provinsi            string    `gorm:"size:50;not null" json:"provinsi"`
 	Agama               string    `gorm:"size:20;not null" json:"agama"`
-	Status_perkawinan   string    `gorm:"type:VARCHAR(20);default:'Belum Kawin'" json:"status_perkawinan"` // enum -> varchar + constraint di migration
+	Status_perkawinan   string    `gorm:"size:20;not null;default:'Belum Kawin'" json:"status_perkawinan"` // Use constants from constants.go
 	Pekerjaan           string    `gorm:"size:50" json:"pekerjaan"`
 	Deskripsi_pekerjaan string    `gorm:"size:200" json:"deskripsi_pekerjaan"`
 	Penghasilan         string    `gorm:"size:50" json:"penghasilan"`
@@ -49,8 +49,8 @@ type DataOrangTua struct {
 	Tanggal_lahir       *time.Time `json:"tanggal_lahir"`
 	Pekerjaan_lain      string     `gorm:"size:50" json:"pekerjaan_lain"`
 	Alamat              string     `gorm:"size:200" json:"alamat"`
-	Status_keberadaan   string     `gorm:"type:VARCHAR(20);default:'Hidup'" json:"status_keberadaan"` // enum -> varchar
-	Jenis_kelamin       string     `gorm:"type:VARCHAR(1);not null" json:"jenis_kelamin"`             // L = Ayah, P = Ibu
+	Status_keberadaan   string     `gorm:"size:20;not null;default:'Hidup'" json:"status_keberadaan"` // Use constants from constants.go
+	Jenis_kelamin       string     `gorm:"size:1;not null" json:"jenis_kelamin"`                      // L = Ayah, P = Ibu
 	Created_at          time.Time  `json:"dibuat_pada"`
 	Updated_at          time.Time  `json:"diperbarui_pada"`
 }
@@ -69,8 +69,8 @@ type PendaftaranNikah struct {
 	Alamat_akad          string     `gorm:"size:200" json:"alamat_akad"`
 	Latitude             *float64   `json:"latitude"`                                                   // Koordinat lintang untuk alamat nikah di luar KUA
 	Longitude            *float64   `json:"longitude"`                                                  // Koordinat bujur untuk alamat nikah di luar KUA
-	Status_pendaftaran   string     `gorm:"type:VARCHAR(40);default:'Draft'" json:"status_pendaftaran"` // enum -> varchar
-	Status_bimbingan     string     `gorm:"type:VARCHAR(30);default:'Belum'" json:"status_bimbingan"`   // enum -> varchar
+	Status_pendaftaran   string     `gorm:"size:40;not null;default:'Draft'" json:"status_pendaftaran"` // Use constants from constants.go
+	Status_bimbingan     string     `gorm:"size:30;not null;default:'Belum'" json:"status_bimbingan"`   // Use constants from constants.go
 	Penghulu_id          *uint      `json:"id_penghulu"`                                                // ID penghulu yang ditugaskan
 	Penghulu_assigned_by string     `gorm:"size:20" json:"penghulu_ditugaskan_oleh"`                    // ID kepala KUA yang assign
 	Penghulu_assigned_at *time.Time `json:"penghulu_ditugaskan_pada"`                                   // Waktu assign penghulu
@@ -98,8 +98,8 @@ type WaliNikah struct {
 	Pekerjaan         string     `gorm:"size:50" json:"pekerjaan"`
 	No_paspor         string     `gorm:"size:20" json:"nomor_paspor"`
 	Pekerjaan_lain    string     `gorm:"size:50" json:"pekerjaan_lain"`
-	Status_keberadaan string     `gorm:"type:VARCHAR(20);default:'Hidup'" json:"status_keberadaan"`          // enum -> varchar
-	Status_kehadiran  string     `gorm:"type:VARCHAR(20);default:'Belum Diketahui'" json:"status_kehadiran"` // enum -> varchar
+	Status_keberadaan string     `gorm:"size:20;not null;default:'Hidup'" json:"status_keberadaan"` // Use constants from constants.go
+	Status_kehadiran  string     `gorm:"size:20;not null;default:'Belum'" json:"status_kehadiran"`  // Use constants from constants.go
 	Created_at        time.Time  `json:"dibuat_pada"`
 	Updated_at        time.Time  `json:"diperbarui_pada"`
 }
@@ -114,7 +114,7 @@ type Users struct {
 	Email      string    `gorm:"size:100;not null;unique" json:"email"`
 	Password   string    `gorm:"size:255;not null" json:"kata_sandi"`            // hashed with bcrypt
 	Role       string    `gorm:"size:20;not null" json:"peran"`                  // user_biasa, penghulu, staff, kepala_kua
-	Status     string    `gorm:"type:VARCHAR(20);default:'Aktif'" json:"status"` // enum -> varchar
+	Status     string    `gorm:"size:20;not null;default:'Aktif'" json:"status"` // Use constants from constants.go
 	Nama       string    `gorm:"size:100;not null" json:"nama"`                  // Nama lengkap user
 	Created_at time.Time `json:"dibuat_pada"`
 	Updated_at time.Time `json:"diperbarui_pada"`
@@ -138,7 +138,7 @@ type StaffKUA struct {
 	No_hp        string    `gorm:"size:15" json:"nomor_telepon"`
 	Email        string    `gorm:"size:100" json:"email"`
 	Alamat       string    `gorm:"size:200" json:"alamat"`
-	Status       string    `gorm:"type:VARCHAR(20);default:'Aktif'" json:"status"` // enum -> varchar
+	Status       string    `gorm:"size:20;not null;default:'Aktif'" json:"status"` // Use constants from constants.go
 	Created_at   time.Time `json:"dibuat_pada"`
 	Updated_at   time.Time `json:"diperbarui_pada"`
 }
@@ -152,7 +152,7 @@ type Penghulu struct {
 	No_hp        string    `gorm:"size:15" json:"nomor_telepon"`
 	Email        string    `gorm:"size:100" json:"email"`
 	Alamat       string    `gorm:"size:200" json:"alamat"`
-	Status       string    `gorm:"type:VARCHAR(20);default:'Aktif'" json:"status"` // enum -> varchar
+	Status       string    `gorm:"size:20;not null;default:'Aktif'" json:"status"` // Use constants from constants.go
 	Jumlah_nikah int       `gorm:"default:0" json:"jumlah_nikah"`
 	Rating       float64   `gorm:"default:0" json:"rating"`
 	Created_at   time.Time `json:"dibuat_pada"`
@@ -167,8 +167,8 @@ type Notifikasi struct {
 	User_id     string    `gorm:"size:20;not null" json:"id_pengguna"`
 	Judul       string    `gorm:"size:100;not null" json:"judul"`
 	Pesan       string    `gorm:"size:500;not null" json:"pesan"`
-	Tipe        string    `gorm:"type:VARCHAR(10);default:'Info'" json:"tipe"`                  // enum -> varchar
-	Status_baca string    `gorm:"type:VARCHAR(20);default:'Belum Dibaca'" json:"status_dibaca"` // enum -> varchar
+	Tipe        string    `gorm:"size:10;not null;default:'Info'" json:"tipe"`                  // Use constants from constants.go
+	Status_baca string    `gorm:"size:20;not null;default:'Belum Dibaca'" json:"status_dibaca"` // Use constants from constants.go
 	Link        string    `gorm:"size:200" json:"tautan"`
 	Created_at  time.Time `json:"dibuat_pada"`
 	Updated_at  time.Time `json:"diperbarui_pada"`
@@ -183,7 +183,7 @@ type BimbinganPerkawinan struct {
 	Tempat_bimbingan  string    `gorm:"size:100;not null" json:"tempat_bimbingan"`
 	Pembimbing        string    `gorm:"size:100;not null" json:"pembimbing"`
 	Kapasitas         int       `gorm:"default:10" json:"kapasitas"`
-	Status            string    `gorm:"type:VARCHAR(20);default:'Aktif'" json:"status"` // enum -> varchar
+	Status            string    `gorm:"size:20;not null;default:'Aktif'" json:"status"` // Use constants from constants.go
 	Catatan           string    `gorm:"size:500" json:"catatan"`
 	Created_at        time.Time `json:"dibuat_pada"`
 	Updated_at        time.Time `json:"diperbarui_pada"`
@@ -317,8 +317,8 @@ type PendaftaranBimbingan struct {
 	Bimbingan_perkawinan_id uint      `gorm:"not null" json:"id_bimbingan_perkawinan"`
 	Calon_suami_id          string    `gorm:"size:20;not null" json:"id_calon_suami"`
 	Calon_istri_id          string    `gorm:"size:20;not null" json:"id_calon_istri"`
-	Status_kehadiran        string    `gorm:"type:VARCHAR(20);default:'Belum'" json:"status_kehadiran"`  // enum -> varchar
-	Status_sertifikat       string    `gorm:"type:VARCHAR(20);default:'Belum'" json:"status_sertifikat"` // enum -> varchar
+	Status_kehadiran        string    `gorm:"size:20;not null;default:'Belum'" json:"status_kehadiran"`  // Use constants from constants.go
+	Status_sertifikat       string    `gorm:"size:20;not null;default:'Belum'" json:"status_sertifikat"` // Use constants from constants.go
 	No_sertifikat           string    `gorm:"size:50" json:"nomor_sertifikat"`
 	Catatan                 string    `gorm:"size:500" json:"catatan"`
 	Created_at              time.Time `json:"dibuat_pada"`

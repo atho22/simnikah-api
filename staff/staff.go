@@ -41,9 +41,9 @@ func (h *InDB) CreateStaffKUA(c *gin.Context) {
 
 	// Validate jabatan
 	validJabatan := map[string]bool{
-		"Staff":      true,
-		"Penghulu":   true,
-		"Kepala_KUA": true,
+		structs.StaffJabatanStaff:     true,
+		structs.StaffJabatanPenghulu:  true,
+		structs.StaffJabatanKepalaKUA: true,
 	}
 	if !validJabatan[input.Jabatan] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Jabatan tidak valid"})
@@ -80,8 +80,8 @@ func (h *InDB) CreateStaffKUA(c *gin.Context) {
 		Username:   input.Username,
 		Email:      input.Email,
 		Password:   hashedPassword,
-		Role:       "staff",
-		Status:     "Aktif",
+		Role:       structs.UserRoleStaff,
+		Status:     structs.UserStatusAktif,
 		Nama:       input.Nama,
 		Created_at: time.Now(),
 		Updated_at: time.Now(),
@@ -102,7 +102,7 @@ func (h *InDB) CreateStaffKUA(c *gin.Context) {
 		No_hp:        input.No_hp,
 		Email:        input.Email,
 		Alamat:       input.Alamat,
-		Status:       "Aktif",
+		Status:       structs.StaffStatusAktif,
 		Created_at:   time.Now(),
 		Updated_at:   time.Now(),
 	}
@@ -254,8 +254,8 @@ func (h *InDB) CreatePenghulu(c *gin.Context) {
 		Username:   input.Username,
 		Email:      input.Email,
 		Password:   hashedPassword,
-		Role:       "penghulu",
-		Status:     "Aktif",
+		Role:       structs.UserRolePenghulu,
+		Status:     structs.UserStatusAktif,
 		Nama:       input.Nama,
 		Created_at: time.Now(),
 		Updated_at: time.Now(),
@@ -274,7 +274,7 @@ func (h *InDB) CreatePenghulu(c *gin.Context) {
 		No_hp:        input.No_hp,
 		Email:        input.Email,
 		Alamat:       input.Alamat,
-		Status:       "Aktif",
+		Status:       structs.PenghuluStatusAktif,
 		Jumlah_nikah: 0,
 		Rating:       0.0,
 		Created_at:   time.Now(),
@@ -420,7 +420,7 @@ func (h *InDB) VerifyFormulir(c *gin.Context) {
 	}
 
 	// Check if registration is in correct status for form verification
-	if pendaftaran.Status_pendaftaran != "Menunggu Verifikasi" {
+	if pendaftaran.Status_pendaftaran != structs.StatusPendaftaranMenungguVerifikasi {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Status tidak sesuai",
@@ -432,7 +432,7 @@ func (h *InDB) VerifyFormulir(c *gin.Context) {
 	// Update registration status
 	// Jika formulir disetujui, langsung ubah ke "Menunggu Pengumpulan Berkas"
 	if input.Status == "Formulir Disetujui" {
-		pendaftaran.Status_pendaftaran = "Menunggu Pengumpulan Berkas"
+		pendaftaran.Status_pendaftaran = structs.StatusPendaftaranMenungguPengumpulanBerkas
 	} else {
 		pendaftaran.Status_pendaftaran = input.Status
 	}
@@ -459,8 +459,8 @@ func (h *InDB) VerifyFormulir(c *gin.Context) {
 			User_id:     pendaftaran.Pendaftar_id,
 			Judul:       "Formulir Disetujui - Silakan Kumpulkan Berkas",
 			Pesan:       "Formulir pendaftaran nikah Anda telah disetujui. Silakan datang ke kantor KUA dalam 5 hari kerja dengan membawa berkas yang diperlukan untuk melengkapi pendaftaran.",
-			Tipe:        "Success",
-			Status_baca: "Belum Dibaca",
+			Tipe:        structs.NotifikasiTipeSuccess,
+			Status_baca: structs.NotifikasiStatusBelumDibaca,
 			Link:        "/pendaftaran/" + registrationID,
 			Created_at:  time.Now(),
 			Updated_at:  time.Now(),
@@ -470,8 +470,8 @@ func (h *InDB) VerifyFormulir(c *gin.Context) {
 			User_id:     pendaftaran.Pendaftar_id,
 			Judul:       "Formulir Pendaftaran Ditolak",
 			Pesan:       "Formulir pendaftaran nikah Anda ditolak. " + input.Catatan,
-			Tipe:        "Error",
-			Status_baca: "Belum Dibaca",
+			Tipe:        structs.NotifikasiTipeError,
+			Status_baca: structs.NotifikasiStatusBelumDibaca,
 			Link:        "/pendaftaran/" + registrationID,
 			Created_at:  time.Now(),
 			Updated_at:  time.Now(),
@@ -556,7 +556,7 @@ func (h *InDB) VerifyBerkas(c *gin.Context) {
 	}
 
 	// Check if registration is in correct status for document verification
-	if pendaftaran.Status_pendaftaran != "Menunggu Pengumpulan Berkas" {
+	if pendaftaran.Status_pendaftaran != structs.StatusPendaftaranMenungguPengumpulanBerkas {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Status tidak sesuai",
@@ -566,9 +566,9 @@ func (h *InDB) VerifyBerkas(c *gin.Context) {
 	}
 
 	// Update registration status
-	// Jika berkas diterima, ubah ke "Menunggu Penugasan"
+	// Jika berkas diterima, ubah ke "Berkas Diterima"
 	if input.Status == "Berkas Diterima" {
-		pendaftaran.Status_pendaftaran = "Menunggu Penugasan"
+		pendaftaran.Status_pendaftaran = structs.StatusPendaftaranBerkasDiterima
 	} else {
 		pendaftaran.Status_pendaftaran = input.Status
 	}
@@ -594,8 +594,8 @@ func (h *InDB) VerifyBerkas(c *gin.Context) {
 			User_id:     pendaftaran.Pendaftar_id,
 			Judul:       "Berkas Diterima",
 			Pesan:       "Berkas fisik Anda telah diterima. Pendaftaran akan diproses untuk verifikasi oleh penghulu.",
-			Tipe:        "Success",
-			Status_baca: "Belum Dibaca",
+			Tipe:        structs.NotifikasiTipeSuccess,
+			Status_baca: structs.NotifikasiStatusBelumDibaca,
 			Link:        "/pendaftaran/" + registrationID,
 			Created_at:  time.Now(),
 			Updated_at:  time.Now(),
@@ -605,8 +605,8 @@ func (h *InDB) VerifyBerkas(c *gin.Context) {
 			User_id:     pendaftaran.Pendaftar_id,
 			Judul:       "Berkas Ditolak",
 			Pesan:       "Berkas fisik Anda ditolak. " + input.Catatan,
-			Tipe:        "Error",
-			Status_baca: "Belum Dibaca",
+			Tipe:        structs.NotifikasiTipeError,
+			Status_baca: structs.NotifikasiStatusBelumDibaca,
 			Link:        "/pendaftaran/" + registrationID,
 			Created_at:  time.Now(),
 			Updated_at:  time.Now(),

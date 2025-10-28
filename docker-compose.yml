@@ -1,39 +1,49 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:16
-    container_name: simnikah-postgres
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: simnikah-mysql
     environment:
-      POSTGRES_PASSWORD: simnikah123
-      POSTGRES_DB: simnikah
-      POSTGRES_USER: simnikah_user
+      MYSQL_ROOT_PASSWORD: simnikah_root_123
+      MYSQL_DATABASE: simnikah
+      MYSQL_USER: simnikah_user
+      MYSQL_PASSWORD: simnikah123
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - simnikah-network
     restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-psimnikah_root_123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # SimNikah API
   simnikah-api:
     build: .
     container_name: simnikah-api
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
+      DB_HOST: mysql
+      DB_PORT: 3306
       DB_USER: simnikah_user
       DB_PASSWORD: simnikah123
       DB_NAME: simnikah
       JWT_KEY: simnikah-jwt-secret-key-32-chars-minimum
       PORT: 8080
       GIN_MODE: debug
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
     ports:
       - "8080:8080"
     depends_on:
-      - postgres
+      mysql:
+        condition: service_healthy
     networks:
       - simnikah-network
     restart: unless-stopped
@@ -45,7 +55,7 @@ services:
       start_period: 60s
 
 volumes:
-  postgres_data:
+  mysql_data:
 
 networks:
   simnikah-network:

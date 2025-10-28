@@ -163,7 +163,12 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	}
 
 	// Validate marital status
-	daftarStatusPerkawinan := []string{"Belum Kawin", "Kawin", "Cerai Hidup", "Cerai Mati"}
+	daftarStatusPerkawinan := []string{
+		structs.StatusPerkawinanBelumKawin,
+		structs.StatusPerkawinanKawin,
+		structs.StatusPerkawinanCeraiHidup,
+		structs.StatusPerkawinanCeraiMati,
+	}
 	if !helper.CheckValidValue(daftarStatusPerkawinan, dataFormPendaftaran.CalonSuami.Status) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -186,7 +191,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	}
 
 	// Validate guardian status
-	daftarStatusWali := []string{"Hidup", "Wafat"}
+	daftarStatusWali := []string{structs.WaliStatusKeberadaanHidup, structs.WaliStatusKeberadaanMeninggal}
 	if !helper.CheckValidValue(daftarStatusWali, dataFormPendaftaran.WaliNikah.StatusWali) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -197,6 +202,29 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		})
 		return
 	}
+
+	// ==================== VALIDASI WALI NIKAH SESUAI SYARIAT ISLAM ====================
+	// Validasi hubungan wali berdasarkan status ayah kandung calon istri
+	statusAyahCalonIstri := dataFormPendaftaran.OrangTuaCalonIstri.Ayah.StatusKeberadaan
+	hubunganWali := dataFormPendaftaran.WaliNikah.HubunganWali
+
+	// Validasi apakah hubungan wali valid berdasarkan status ayah
+	if !structs.IsValidWaliNikah(hubunganWali, statusAyahCalonIstri) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi Wali Nikah Gagal",
+			"error":   structs.GetPesanValidasiWali(statusAyahCalonIstri),
+			"field":   "hubungan_wali",
+			"type":    "syariat_validation",
+			"details": gin.H{
+				"status_ayah_catin_perempuan": statusAyahCalonIstri,
+				"hubungan_wali_yang_dipilih":  hubunganWali,
+				"urutan_wali_nasab":           structs.GetUrutanWaliNasab(),
+			},
+		})
+		return
+	}
+	// ==================== END VALIDASI WALI NIKAH ====================
 
 	// Validate wedding location
 	daftarLokasiNikah := []string{"Di KUA", "Di Luar KUA"}
@@ -226,7 +254,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	}
 
 	// Validate parent presence status
-	daftarStatusKeberadaan := []string{"Hidup", "Wafat", "Tidak Diketahui"}
+	daftarStatusKeberadaan := []string{structs.StatusKeberadaanHidup, structs.StatusKeberadaanMeninggal, "Tidak Diketahui"}
 	if !helper.CheckValidValue(daftarStatusKeberadaan, dataFormPendaftaran.OrangTuaCalonSuami.Ayah.StatusKeberadaan) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -280,7 +308,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 
 	// Check if user already has an active marriage registration
 	var existingRegistration structs.PendaftaranNikah
-	if err := h.DB.Where("pendaftar_id = ? AND status_pendaftaran NOT IN (?)", userID.(string), []string{"Selesai", "Ditolak"}).First(&existingRegistration).Error; err == nil {
+	if err := h.DB.Where("pendaftar_id = ? AND status_pendaftaran NOT IN (?)", userID.(string), []string{structs.StatusPendaftaranSelesai, structs.StatusPendaftaranDitolak}).First(&existingRegistration).Error; err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Pendaftaran sudah ada",
@@ -408,11 +436,11 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	}
 
 	// Create groom's parents (only if presence status is "Hidup")
-	if dataFormPendaftaran.OrangTuaCalonSuami.Ayah.StatusKeberadaan == "Hidup" {
+	if dataFormPendaftaran.OrangTuaCalonSuami.Ayah.StatusKeberadaan == structs.StatusKeberadaanHidup {
 		dataAyahSuami := structs.DataOrangTua{
 			User_id:             userID.(string),
 			Jenis_kelamin_calon: "L",
-			Hubungan:            "Ayah",
+			Hubungan:            structs.HubunganAyah,
 			NIK:                 dataFormPendaftaran.OrangTuaCalonSuami.Ayah.Nik,
 			Nama_lengkap:        dataFormPendaftaran.OrangTuaCalonSuami.Ayah.Nama,
 			Warga_negara:        dataFormPendaftaran.OrangTuaCalonSuami.Ayah.Kewarganegaraan,
@@ -422,7 +450,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 			Pekerjaan:           dataFormPendaftaran.OrangTuaCalonSuami.Ayah.Pekerjaan,
 			Pekerjaan_lain:      dataFormPendaftaran.OrangTuaCalonSuami.Ayah.DeskripsiPekerjaan,
 			Alamat:              dataFormPendaftaran.OrangTuaCalonSuami.Ayah.Alamat,
-			Status_keberadaan:   "Hidup",
+			Status_keberadaan:   structs.StatusKeberadaanHidup,
 			Jenis_kelamin:       "L",
 			Created_at:          time.Now(),
 			Updated_at:          time.Now(),
@@ -440,11 +468,11 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		}
 	}
 
-	if dataFormPendaftaran.OrangTuaCalonSuami.Ibu.StatusKeberadaan == "Hidup" {
+	if dataFormPendaftaran.OrangTuaCalonSuami.Ibu.StatusKeberadaan == structs.StatusKeberadaanHidup {
 		dataIbuSuami := structs.DataOrangTua{
 			User_id:             userID.(string),
 			Jenis_kelamin_calon: "L",
-			Hubungan:            "Ibu",
+			Hubungan:            structs.HubunganIbu,
 			NIK:                 dataFormPendaftaran.OrangTuaCalonSuami.Ibu.Nik,
 			Nama_lengkap:        dataFormPendaftaran.OrangTuaCalonSuami.Ibu.Nama,
 			Warga_negara:        dataFormPendaftaran.OrangTuaCalonSuami.Ibu.Kewarganegaraan,
@@ -454,7 +482,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 			Pekerjaan:           dataFormPendaftaran.OrangTuaCalonSuami.Ibu.Pekerjaan,
 			Pekerjaan_lain:      dataFormPendaftaran.OrangTuaCalonSuami.Ibu.DeskripsiPekerjaan,
 			Alamat:              dataFormPendaftaran.OrangTuaCalonSuami.Ibu.Alamat,
-			Status_keberadaan:   "Hidup",
+			Status_keberadaan:   structs.StatusKeberadaanHidup,
 			Jenis_kelamin:       "P",
 			Created_at:          time.Now(),
 			Updated_at:          time.Now(),
@@ -473,11 +501,11 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	}
 
 	// Create bride's parents (only if presence status is "Hidup")
-	if dataFormPendaftaran.OrangTuaCalonIstri.Ayah.StatusKeberadaan == "Hidup" {
+	if dataFormPendaftaran.OrangTuaCalonIstri.Ayah.StatusKeberadaan == structs.StatusKeberadaanHidup {
 		dataAyahIstri := structs.DataOrangTua{
 			User_id:             userID.(string),
 			Jenis_kelamin_calon: "P",
-			Hubungan:            "Ayah",
+			Hubungan:            structs.HubunganAyah,
 			NIK:                 dataFormPendaftaran.OrangTuaCalonIstri.Ayah.Nik,
 			Nama_lengkap:        dataFormPendaftaran.OrangTuaCalonIstri.Ayah.Nama,
 			Warga_negara:        dataFormPendaftaran.OrangTuaCalonIstri.Ayah.Kewarganegaraan,
@@ -487,7 +515,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 			Pekerjaan:           dataFormPendaftaran.OrangTuaCalonIstri.Ayah.Pekerjaan,
 			Pekerjaan_lain:      dataFormPendaftaran.OrangTuaCalonIstri.Ayah.DeskripsiPekerjaan,
 			Alamat:              dataFormPendaftaran.OrangTuaCalonIstri.Ayah.Alamat,
-			Status_keberadaan:   "Hidup",
+			Status_keberadaan:   structs.StatusKeberadaanHidup,
 			Jenis_kelamin:       "L",
 			Created_at:          time.Now(),
 			Updated_at:          time.Now(),
@@ -505,11 +533,11 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		}
 	}
 
-	if dataFormPendaftaran.OrangTuaCalonIstri.Ibu.StatusKeberadaan == "Hidup" {
+	if dataFormPendaftaran.OrangTuaCalonIstri.Ibu.StatusKeberadaan == structs.StatusKeberadaanHidup {
 		dataIbuIstri := structs.DataOrangTua{
 			User_id:             userID.(string),
 			Jenis_kelamin_calon: "P",
-			Hubungan:            "Ibu",
+			Hubungan:            structs.HubunganIbu,
 			NIK:                 dataFormPendaftaran.OrangTuaCalonIstri.Ibu.Nik,
 			Nama_lengkap:        dataFormPendaftaran.OrangTuaCalonIstri.Ibu.Nama,
 			Warga_negara:        dataFormPendaftaran.OrangTuaCalonIstri.Ibu.Kewarganegaraan,
@@ -519,7 +547,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 			Pekerjaan:           dataFormPendaftaran.OrangTuaCalonIstri.Ibu.Pekerjaan,
 			Pekerjaan_lain:      dataFormPendaftaran.OrangTuaCalonIstri.Ibu.DeskripsiPekerjaan,
 			Alamat:              dataFormPendaftaran.OrangTuaCalonIstri.Ibu.Alamat,
-			Status_keberadaan:   "Hidup",
+			Status_keberadaan:   structs.StatusKeberadaanHidup,
 			Jenis_kelamin:       "P",
 			Created_at:          time.Now(),
 			Updated_at:          time.Now(),
@@ -582,7 +610,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		Alamat_akad:         alamatAkad,
 		Latitude:            latitude,
 		Longitude:           longitude,
-		Status_pendaftaran:  "Menunggu Verifikasi",
+		Status_pendaftaran:  structs.StatusPendaftaranMenungguVerifikasi,
 		Created_at:          time.Now(),
 		Updated_at:          time.Now(),
 	}
@@ -608,7 +636,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		No_hp:             dataFormPendaftaran.WaliNikah.NomorTeleponWali,
 		Agama:             dataFormPendaftaran.WaliNikah.AgamaWali,
 		Status_keberadaan: dataFormPendaftaran.WaliNikah.StatusWali,
-		Status_kehadiran:  "Belum Diketahui",
+		Status_kehadiran:  structs.WaliStatusKehadiranBelumDiketahui,
 		Created_at:        time.Now(),
 		Updated_at:        time.Now(),
 	}
@@ -689,7 +717,7 @@ func (h *InDB) MarkAsVisited(c *gin.Context) {
 	}
 
 	// Check if registration is in correct status
-	if pendaftaran.Status_pendaftaran != "Disetujui" {
+	if pendaftaran.Status_pendaftaran != "Disetujui" { // Note: This status is not in constants yet, might be custom
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Status tidak sesuai",
@@ -700,7 +728,7 @@ func (h *InDB) MarkAsVisited(c *gin.Context) {
 	}
 
 	// Update status to indicate they have visited with documents
-	pendaftaran.Status_pendaftaran = "Menunggu Verifikasi"
+	pendaftaran.Status_pendaftaran = structs.StatusPendaftaranMenungguVerifikasi
 	pendaftaran.Updated_at = time.Now()
 
 	if err := h.DB.Save(&pendaftaran).Error; err != nil {
@@ -718,8 +746,8 @@ func (h *InDB) MarkAsVisited(c *gin.Context) {
 		User_id:     "staff", // This should be replaced with actual staff user IDs or a system notification
 		Judul:       "Catin Datang ke Kantor",
 		Pesan:       "Catin dengan nomor pendaftaran " + pendaftaran.Nomor_pendaftaran + " telah datang ke kantor dengan membawa berkas. Silakan verifikasi berkas fisik.",
-		Tipe:        "Info",
-		Status_baca: "Belum Dibaca",
+		Tipe:        structs.NotifikasiTipeInfo,
+		Status_baca: structs.NotifikasiStatusBelumDibaca,
 		Link:        "/staff/pendaftaran/" + registrationID,
 		Created_at:  time.Now(),
 		Updated_at:  time.Now(),

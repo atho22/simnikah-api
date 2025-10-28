@@ -54,10 +54,10 @@ func (h *InDB) CreateNotification(c *gin.Context) {
 
 	// Validasi tipe notifikasi
 	validTypes := map[string]bool{
-		"Info":    true,
-		"Warning": true,
-		"Error":   true,
-		"Success": true,
+		structs.NotifikasiTipeInfo:    true,
+		structs.NotifikasiTipeWarning: true,
+		structs.NotifikasiTipeError:   true,
+		structs.NotifikasiTipeSuccess: true,
 	}
 	if !validTypes[req.Tipe] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Tipe notifikasi tidak valid. Tipe yang tersedia: Info, Warning, Error, Success"})
@@ -77,7 +77,7 @@ func (h *InDB) CreateNotification(c *gin.Context) {
 		Judul:       req.Judul,
 		Pesan:       req.Pesan,
 		Tipe:        req.Tipe,
-		Status_baca: "Belum Dibaca",
+		Status_baca: structs.NotifikasiStatusBelumDibaca,
 		Link:        req.Link,
 	}
 
@@ -142,8 +142,8 @@ func (h *InDB) GetUserNotifications(c *gin.Context) {
 	// Filter berdasarkan status
 	if status != "" {
 		validStatuses := map[string]bool{
-			"Belum Dibaca": true,
-			"Sudah Dibaca": true,
+			structs.NotifikasiStatusBelumDibaca: true,
+			structs.NotifikasiStatusSudahDibaca: true,
 		}
 		if validStatuses[status] {
 			query = query.Where("status_baca = ?", status)
@@ -153,10 +153,10 @@ func (h *InDB) GetUserNotifications(c *gin.Context) {
 	// Filter berdasarkan tipe
 	if tipe != "" {
 		validTypes := map[string]bool{
-			"Info":    true,
-			"Warning": true,
-			"Error":   true,
-			"Success": true,
+			structs.NotifikasiTipeInfo:    true,
+			structs.NotifikasiTipeWarning: true,
+			structs.NotifikasiTipeError:   true,
+			structs.NotifikasiTipeSuccess: true,
 		}
 		if validTypes[tipe] {
 			query = query.Where("tipe = ?", tipe)
@@ -192,7 +192,7 @@ func (h *InDB) GetUserNotifications(c *gin.Context) {
 
 	// Hitung unread count
 	var unreadCount int64
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", userID, "Belum Dibaca").Count(&unreadCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", userID, structs.NotifikasiStatusBelumDibaca).Count(&unreadCount)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "Notifikasi berhasil diambil",
@@ -255,8 +255,8 @@ func (h *InDB) UpdateNotificationStatus(c *gin.Context) {
 
 	// Validasi status
 	validStatuses := map[string]bool{
-		"Belum Dibaca": true,
-		"Sudah Dibaca": true,
+		structs.NotifikasiStatusBelumDibaca: true,
+		structs.NotifikasiStatusSudahDibaca: true,
 	}
 	if !validStatuses[req.Status_baca] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Status tidak valid. Status yang tersedia: Belum Dibaca, Sudah Dibaca"})
@@ -313,7 +313,7 @@ func (h *InDB) MarkAllAsRead(c *gin.Context) {
 	}
 
 	// Update semua notifikasi user menjadi sudah dibaca
-	result := h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", userID, "Belum Dibaca").Update("status_baca", "Sudah Dibaca")
+	result := h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", userID, structs.NotifikasiStatusBelumDibaca).Update("status_baca", structs.NotifikasiStatusSudahDibaca)
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menandai notifikasi sebagai sudah dibaca"})
 		return
@@ -373,13 +373,13 @@ func (h *InDB) GetNotificationStats(c *gin.Context) {
 	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ?", userID).Count(&totalCount)
 
 	// Notifikasi belum dibaca
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", userID, "Belum Dibaca").Count(&unreadCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", userID, structs.NotifikasiStatusBelumDibaca).Count(&unreadCount)
 
 	// Notifikasi berdasarkan tipe
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, "Info").Count(&infoCount)
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, "Warning").Count(&warningCount)
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, "Error").Count(&errorCount)
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, "Success").Count(&successCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, structs.NotifikasiTipeInfo).Count(&infoCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, structs.NotifikasiTipeWarning).Count(&warningCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, structs.NotifikasiTipeError).Count(&errorCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, structs.NotifikasiTipeSuccess).Count(&successCount)
 
 	// Notifikasi hari ini
 	var todayCount int64
@@ -426,10 +426,10 @@ func (h *InDB) SendNotificationToRole(c *gin.Context) {
 
 	// Validasi role
 	validRoles := map[string]bool{
-		"user_biasa": true,
-		"penghulu":   true,
-		"staff":      true,
-		"kepala_kua": true,
+		structs.UserRoleUserBiasa: true,
+		structs.UserRolePenghulu:  true,
+		structs.UserRoleStaff:     true,
+		structs.UserRoleKepalaKUA: true,
 	}
 	if !validRoles[req.Role] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Role tidak valid. Role yang tersedia: user_biasa, penghulu, staff, kepala_kua"})
@@ -438,10 +438,10 @@ func (h *InDB) SendNotificationToRole(c *gin.Context) {
 
 	// Validasi tipe notifikasi
 	validTypes := map[string]bool{
-		"Info":    true,
-		"Warning": true,
-		"Error":   true,
-		"Success": true,
+		structs.NotifikasiTipeInfo:    true,
+		structs.NotifikasiTipeWarning: true,
+		structs.NotifikasiTipeError:   true,
+		structs.NotifikasiTipeSuccess: true,
 	}
 	if !validTypes[req.Tipe] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Tipe notifikasi tidak valid. Tipe yang tersedia: Info, Warning, Error, Success"})
@@ -450,7 +450,7 @@ func (h *InDB) SendNotificationToRole(c *gin.Context) {
 
 	// Ambil semua user dengan role tersebut
 	var users []structs.Users
-	if err := h.DB.Where("role = ? AND status = ?", req.Role, "Aktif").Find(&users).Error; err != nil {
+	if err := h.DB.Where("role = ? AND status = ?", req.Role, structs.UserStatusAktif).Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data user"})
 		return
 	}
@@ -468,7 +468,7 @@ func (h *InDB) SendNotificationToRole(c *gin.Context) {
 			Judul:       req.Judul,
 			Pesan:       req.Pesan,
 			Tipe:        req.Tipe,
-			Status_baca: "Belum Dibaca",
+			Status_baca: structs.NotifikasiStatusBelumDibaca,
 			Link:        req.Link,
 		}
 		notifications = append(notifications, notification)

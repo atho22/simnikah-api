@@ -188,6 +188,24 @@ func main() {
 		// Wedding Address Management
 		simnikahRoutes.PUT("/pendaftaran/:id/alamat", AuthMiddleware(), MultiRoleMiddleware("staff", "kepala_kua"), catinHandler.UpdateWeddingAddress)
 
+		// ==================== MAP & LOCATION INTEGRATION ====================
+		// Endpoints untuk integrasi peta dan koordinat lokasi nikah
+		
+		// Geocoding: Alamat → Koordinat
+		simnikahRoutes.POST("/location/geocode", AuthMiddleware(), catinHandler.GetCoordinatesFromAddressEndpoint)
+		
+		// Reverse Geocoding: Koordinat → Alamat
+		simnikahRoutes.POST("/location/reverse-geocode", AuthMiddleware(), catinHandler.GetAddressFromCoordinates)
+		
+		// Search Address (untuk autocomplete)
+		simnikahRoutes.GET("/location/search", AuthMiddleware(), catinHandler.SearchAddress)
+		
+		// Update lokasi nikah dengan koordinat
+		simnikahRoutes.PUT("/pendaftaran/:id/location", AuthMiddleware(), catinHandler.UpdateWeddingLocationWithCoordinates)
+		
+		// Get detail lokasi nikah (untuk penghulu)
+		simnikahRoutes.GET("/pendaftaran/:id/location", AuthMiddleware(), catinHandler.GetWeddingLocationDetail)
+
 		// Surat Undangan Nikah (commented out - implementation not available)
 		// simnikahRoutes.POST("/surat-undangan", RoleMiddleware("kepala_kua"), catinHandler.CreateSuratUndanganNikah)
 		// simnikahRoutes.GET("/surat-undangan/:pendaftaran_id", AuthMiddleware(), catinHandler.GetSuratUndanganNikah)

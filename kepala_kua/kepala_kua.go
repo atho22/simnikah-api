@@ -58,6 +58,7 @@ func (h *InDB) AssignPenghulu(c *gin.Context) {
 	}
 
 	// Check if registration is in correct status for penghulu assignment
+	// Note: "Berkas Disetujui" status might be a custom status or should be added to constants
 	if pendaftaran.Status_pendaftaran != "Berkas Disetujui" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -69,7 +70,7 @@ func (h *InDB) AssignPenghulu(c *gin.Context) {
 
 	// Check if penghulu exists and is active
 	var penghulu structs.Penghulu
-	if err := h.DB.Where("id = ? AND status = ?", input.PenghuluID, "Aktif").First(&penghulu).Error; err != nil {
+	if err := h.DB.Where("id = ? AND status = ?", input.PenghuluID, structs.PenghuluStatusAktif).First(&penghulu).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"message": "Penghulu tidak ditemukan",
@@ -79,7 +80,7 @@ func (h *InDB) AssignPenghulu(c *gin.Context) {
 	}
 
 	// Update registration with penghulu assignment
-	pendaftaran.Status_pendaftaran = "Penghulu Ditugaskan"
+	pendaftaran.Status_pendaftaran = structs.StatusPendaftaranPenghuluDitugaskan
 	pendaftaran.Penghulu_id = &input.PenghuluID
 	pendaftaran.Penghulu_assigned_by = kepalaKuaID.(string)
 	now := time.Now()
@@ -101,8 +102,8 @@ func (h *InDB) AssignPenghulu(c *gin.Context) {
 		User_id:     penghulu.User_id,
 		Judul:       "Penugasan Nikah Baru",
 		Pesan:       "Anda ditugaskan untuk memimpin nikah dengan nomor pendaftaran: " + pendaftaran.Nomor_pendaftaran + ". Silakan periksa berkas dan verifikasi.",
-		Tipe:        "Info",
-		Status_baca: "Belum Dibaca",
+		Tipe:        structs.NotifikasiTipeInfo,
+		Status_baca: structs.NotifikasiStatusBelumDibaca,
 		Link:        "/penghulu/pendaftaran/" + registrationID,
 		Created_at:  time.Now(),
 		Updated_at:  time.Now(),
@@ -117,8 +118,8 @@ func (h *InDB) AssignPenghulu(c *gin.Context) {
 		User_id:     pendaftaran.Pendaftar_id,
 		Judul:       "Penghulu Ditugaskan",
 		Pesan:       "Penghulu telah ditugaskan untuk menikahkan Anda. Penghulu akan memeriksa berkas Anda.",
-		Tipe:        "Info",
-		Status_baca: "Belum Dibaca",
+		Tipe:        structs.NotifikasiTipeInfo,
+		Status_baca: structs.NotifikasiStatusBelumDibaca,
 		Link:        "/pendaftaran/" + registrationID,
 		Created_at:  time.Now(),
 		Updated_at:  time.Now(),
@@ -148,7 +149,7 @@ func (h *InDB) AssignPenghulu(c *gin.Context) {
 // GetAvailablePenghulus gets list of available penghulus for assignment
 func (h *InDB) GetAvailablePenghulus(c *gin.Context) {
 	var penghulus []structs.Penghulu
-	if err := h.DB.Where("status = ?", "Aktif").Find(&penghulus).Error; err != nil {
+	if err := h.DB.Where("status = ?", structs.PenghuluStatusAktif).Find(&penghulus).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "Database error",
