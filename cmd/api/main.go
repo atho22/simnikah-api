@@ -14,17 +14,14 @@ import (
 
 	"simnikah/config"
 	"simnikah/internal/handlers/catin"
-	"simnikah/internal/handlers/kepala_kua"
 	"simnikah/internal/handlers/notification"
 	"simnikah/internal/handlers/penghulu"
 	"simnikah/internal/handlers/staff"
 	"simnikah/internal/middleware"
 	structs "simnikah/internal/models"
 	"simnikah/internal/services"
-	"simnikah/pkg/cache"
 	"simnikah/pkg/crypto"
 	"simnikah/pkg/utils"
-	"simnikah/pkg/validator"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"

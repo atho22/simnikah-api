@@ -17,10 +17,10 @@ type GeocodingCache struct {
 
 // CachedCoordinate menyimpan koordinat dengan waktu expiry
 type CachedCoordinate struct {
-	Latitude   float64
-	Longitude  float64
-	CachedAt   time.Time
-	ExpiresAt  time.Time
+	Latitude  float64
+	Longitude float64
+	CachedAt  time.Time
+	ExpiresAt time.Time
 }
 
 var (
@@ -34,7 +34,7 @@ func GetGeocodingCache() *GeocodingCache {
 		geocodingCache = &GeocodingCache{
 			cache: make(map[string]*CachedCoordinate),
 		}
-		
+
 		// Start background cleanup goroutine (every 1 hour)
 		go geocodingCache.cleanupExpired()
 	})
@@ -83,14 +83,14 @@ func (gc *GeocodingCache) cleanupExpired() {
 		gc.mu.Lock()
 		now := time.Now()
 		count := 0
-		
+
 		for addr, cached := range gc.cache {
 			if now.After(cached.ExpiresAt) {
 				delete(gc.cache, addr)
 				count++
 			}
 		}
-		
+
 		if count > 0 {
 			fmt.Printf("🧹 Cleaned up %d expired geocoding cache entries\n", count)
 		}
@@ -133,4 +133,3 @@ func GetCoordinatesFromAddressCached(address string) (float64, float64, error) {
 
 	return lat, lon, nil
 }
-

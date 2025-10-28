@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"simnikah/pkg/utils"
-	"simnikah/internal/services"
 	"simnikah/internal/models"
+	"simnikah/internal/services"
+	"simnikah/pkg/crypto"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -68,7 +68,7 @@ func (h *InDB) CreateStaffKUA(c *gin.Context) {
 	userID := "STF" + fmt.Sprintf("%d", time.Now().Unix())
 
 	// Hash password
-	hashedPassword, err := helper.HashPassword(input.Password)
+	hashedPassword, err := crypto.HashPassword(input.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengenkripsi password"})
 		return
@@ -242,7 +242,7 @@ func (h *InDB) CreatePenghulu(c *gin.Context) {
 	userID := "PNG" + fmt.Sprintf("%d", time.Now().Unix())
 
 	// Hash password
-	hashedPassword, err := helper.HashPassword(input.Password)
+	hashedPassword, err := crypto.HashPassword(input.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengenkripsi password"})
 		return

@@ -4,12 +4,15 @@ import (
 	"crypto/md5"
 	"fmt"
 	"net/http"
-	"simnikah/pkg/utils"
-	"simnikah/internal/services"
-	"simnikah/internal/models"
 	"strconv"
 	"strings"
 	"time"
+
+	"simnikah/internal/models"
+	"simnikah/internal/services"
+	"simnikah/pkg/cache"
+	"simnikah/pkg/utils"
+	"simnikah/pkg/validator"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -90,11 +93,11 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	// --- DISPENSASI VALIDATION LOGIC START ---
 	// Calculate working days between registration date (now) and wedding date
 	now := time.Now()
-	workingDays := helper.CalculateWorkingDays(now, tanggalNikah)
+	workingDays := utils.CalculateWorkingDays(now, tanggalNikah)
 
 	// Calculate ages of bride and groom at registration date
-	groomAge := helper.CalculateAge(tanggalLahirSuami, now)
-	brideAge := helper.CalculateAge(tanggalLahirIstri, now)
+	groomAge := utils.CalculateAge(tanggalLahirSuami, now)
+	brideAge := utils.CalculateAge(tanggalLahirIstri, now)
 
 	// Check if dispensation is required
 	requiresDispensation := false
@@ -169,7 +172,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		structs.StatusPerkawinanCeraiHidup,
 		structs.StatusPerkawinanCeraiMati,
 	}
-	if !helper.CheckValidValue(daftarStatusPerkawinan, dataFormPendaftaran.CalonSuami.Status) {
+	if !validator.CheckValidValue(daftarStatusPerkawinan, dataFormPendaftaran.CalonSuami.Status) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Validasi gagal",
@@ -179,7 +182,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		})
 		return
 	}
-	if !helper.CheckValidValue(daftarStatusPerkawinan, dataFormPendaftaran.CalonIstri.Status) {
+	if !validator.CheckValidValue(daftarStatusPerkawinan, dataFormPendaftaran.CalonIstri.Status) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Validasi gagal",
@@ -192,7 +195,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 
 	// Validate guardian status
 	daftarStatusWali := []string{structs.WaliStatusKeberadaanHidup, structs.WaliStatusKeberadaanMeninggal}
-	if !helper.CheckValidValue(daftarStatusWali, dataFormPendaftaran.WaliNikah.StatusWali) {
+	if !validator.CheckValidValue(daftarStatusWali, dataFormPendaftaran.WaliNikah.StatusWali) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Validasi gagal",
@@ -228,7 +231,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 
 	// Validate wedding location
 	daftarLokasiNikah := []string{"Di KUA", "Di Luar KUA"}
-	if !helper.CheckValidValue(daftarLokasiNikah, dataFormPendaftaran.JadwalDanLokasi.LokasiNikah) {
+	if !validator.CheckValidValue(daftarLokasiNikah, dataFormPendaftaran.JadwalDanLokasi.LokasiNikah) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Validasi gagal",
@@ -255,7 +258,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 
 	// Validate parent presence status
 	daftarStatusKeberadaan := []string{structs.StatusKeberadaanHidup, structs.StatusKeberadaanMeninggal, "Tidak Diketahui"}
-	if !helper.CheckValidValue(daftarStatusKeberadaan, dataFormPendaftaran.OrangTuaCalonSuami.Ayah.StatusKeberadaan) {
+	if !validator.CheckValidValue(daftarStatusKeberadaan, dataFormPendaftaran.OrangTuaCalonSuami.Ayah.StatusKeberadaan) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Validasi gagal",
@@ -265,7 +268,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		})
 		return
 	}
-	if !helper.CheckValidValue(daftarStatusKeberadaan, dataFormPendaftaran.OrangTuaCalonSuami.Ibu.StatusKeberadaan) {
+	if !validator.CheckValidValue(daftarStatusKeberadaan, dataFormPendaftaran.OrangTuaCalonSuami.Ibu.StatusKeberadaan) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Validasi gagal",
@@ -275,7 +278,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		})
 		return
 	}
-	if !helper.CheckValidValue(daftarStatusKeberadaan, dataFormPendaftaran.OrangTuaCalonIstri.Ayah.StatusKeberadaan) {
+	if !validator.CheckValidValue(daftarStatusKeberadaan, dataFormPendaftaran.OrangTuaCalonIstri.Ayah.StatusKeberadaan) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Validasi gagal",
@@ -285,7 +288,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		})
 		return
 	}
-	if !helper.CheckValidValue(daftarStatusKeberadaan, dataFormPendaftaran.OrangTuaCalonIstri.Ibu.StatusKeberadaan) {
+	if !validator.CheckValidValue(daftarStatusKeberadaan, dataFormPendaftaran.OrangTuaCalonIstri.Ibu.StatusKeberadaan) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Validasi gagal",
@@ -297,14 +300,14 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	}
 
 	// Validate conditional fields for parents (only if status is "Hidup")
-	helper.ValidateParentFields(dataFormPendaftaran.OrangTuaCalonSuami.Ayah, "ayah suami", c)
-	helper.ValidateParentFields(dataFormPendaftaran.OrangTuaCalonSuami.Ibu, "ibu suami", c)
-	helper.ValidateParentFields(dataFormPendaftaran.OrangTuaCalonIstri.Ayah, "ayah istri", c)
-	helper.ValidateParentFields(dataFormPendaftaran.OrangTuaCalonIstri.Ibu, "ibu istri", c)
+	validator.ValidateParentFields(dataFormPendaftaran.OrangTuaCalonSuami.Ayah, "ayah suami", c)
+	validator.ValidateParentFields(dataFormPendaftaran.OrangTuaCalonSuami.Ibu, "ibu suami", c)
+	validator.ValidateParentFields(dataFormPendaftaran.OrangTuaCalonIstri.Ayah, "ayah istri", c)
+	validator.ValidateParentFields(dataFormPendaftaran.OrangTuaCalonIstri.Ibu, "ibu istri", c)
 
 	// Validate conditional fields for groom and bride
-	helper.ValidatePersonFields(dataFormPendaftaran.CalonSuami, "suami", c)
-	helper.ValidatePersonFields(dataFormPendaftaran.CalonIstri, "istri", c)
+	validator.ValidatePersonFields(dataFormPendaftaran.CalonSuami, "suami", c)
+	validator.ValidatePersonFields(dataFormPendaftaran.CalonIstri, "istri", c)
 
 	// Check if user already has an active marriage registration
 	var existingRegistration structs.PendaftaranNikah
@@ -566,7 +569,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	}
 
 	// Generate registration number
-	nomorPendaftaran := helper.GenerateUserID("NIK")
+	nomorPendaftaran := utils.GenerateUserID("NIK")
 
 	// Determine wedding address based on location
 	var alamatAkad string
@@ -584,7 +587,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		alamatAkad = dataFormPendaftaran.JadwalDanLokasi.AlamatNikah
 
 		// Dapatkan koordinat dari alamat menggunakan OpenStreetMap Nominatim API (GRATIS + CACHED)
-		lat, lon, err := helper.GetCoordinatesFromAddressCached(alamatAkad)
+		lat, lon, err := cache.GetCoordinatesFromAddressCached(alamatAkad)
 		if err != nil {
 			// Log error tapi tidak menghentikan proses pendaftaran
 			fmt.Printf("Warning: Gagal mendapatkan koordinat untuk alamat '%s': %v\n", alamatAkad, err)

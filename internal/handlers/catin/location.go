@@ -6,9 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"simnikah/pkg/utils"
-	"simnikah/internal/models"
 	"time"
+
+	"simnikah/internal/models"
+	"simnikah/pkg/cache"
 
 	"github.com/gin-gonic/gin"
 )
@@ -44,7 +45,7 @@ func (h *InDB) GetCoordinatesFromAddressEndpoint(c *gin.Context) {
 	}
 
 	// Dapatkan koordinat menggunakan OpenStreetMap Nominatim API (dengan caching)
-	lat, lon, err := helper.GetCoordinatesFromAddressCached(input.Alamat)
+	lat, lon, err := cache.GetCoordinatesFromAddressCached(input.Alamat)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -249,7 +250,7 @@ func (h *InDB) UpdateWeddingLocationWithCoordinates(c *gin.Context) {
 		longitude = input.Longitude
 	} else {
 		// Auto-geocoding (dengan caching)
-		lat, lon, err := helper.GetCoordinatesFromAddressCached(input.AlamatAkad)
+		lat, lon, err := cache.GetCoordinatesFromAddressCached(input.AlamatAkad)
 		if err != nil {
 			// Log warning tapi tetap lanjut simpan alamat
 			fmt.Printf("Warning: Gagal mendapatkan koordinat untuk alamat '%s': %v\n", input.AlamatAkad, err)

@@ -1,10 +1,6 @@
 package validator
 
 import (
-	"simnikah/pkg/utils"
-)
-
-import (
 	"regexp"
 	"time"
 )
