@@ -47,14 +47,15 @@ func ConnectDB() (*gorm.DB, error) {
 		log.Println("⚠️  Warning: Using localhost database. Make sure to set DB_HOST for production.")
 	}
 
-	// Configure GORM logger
+	// Configure GORM logger with environment-aware settings
+	logLevel := getLogLevel()
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		logger.Config{
-			SlowThreshold:             time.Second,
-			LogLevel:                  logger.Info,
+			SlowThreshold:             2 * time.Second, // Only log queries slower than 2s
+			LogLevel:                  logLevel,
 			IgnoreRecordNotFoundError: true,
-			Colorful:                  true,
+			Colorful:                  isDevEnvironment(), // Disable colors in production
 		},
 	)
 
@@ -116,4 +117,25 @@ func maskPassword(password string) string {
 	}
 	// Show first 2 and last 2 characters, mask the rest
 	return password[:2] + strings.Repeat("*", len(password)-4) + password[len(password)-2:]
+}
+
+// getLogLevel returns appropriate log level based on environment
+func getLogLevel() logger.LogLevel {
+	ginMode := os.Getenv("GIN_MODE")
+	environment := os.Getenv("ENVIRONMENT")
+
+	// Production: Only log errors and slow queries
+	if ginMode == "release" || environment == "production" {
+		return logger.Error
+	}
+
+	// Development: Log warnings and errors (not every query)
+	return logger.Warn
+}
+
+// isDevEnvironment checks if running in development mode
+func isDevEnvironment() bool {
+	ginMode := os.Getenv("GIN_MODE")
+	environment := os.Getenv("ENVIRONMENT")
+	return ginMode != "release" && environment != "production"
 }

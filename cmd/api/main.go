@@ -72,11 +72,13 @@ func main() {
 	// Replace individual seed calls with SeedAll
 
 	// Set Gin to release mode in production
-	if os.Getenv("GIN_MODE") == "release" {
+	ginMode := os.Getenv("GIN_MODE")
+	if ginMode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	r := gin.Default()
+	// Create Gin engine with optimized logging
+	r := createGinEngine(ginMode)
 
 	// Configure CORS middleware
 	corsConfig := cors.Config{
@@ -282,6 +284,43 @@ func main() {
 	}
 
 	log.Println("✅ Server exited gracefully")
+}
+
+// createGinEngine creates Gin engine with environment-aware logging
+func createGinEngine(ginMode string) *gin.Engine {
+	if ginMode == "release" {
+		// Production: Minimal logging - only errors
+		gin.DisableConsoleColor()
+		r := gin.New()
+
+		// Recovery middleware (panic recovery)
+		r.Use(gin.Recovery())
+
+		// Custom logger: Only log errors (4xx, 5xx) and slow requests (>2s)
+		r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+			SkipPaths: []string{"/health"}, // Don't log health checks
+			Formatter: func(param gin.LogFormatterParams) string {
+				// Only log errors and slow requests
+				if param.StatusCode >= 400 || param.Latency > 2*time.Second {
+					return fmt.Sprintf("[GIN] %v | %3d | %13v | %15s | %-7s %#v\n%s",
+						param.TimeStamp.Format("2006/01/02 - 15:04:05"),
+						param.StatusCode,
+						param.Latency,
+						param.ClientIP,
+						param.Method,
+						param.Path,
+						param.ErrorMessage,
+					)
+				}
+				return "" // Don't log successful requests
+			},
+		}))
+
+		return r
+	}
+
+	// Development: Full logging with colors
+	return gin.Default()
 }
 
 // getJWTKey returns the JWT key from environment or uses a fallback
