@@ -71,21 +71,23 @@ func AddDatabaseIndexes(db *gorm.DB) error {
 	createIndex("idx_wali_nikah_nik", "wali_nikahs", "nik")
 
 	// ==================== BIMBINGAN PERKAWINAN TABLE ====================
-	createIndex("idx_bimbingan_pendaftaran_id", "bimbingan_perkawinans", "pendaftaran_id")
 	createIndex("idx_bimbingan_status", "bimbingan_perkawinans", "status")
 	createIndex("idx_bimbingan_tanggal", "bimbingan_perkawinans", "tanggal_bimbingan")
 
 	// ==================== PENDAFTARAN BIMBINGAN TABLE ====================
-	createIndex("idx_pendaftaran_bimbingan_user_id", "pendaftaran_bimbingans", "user_id")
-	createIndex("idx_pendaftaran_bimbingan_status", "pendaftaran_bimbingans", "status")
+	createIndex("idx_pendaftaran_bimbingan_nikah_id", "pendaftaran_bimbingans", "pendaftaran_nikah_id")
+	createIndex("idx_pendaftaran_bimbingan_perkawinan_id", "pendaftaran_bimbingans", "bimbingan_perkawinan_id")
+	createIndex("idx_pendaftaran_bimbingan_suami_id", "pendaftaran_bimbingans", "calon_suami_id")
+	createIndex("idx_pendaftaran_bimbingan_istri_id", "pendaftaran_bimbingans", "calon_istri_id")
+	createIndex("idx_pendaftaran_bimbingan_kehadiran", "pendaftaran_bimbingans", "status_kehadiran")
 
 	// ==================== NOTIFIKASI TABLE ====================
 	createIndex("idx_notifikasi_user_id", "notifikasis", "user_id")
-	createIndex("idx_notifikasi_pendaftaran_id", "notifikasis", "pendaftaran_id")
-	createIndex("idx_notifikasi_status", "notifikasis", "status")
+	createIndex("idx_notifikasi_status_baca", "notifikasis", "status_baca")
 	createIndex("idx_notifikasi_tipe", "notifikasis", "tipe")
-	// Composite index for unread notifications
-	createIndex("idx_notifikasi_user_status", "notifikasis", "user_id, status")
+	createIndex("idx_notifikasi_created_at", "notifikasis", "created_at")
+	// Composite index for unread notifications (IMPORTANT!)
+	createIndex("idx_notifikasi_user_status", "notifikasis", "user_id, status_baca")
 
 	// ==================== STAFF KUA TABLE ====================
 	createIndex("idx_staff_kua_user_id", "staff_kuas", "user_id")
