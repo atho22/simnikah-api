@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"simnikah/internal/models"
+	structs "simnikah/internal/models"
 
 	"gorm.io/gorm"
 )
@@ -383,6 +383,19 @@ func (ns *NotificationService) SendReminderNotification() error {
 	}
 
 	return nil
+}
+
+// SendNotificationToRole public method untuk mengirim notifikasi ke semua user dengan role tertentu
+func (ns *NotificationService) SendNotificationToRole(role, judul, pesan, tipe, link string) error {
+	notification := structs.Notifikasi{
+		Judul:       judul,
+		Pesan:       pesan,
+		Tipe:        tipe,
+		Status_baca: structs.NotifikasiStatusBelumDibaca,
+		Link:        link,
+	}
+
+	return ns.sendToRole(role, notification)
 }
 
 // sendToRole helper function untuk mengirim notifikasi ke semua user dengan role tertentu

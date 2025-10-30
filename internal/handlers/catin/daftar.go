@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"simnikah/internal/models"
+	structs "simnikah/internal/models"
 	"simnikah/internal/services"
 	"simnikah/pkg/cache"
 	"simnikah/pkg/utils"
@@ -61,6 +61,31 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 			"message": "Validasi gagal",
 			"error":   "Format tanggal nikah tidak valid (YYYY-MM-DD)",
 			"field":   "tanggal_nikah",
+			"type":    "format",
+		})
+		return
+	}
+
+	// Validate that wedding date is not in the past
+	if tanggalNikah.Before(time.Now().Truncate(24 * time.Hour)) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi gagal",
+			"error":   "Tanggal nikah tidak boleh di masa lalu",
+			"field":   "tanggal_nikah",
+			"type":    "validation",
+		})
+		return
+	}
+
+	// Validate wedding time format
+	_, err = time.Parse("15:04", dataFormPendaftaran.JadwalDanLokasi.WaktuNikah)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi gagal",
+			"error":   "Format waktu nikah tidak valid (HH:MM dalam format 24-jam, contoh: 09:00)",
+			"field":   "waktu_nikah",
 			"type":    "format",
 		})
 		return
@@ -210,8 +235,83 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	// Validasi hubungan wali berdasarkan status ayah kandung calon istri
 	statusAyahCalonIstri := dataFormPendaftaran.OrangTuaCalonIstri.Ayah.StatusKeberadaan
 	hubunganWali := dataFormPendaftaran.WaliNikah.HubunganWali
+	statusWali := dataFormPendaftaran.WaliNikah.StatusWali
 
-	// Validasi apakah hubungan wali valid berdasarkan status ayah
+	// Validasi 1: Wali nikah HARUS hidup untuk dapat menjadi wali
+	if statusWali == structs.WaliStatusKeberadaanMeninggal {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi Wali Nikah Gagal",
+			"error":   "Wali nikah yang telah meninggal dunia tidak dapat menjadi wali. Silakan pilih wali lain yang masih hidup.",
+			"field":   "status_wali",
+			"type":    "syariat_validation",
+		})
+		return
+	}
+
+	// Validasi 2: Jika hubungan wali adalah Ayah Kandung, maka status wali harus sama dengan status ayah catin perempuan
+	if hubunganWali == structs.WaliHubunganAyahKandung {
+		if statusWali != statusAyahCalonIstri {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Validasi Wali Nikah Gagal",
+				"error":   fmt.Sprintf("Jika wali adalah Ayah Kandung, maka status wali harus sama dengan status ayah catin perempuan (%s)", statusAyahCalonIstri),
+				"field":   "status_wali",
+				"type":    "syariat_validation",
+			})
+			return
+		}
+
+		// Validasi 3: Jika ayah kandung masih hidup dan menjadi wali, NIK wali harus sama dengan NIK ayah catin perempuan
+		if statusAyahCalonIstri == structs.StatusKeberadaanHidup {
+			nikAyahCalonIstri := dataFormPendaftaran.OrangTuaCalonIstri.Ayah.Nik
+			nikWali := dataFormPendaftaran.WaliNikah.NikWali
+
+			if nikWali != nikAyahCalonIstri {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": "Validasi Wali Nikah Gagal",
+					"error":   "NIK wali harus sama dengan NIK ayah kandung catin perempuan",
+					"field":   "nik_wali",
+					"type":    "syariat_validation",
+					"details": gin.H{
+						"nik_wali_yang_diinput":    nikWali,
+						"nik_ayah_catin_perempuan": nikAyahCalonIstri,
+					},
+				})
+				return
+			}
+		}
+	}
+
+	// Validasi 4: Wali nikah tidak boleh sama dengan calon pengantin
+	nikWali := dataFormPendaftaran.WaliNikah.NikWali
+	nikCalonSuami := dataFormPendaftaran.CalonSuami.Nik
+	nikCalonIstri := dataFormPendaftaran.CalonIstri.Nik
+
+	if nikWali == nikCalonSuami {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi Wali Nikah Gagal",
+			"error":   "NIK wali tidak boleh sama dengan NIK calon suami",
+			"field":   "nik_wali",
+			"type":    "syariat_validation",
+		})
+		return
+	}
+
+	if nikWali == nikCalonIstri {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi Wali Nikah Gagal",
+			"error":   "NIK wali tidak boleh sama dengan NIK calon istri",
+			"field":   "nik_wali",
+			"type":    "syariat_validation",
+		})
+		return
+	}
+
+	// Validasi 5: Apakah hubungan wali valid berdasarkan status ayah
 	if !structs.IsValidWaliNikah(hubunganWali, statusAyahCalonIstri) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -342,6 +442,9 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	groomUserID := fmt.Sprintf("%x", groomHash)[:20]
 	brideUserID := fmt.Sprintf("%x", brideHash)[:20]
 
+	// OPTIMASI: Single timestamp untuk semua records
+	createdAt := time.Now()
+
 	// Start database transaction
 	tx := h.DB.Begin()
 	defer func() {
@@ -368,8 +471,8 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		Email:               dataFormPendaftaran.CalonSuami.Email,
 		Warga_negara:        dataFormPendaftaran.CalonSuami.Kewarganegaraan,
 		No_paspor:           dataFormPendaftaran.CalonSuami.NomorPaspor,
-		Created_at:          time.Now(),
-		Updated_at:          time.Now(),
+		Created_at:          createdAt,
+		Updated_at:          createdAt,
 	}
 
 	if err := tx.Create(&calonSuami).Error; err != nil {
@@ -412,8 +515,8 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		Email:               dataFormPendaftaran.CalonIstri.Email,
 		Warga_negara:        dataFormPendaftaran.CalonIstri.Kewarganegaraan,
 		No_paspor:           dataFormPendaftaran.CalonIstri.NomorPaspor,
-		Created_at:          time.Now(),
-		Updated_at:          time.Now(),
+		Created_at:          createdAt,
+		Updated_at:          createdAt,
 	}
 
 	if err := tx.Create(&calonIstri).Error; err != nil {
@@ -438,9 +541,12 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		return
 	}
 
-	// Create groom's parents (only if presence status is "Hidup")
+	// OPTIMASI: Batch insert untuk semua orang tua sekaligus
+	var dataOrangTuaList []structs.DataOrangTua
+
+	// Collect all parents data (only if presence status is "Hidup")
 	if dataFormPendaftaran.OrangTuaCalonSuami.Ayah.StatusKeberadaan == structs.StatusKeberadaanHidup {
-		dataAyahSuami := structs.DataOrangTua{
+		dataOrangTuaList = append(dataOrangTuaList, structs.DataOrangTua{
 			User_id:             userID.(string),
 			Jenis_kelamin_calon: "L",
 			Hubungan:            structs.HubunganAyah,
@@ -455,24 +561,13 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 			Alamat:              dataFormPendaftaran.OrangTuaCalonSuami.Ayah.Alamat,
 			Status_keberadaan:   structs.StatusKeberadaanHidup,
 			Jenis_kelamin:       "L",
-			Created_at:          time.Now(),
-			Updated_at:          time.Now(),
-		}
-
-		if err := tx.Create(&dataAyahSuami).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "Database error",
-				"error":   "Gagal membuat data ayah suami",
-				"type":    "database",
-			})
-			return
-		}
+			Created_at:          createdAt,
+			Updated_at:          createdAt,
+		})
 	}
 
 	if dataFormPendaftaran.OrangTuaCalonSuami.Ibu.StatusKeberadaan == structs.StatusKeberadaanHidup {
-		dataIbuSuami := structs.DataOrangTua{
+		dataOrangTuaList = append(dataOrangTuaList, structs.DataOrangTua{
 			User_id:             userID.(string),
 			Jenis_kelamin_calon: "L",
 			Hubungan:            structs.HubunganIbu,
@@ -487,25 +582,13 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 			Alamat:              dataFormPendaftaran.OrangTuaCalonSuami.Ibu.Alamat,
 			Status_keberadaan:   structs.StatusKeberadaanHidup,
 			Jenis_kelamin:       "P",
-			Created_at:          time.Now(),
-			Updated_at:          time.Now(),
-		}
-
-		if err := tx.Create(&dataIbuSuami).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "Database error",
-				"error":   "Gagal membuat data ibu suami",
-				"type":    "database",
-			})
-			return
-		}
+			Created_at:          createdAt,
+			Updated_at:          createdAt,
+		})
 	}
 
-	// Create bride's parents (only if presence status is "Hidup")
 	if dataFormPendaftaran.OrangTuaCalonIstri.Ayah.StatusKeberadaan == structs.StatusKeberadaanHidup {
-		dataAyahIstri := structs.DataOrangTua{
+		dataOrangTuaList = append(dataOrangTuaList, structs.DataOrangTua{
 			User_id:             userID.(string),
 			Jenis_kelamin_calon: "P",
 			Hubungan:            structs.HubunganAyah,
@@ -520,24 +603,13 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 			Alamat:              dataFormPendaftaran.OrangTuaCalonIstri.Ayah.Alamat,
 			Status_keberadaan:   structs.StatusKeberadaanHidup,
 			Jenis_kelamin:       "L",
-			Created_at:          time.Now(),
-			Updated_at:          time.Now(),
-		}
-
-		if err := tx.Create(&dataAyahIstri).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "Database error",
-				"error":   "Gagal membuat data ayah istri",
-				"type":    "database",
-			})
-			return
-		}
+			Created_at:          createdAt,
+			Updated_at:          createdAt,
+		})
 	}
 
 	if dataFormPendaftaran.OrangTuaCalonIstri.Ibu.StatusKeberadaan == structs.StatusKeberadaanHidup {
-		dataIbuIstri := structs.DataOrangTua{
+		dataOrangTuaList = append(dataOrangTuaList, structs.DataOrangTua{
 			User_id:             userID.(string),
 			Jenis_kelamin_calon: "P",
 			Hubungan:            structs.HubunganIbu,
@@ -552,16 +624,19 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 			Alamat:              dataFormPendaftaran.OrangTuaCalonIstri.Ibu.Alamat,
 			Status_keberadaan:   structs.StatusKeberadaanHidup,
 			Jenis_kelamin:       "P",
-			Created_at:          time.Now(),
-			Updated_at:          time.Now(),
-		}
+			Created_at:          createdAt,
+			Updated_at:          createdAt,
+		})
+	}
 
-		if err := tx.Create(&dataIbuIstri).Error; err != nil {
+	// OPTIMASI: Batch insert semua orang tua sekaligus jika ada
+	if len(dataOrangTuaList) > 0 {
+		if err := tx.CreateInBatches(&dataOrangTuaList, len(dataOrangTuaList)).Error; err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,
 				"message": "Database error",
-				"error":   "Gagal membuat data ibu istri",
+				"error":   "Gagal membuat data orang tua",
 				"type":    "database",
 			})
 			return
@@ -585,18 +660,8 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	} else {
 		// Use provided address for outside KUA
 		alamatAkad = dataFormPendaftaran.JadwalDanLokasi.AlamatNikah
-
-		// Dapatkan koordinat dari alamat menggunakan OpenStreetMap Nominatim API (GRATIS + CACHED)
-		lat, lon, err := cache.GetCoordinatesFromAddressCached(alamatAkad)
-		if err != nil {
-			// Log error tapi tidak menghentikan proses pendaftaran
-			fmt.Printf("Warning: Gagal mendapatkan koordinat untuk alamat '%s': %v\n", alamatAkad, err)
-			// Koordinat akan tetap nil jika gagal
-		} else {
-			latitude = &lat
-			longitude = &lon
-			fmt.Printf("Koordinat berhasil didapatkan: %.6f, %.6f untuk alamat '%s'\n", lat, lon, alamatAkad)
-		}
+		// OPTIMASI: Koordinat akan diisi nanti secara asynchronous
+		// Ini untuk menghindari delay dari external API call
 	}
 
 	// Create marriage registration
@@ -605,7 +670,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		Pendaftar_id:        userID.(string),
 		Calon_suami_id:      fmt.Sprintf("%d", calonSuami.ID),
 		Calon_istri_id:      fmt.Sprintf("%d", calonIstri.ID),
-		Tanggal_pendaftaran: time.Now(),
+		Tanggal_pendaftaran: createdAt,
 		Tanggal_nikah:       tanggalNikah,
 		Waktu_nikah:         dataFormPendaftaran.JadwalDanLokasi.WaktuNikah,
 		Tempat_nikah:        dataFormPendaftaran.JadwalDanLokasi.LokasiNikah,
@@ -614,8 +679,8 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		Latitude:            latitude,
 		Longitude:           longitude,
 		Status_pendaftaran:  structs.StatusPendaftaranMenungguVerifikasi,
-		Created_at:          time.Now(),
-		Updated_at:          time.Now(),
+		Created_at:          createdAt,
+		Updated_at:          createdAt,
 	}
 
 	if err := tx.Create(&pendaftaranNikah).Error; err != nil {
@@ -640,8 +705,8 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		Agama:             dataFormPendaftaran.WaliNikah.AgamaWali,
 		Status_keberadaan: dataFormPendaftaran.WaliNikah.StatusWali,
 		Status_kehadiran:  structs.WaliStatusKehadiranBelumDiketahui,
-		Created_at:        time.Now(),
-		Updated_at:        time.Now(),
+		Created_at:        createdAt,
+		Updated_at:        createdAt,
 	}
 
 	if err := tx.Create(&waliNikah).Error; err != nil {
@@ -666,15 +731,7 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		return
 	}
 
-	// Kirim notifikasi otomatis setelah pendaftaran berhasil dibuat
-	notificationService := services.NewNotificationService(h.DB)
-	err = notificationService.SendPendaftaranNotification(pendaftaranNikah.ID, userID.(string))
-	if err != nil {
-		// Log error tapi jangan return error karena pendaftaran sudah berhasil
-		fmt.Printf("Gagal mengirim notifikasi pendaftaran: %v\n", err)
-	}
-
-	// Prepare response data
+	// OPTIMASI: Kirim response ke client terlebih dahulu untuk kecepatan
 	response := gin.H{
 		"success": true,
 		"message": "Pendaftaran nikah berhasil dibuat",
@@ -689,6 +746,34 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, response)
+
+	// OPTIMASI: Proses asynchronous setelah response dikirim
+	go func() {
+		// 1. Update koordinat jika alamat di luar KUA (background geocoding)
+		if dataFormPendaftaran.JadwalDanLokasi.LokasiNikah != "Di KUA" {
+			lat, lon, err := cache.GetCoordinatesFromAddressCached(alamatAkad)
+			if err == nil {
+				// Update koordinat ke database
+				h.DB.Model(&structs.PendaftaranNikah{}).
+					Where("id = ?", pendaftaranNikah.ID).
+					Updates(map[string]interface{}{
+						"latitude":  lat,
+						"longitude": lon,
+					})
+				fmt.Printf("[ASYNC] Koordinat berhasil diupdate: %.6f, %.6f untuk pendaftaran #%d\n", lat, lon, pendaftaranNikah.ID)
+			} else {
+				fmt.Printf("[ASYNC] Warning: Gagal mendapatkan koordinat untuk alamat '%s': %v\n", alamatAkad, err)
+			}
+		}
+
+		// 2. Kirim notifikasi (background notification)
+		notificationService := services.NewNotificationService(h.DB)
+		if err := notificationService.SendPendaftaranNotification(pendaftaranNikah.ID, userID.(string)); err != nil {
+			fmt.Printf("[ASYNC] Gagal mengirim notifikasi pendaftaran: %v\n", err)
+		} else {
+			fmt.Printf("[ASYNC] Notifikasi berhasil dikirim untuk pendaftaran #%d\n", pendaftaranNikah.ID)
+		}
+	}()
 }
 
 // MarkAsVisited marks that the couple has visited the office with documents
@@ -720,18 +805,18 @@ func (h *InDB) MarkAsVisited(c *gin.Context) {
 	}
 
 	// Check if registration is in correct status
-	if pendaftaran.Status_pendaftaran != "Disetujui" { // Note: This status is not in constants yet, might be custom
+	if pendaftaran.Status_pendaftaran != structs.StatusPendaftaranBerkasDiterima {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Status tidak sesuai",
-			"error":   "Pendaftaran harus dalam status 'Disetujui' untuk menandai kunjungan",
+			"error":   "Pendaftaran harus dalam status 'Berkas Diterima' untuk menandai kunjungan",
 			"type":    "validation",
 		})
 		return
 	}
 
 	// Update status to indicate they have visited with documents
-	pendaftaran.Status_pendaftaran = structs.StatusPendaftaranMenungguVerifikasi
+	pendaftaran.Status_pendaftaran = structs.StatusPendaftaranMenungguPenugasan
 	pendaftaran.Updated_at = time.Now()
 
 	if err := h.DB.Save(&pendaftaran).Error; err != nil {
@@ -744,20 +829,18 @@ func (h *InDB) MarkAsVisited(c *gin.Context) {
 		return
 	}
 
-	// Create notification for staff
-	notification := structs.Notifikasi{
-		User_id:     "staff", // This should be replaced with actual staff user IDs or a system notification
-		Judul:       "Catin Datang ke Kantor",
-		Pesan:       "Catin dengan nomor pendaftaran " + pendaftaran.Nomor_pendaftaran + " telah datang ke kantor dengan membawa berkas. Silakan verifikasi berkas fisik.",
-		Tipe:        structs.NotifikasiTipeInfo,
-		Status_baca: structs.NotifikasiStatusBelumDibaca,
-		Link:        "/staff/pendaftaran/" + registrationID,
-		Created_at:  time.Now(),
-		Updated_at:  time.Now(),
-	}
-
-	if err := h.DB.Create(&notification).Error; err != nil {
+	// Send notification to all staff
+	notificationService := services.NewNotificationService(h.DB)
+	err := notificationService.SendNotificationToRole(
+		structs.UserRoleStaff,
+		"Catin Datang ke Kantor",
+		"Catin dengan nomor pendaftaran "+pendaftaran.Nomor_pendaftaran+" telah datang ke kantor dengan membawa berkas. Silakan verifikasi berkas fisik.",
+		structs.NotifikasiTipeInfo,
+		"/staff/pendaftaran/"+registrationID,
+	)
+	if err != nil {
 		// Log error but don't fail the main operation
+		fmt.Printf("Warning: Gagal mengirim notifikasi ke staff: %v\n", err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

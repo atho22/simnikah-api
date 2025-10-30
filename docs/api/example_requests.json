@@ -1,0 +1,304 @@
+{
+  "description": "Example Request Bodies for SimNikah API - Ready to Use",
+  "base_url": "http://localhost:8080",
+  "production_url": "https://your-api.railway.app",
+  
+  "authentication": {
+    "register": {
+      "url": "/register",
+      "method": "POST",
+      "body": {
+        "username": "johndoe",
+        "email": "john.doe@example.com",
+        "password": "SecurePass123!",
+        "nama": "John Doe",
+        "role": "user_biasa"
+      }
+    },
+    "login": {
+      "url": "/login",
+      "method": "POST",
+      "body": {
+        "username": "johndoe",
+        "password": "SecurePass123!"
+      }
+    }
+  },
+  
+  "marriage_registration": {
+    "create_complete_form": {
+      "url": "/simnikah/pendaftaran/form-baru",
+      "method": "POST",
+      "auth_required": true,
+      "body": {
+        "scheduleAndLocation": {
+          "weddingLocation": "Di KUA",
+          "weddingAddress": "KUA Kecamatan Banjarmasin Tengah",
+          "weddingDate": "2025-12-25",
+          "weddingTime": "09:00",
+          "dispensationNumber": ""
+        },
+        "groom": {
+          "groomFullName": "Ahmad Fauzan",
+          "groomNik": "6371012501950001",
+          "groomCitizenship": "WNI",
+          "groomPassportNumber": "",
+          "groomPlaceOfBirth": "Banjarmasin",
+          "groomDateOfBirth": "1995-01-25",
+          "groomStatus": "Belum Kawin",
+          "groomReligion": "Islam",
+          "groomEducation": "S1",
+          "groomOccupation": "Pegawai Swasta",
+          "groomOccupationDescription": "Staff IT di PT. Digital Indonesia",
+          "groomPhoneNumber": "081234567890",
+          "groomEmail": "ahmad.fauzan@example.com",
+          "groomAddress": "Jl. Lambung Mangkurat No. 45, Banjarmasin"
+        },
+        "bride": {
+          "brideFullName": "Siti Aminah",
+          "brideNik": "6371016702980001",
+          "brideCitizenship": "WNI",
+          "bridePassportNumber": "",
+          "bridePlaceOfBirth": "Banjarmasin",
+          "brideDateOfBirth": "1998-02-27",
+          "brideStatus": "Belum Kawin",
+          "brideReligion": "Islam",
+          "brideEducation": "S1",
+          "brideOccupation": "Guru",
+          "brideOccupationDescription": "Guru SD Negeri 1 Banjarmasin",
+          "bridePhoneNumber": "081298765432",
+          "brideEmail": "siti.aminah@example.com",
+          "brideAddress": "Jl. A. Yani Km 5 No. 12, Banjarmasin"
+        },
+        "groomParents": {
+          "groomFather": {
+            "groomFatherPresenceStatus": "Hidup",
+            "groomFatherName": "Muhammad Ali",
+            "groomFatherNik": "6371010101700001",
+            "groomFatherCitizenship": "WNI",
+            "groomFatherCountryOfOrigin": "Indonesia",
+            "groomFatherPassportNumber": "",
+            "groomFatherPlaceOfBirth": "Banjarmasin",
+            "groomFatherDateOfBirth": "1970-01-01",
+            "groomFatherReligion": "Islam",
+            "groomFatherOccupation": "Wiraswasta",
+            "groomFatherOccupationDescription": "Pedagang",
+            "groomFatherAddress": "Jl. Veteran No. 20, Banjarmasin"
+          },
+          "groomMother": {
+            "groomMotherPresenceStatus": "Hidup",
+            "groomMotherName": "Fatimah",
+            "groomMotherNik": "6371014501720001",
+            "groomMotherCitizenship": "WNI",
+            "groomMotherCountryOfOrigin": "Indonesia",
+            "groomMotherPassportNumber": "",
+            "groomMotherPlaceOfBirth": "Banjarmasin",
+            "groomMotherDateOfBirth": "1972-05-01",
+            "groomMotherReligion": "Islam",
+            "groomMotherOccupation": "Ibu Rumah Tangga",
+            "groomMotherOccupationDescription": "",
+            "groomMotherAddress": "Jl. Veteran No. 20, Banjarmasin"
+          }
+        },
+        "brideParents": {
+          "brideFather": {
+            "brideFatherPresenceStatus": "Hidup",
+            "brideFatherName": "Abdullah Rahman",
+            "brideFatherNik": "6371015501680001",
+            "brideFatherCitizenship": "WNI",
+            "brideFatherCountryOfOrigin": "Indonesia",
+            "brideFatherPassportNumber": "",
+            "brideFatherPlaceOfBirth": "Banjarmasin",
+            "brideFatherDateOfBirth": "1968-05-15",
+            "brideFatherReligion": "Islam",
+            "brideFatherOccupation": "PNS",
+            "brideFatherOccupationDescription": "Guru SMA",
+            "brideFatherAddress": "Jl. A. Yani Km 5 No. 12, Banjarmasin"
+          },
+          "brideMother": {
+            "brideMotherPresenceStatus": "Hidup",
+            "brideMotherName": "Khadijah",
+            "brideMotherNik": "6371012201700001",
+            "brideMotherCitizenship": "WNI",
+            "brideMotherCountryOfOrigin": "Indonesia",
+            "brideMotherPassportNumber": "",
+            "brideMotherPlaceOfBirth": "Banjarmasin",
+            "brideMotherDateOfBirth": "1970-01-22",
+            "brideMotherReligion": "Islam",
+            "brideMotherOccupation": "Ibu Rumah Tangga",
+            "brideMotherOccupationDescription": "",
+            "brideMotherAddress": "Jl. A. Yani Km 5 No. 12, Banjarmasin"
+          }
+        },
+        "guardian": {
+          "guardianFullName": "Abdullah Rahman",
+          "guardianNik": "6371015501680001",
+          "guardianRelationship": "Ayah Kandung",
+          "guardianStatus": "Hidup",
+          "guardianReligion": "Islam",
+          "guardianAddress": "Jl. A. Yani Km 5 No. 12, Banjarmasin",
+          "guardianPhoneNumber": "081234567899"
+        }
+      }
+    }
+  },
+  
+  "staff_operations": {
+    "verify_formulir_approve": {
+      "url": "/simnikah/staff/verify-formulir/:id",
+      "method": "POST",
+      "auth_required": true,
+      "role": "staff",
+      "body": {
+        "approved": true,
+        "catatan": "Formulir sudah lengkap dan sesuai"
+      }
+    },
+    "verify_formulir_reject": {
+      "url": "/simnikah/staff/verify-formulir/:id",
+      "method": "POST",
+      "auth_required": true,
+      "role": "staff",
+      "body": {
+        "approved": false,
+        "catatan": "Data NIK tidak valid, silakan perbaiki"
+      }
+    },
+    "verify_berkas": {
+      "url": "/simnikah/staff/verify-berkas/:id",
+      "method": "POST",
+      "auth_required": true,
+      "role": "staff",
+      "body": {
+        "approved": true,
+        "catatan": "Berkas lengkap dan sesuai dengan data online"
+      }
+    }
+  },
+  
+  "penghulu_operations": {
+    "assign_penghulu": {
+      "url": "/simnikah/pendaftaran/:id/assign-penghulu",
+      "method": "POST",
+      "auth_required": true,
+      "role": "kepala_kua",
+      "body": {
+        "penghulu_id": 1
+      }
+    },
+    "verify_documents": {
+      "url": "/simnikah/penghulu/verify-documents/:id",
+      "method": "POST",
+      "auth_required": true,
+      "role": "penghulu",
+      "body": {
+        "approved": true,
+        "catatan": "Dokumen sudah sesuai dan lengkap"
+      }
+    }
+  },
+  
+  "counseling": {
+    "create_session": {
+      "url": "/simnikah/bimbingan",
+      "method": "POST",
+      "auth_required": true,
+      "role": "staff_or_kepala_kua",
+      "body": {
+        "tanggal_bimbingan": "2025-11-13",
+        "waktu_mulai": "08:00",
+        "waktu_selesai": "12:00",
+        "tempat_bimbingan": "Aula KUA Banjarmasin Tengah",
+        "pembimbing": "Ustadz Abdullah Hasan",
+        "kapasitas": 10,
+        "catatan": "Membawa alat tulis dan dress code sopan"
+      }
+    },
+    "update_attendance": {
+      "url": "/simnikah/bimbingan/:id/update-attendance",
+      "method": "PUT",
+      "auth_required": true,
+      "role": "staff_or_kepala_kua",
+      "body": {
+        "pendaftaran_nikah_id": 1,
+        "status_kehadiran": "Hadir",
+        "status_sertifikat": "Sudah",
+        "no_sertifikat": "CERT/2025/001"
+      }
+    }
+  },
+  
+  "location": {
+    "geocoding": {
+      "url": "/simnikah/location/geocode",
+      "method": "POST",
+      "auth_required": true,
+      "body": {
+        "address": "Jl. Lambung Mangkurat No. 45, Banjarmasin, Kalimantan Selatan"
+      }
+    },
+    "reverse_geocoding": {
+      "url": "/simnikah/location/reverse-geocode",
+      "method": "POST",
+      "auth_required": true,
+      "body": {
+        "latitude": -3.3194374,
+        "longitude": 114.5900675
+      }
+    },
+    "update_wedding_address": {
+      "url": "/simnikah/pendaftaran/:id/alamat",
+      "method": "PUT",
+      "auth_required": true,
+      "role": "staff_or_kepala_kua",
+      "body": {
+        "alamat_akad": "Jl. Pangeran Samudra No. 88, Banjarmasin",
+        "latitude": -3.3194374,
+        "longitude": 114.5900675
+      }
+    }
+  },
+  
+  "valid_values": {
+    "roles": [
+      "user_biasa",
+      "staff",
+      "penghulu",
+      "kepala_kua"
+    ],
+    "wedding_location": [
+      "Di KUA",
+      "Di Luar KUA"
+    ],
+    "marital_status": [
+      "Belum Kawin",
+      "Cerai Mati",
+      "Cerai Hidup"
+    ],
+    "presence_status": [
+      "Hidup",
+      "Meninggal"
+    ],
+    "guardian_relationship": [
+      "Ayah Kandung",
+      "Kakek",
+      "Saudara Laki-Laki Kandung",
+      "Saudara Laki-Laki Seayah",
+      "Keponakan Laki-Laki",
+      "Paman Kandung",
+      "Paman Seayah",
+      "Sepupu Laki-Laki",
+      "Wali Hakim"
+    ],
+    "attendance_status": [
+      "Belum",
+      "Hadir",
+      "Tidak Hadir"
+    ],
+    "certificate_status": [
+      "Belum",
+      "Sudah"
+    ]
+  }
+}
+
