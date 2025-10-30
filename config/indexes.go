@@ -91,13 +91,13 @@ func AddDatabaseIndexes(db *gorm.DB) error {
 
 	// ==================== STAFF KUA TABLE ====================
 	createIndex("idx_staff_kua_user_id", "staff_kuas", "user_id")
-	createIndex("idx_staff_kua_nip", "staff_kuas", "nip")
+	createIndex("idx_staff_kua_nip", "staff_kuas", "n_ip") // GORM converts NIP -> n_ip
 	createIndex("idx_staff_kua_status", "staff_kuas", "status")
 	createIndex("idx_staff_kua_jabatan", "staff_kuas", "jabatan")
 
 	// ==================== PENGHULU TABLE ====================
 	createIndex("idx_penghulu_user_id", "penghulus", "user_id")
-	createIndex("idx_penghulu_nip", "penghulus", "nip")
+	createIndex("idx_penghulu_nip", "penghulus", "n_ip") // GORM converts NIP -> n_ip
 	createIndex("idx_penghulu_status", "penghulus", "status")
 
 	log.Println("✅ Database indexes completed!")
