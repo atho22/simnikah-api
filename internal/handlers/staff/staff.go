@@ -631,3 +631,148 @@ func (h *InDB) VerifyBerkas(c *gin.Context) {
 		},
 	})
 }
+
+// ==================== FLEKSIBEL STATUS UPDATE ====================
+
+// UpdateStatusFlexible - Update status pendaftaran secara fleksibel tanpa validasi ketat
+// Bisa digunakan oleh Staff, Penghulu, dan Kepala KUA untuk update status secara manual
+func (h *InDB) UpdateStatusFlexible(c *gin.Context) {
+	registrationID := c.Param("id")
+
+	// Get user_id from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized",
+			"error":   "User ID tidak ditemukan",
+		})
+		return
+	}
+
+	// Get user role from context
+	userRole, exists := c.Get("role")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized",
+			"error":   "Role tidak ditemukan",
+		})
+		return
+	}
+
+	// Validasi role - hanya staff, penghulu, atau kepala_kua yang bisa update
+	allowedRoles := map[string]bool{
+		structs.UserRoleStaff:     true,
+		structs.UserRolePenghulu: true,
+		structs.UserRoleKepalaKUA: true,
+	}
+	if !allowedRoles[userRole.(string)] {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Akses ditolak",
+			"error":   "Hanya Staff, Penghulu, atau Kepala KUA yang dapat mengupdate status",
+		})
+		return
+	}
+
+	var input struct {
+		Status  string `json:"status" binding:"required"`
+		Catatan string `json:"catatan"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format data tidak valid",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Validasi status yang diizinkan
+	validStatuses := map[string]bool{
+		structs.StatusPendaftaranDraft:                      true,
+		structs.StatusPendaftaranMenungguVerifikasi:         true,
+		structs.StatusPendaftaranMenungguPengumpulanBerkas:  true,
+		structs.StatusPendaftaranBerkasDiterima:            true,
+		structs.StatusPendaftaranMenungguPenugasan:         true,
+		structs.StatusPendaftaranPenghuluDitugaskan:         true,
+		structs.StatusPendaftaranMenungguVerifikasiPenghulu: true,
+		structs.StatusPendaftaranMenungguBimbingan:         true,
+		structs.StatusPendaftaranSudahBimbingan:             true,
+		structs.StatusPendaftaranSelesai:                   true,
+		structs.StatusPendaftaranDitolak:                    true,
+	}
+
+	if !validStatuses[input.Status] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Status tidak valid",
+			"error":   "Status yang diizinkan: Draft, Menunggu Verifikasi, Menunggu Pengumpulan Berkas, Berkas Diterima, Menunggu Penugasan, Penghulu Ditugaskan, Menunggu Verifikasi Penghulu, Menunggu Bimbingan, Sudah Bimbingan, Selesai, Ditolak",
+		})
+		return
+	}
+
+	// Check if registration exists
+	var pendaftaran structs.PendaftaranNikah
+	if err := h.DB.Where("id = ?", registrationID).First(&pendaftaran).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Pendaftaran tidak ditemukan",
+			"error":   "Pendaftaran dengan ID tersebut tidak ditemukan",
+		})
+		return
+	}
+
+	// Simpan status lama untuk logging
+	statusLama := pendaftaran.Status_pendaftaran
+
+	// Update status tanpa validasi ketat (fleksibel)
+	pendaftaran.Status_pendaftaran = input.Status
+	pendaftaran.Catatan = input.Catatan
+	pendaftaran.Disetujui_oleh = userID.(string)
+	now := time.Now()
+	pendaftaran.Disetujui_pada = &now
+	pendaftaran.Updated_at = time.Now()
+
+	if err := h.DB.Save(&pendaftaran).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengupdate status pendaftaran",
+		})
+		return
+	}
+
+	// Create notification untuk user
+	notification := structs.Notifikasi{
+		User_id:     pendaftaran.Pendaftar_id,
+		Judul:       "Status Pendaftaran Diupdate",
+		Pesan:       fmt.Sprintf("Status pendaftaran Anda telah diubah dari '%s' menjadi '%s'. %s", statusLama, input.Status, input.Catatan),
+		Tipe:        structs.NotifikasiTipeInfo,
+		Status_baca: structs.NotifikasiStatusBelumDibaca,
+		Link:        "/pendaftaran/" + registrationID,
+		Created_at:  time.Now(),
+		Updated_at:  time.Now(),
+	}
+
+	if err := h.DB.Create(&notification).Error; err != nil {
+		// Log error but don't fail the main operation
+		fmt.Printf("Gagal membuat notifikasi: %v\n", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Status berhasil diupdate",
+		"data": gin.H{
+			"id":                 pendaftaran.ID,
+			"nomor_pendaftaran":  pendaftaran.Nomor_pendaftaran,
+			"status_sebelumnya":   statusLama,
+			"status_sekarang":     pendaftaran.Status_pendaftaran,
+			"catatan":             pendaftaran.Catatan,
+			"updated_by":          userID.(string),
+			"updated_at":          pendaftaran.Updated_at,
+		},
+	})
+}

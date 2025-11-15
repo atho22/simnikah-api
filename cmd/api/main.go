@@ -174,6 +174,9 @@ func main() {
 		// Staff Verification
 		simnikahRoutes.POST("/staff/verify-formulir/:id", AuthMiddleware(), RoleMiddleware("staff"), staffHandler.VerifyFormulir)
 		simnikahRoutes.POST("/staff/verify-berkas/:id", AuthMiddleware(), RoleMiddleware("staff"), staffHandler.VerifyBerkas)
+		
+		// Flexible Status Update (untuk Staff, Penghulu, Kepala KUA)
+		simnikahRoutes.PUT("/pendaftaran/:id/update-status", AuthMiddleware(), MultiRoleMiddleware("staff", "penghulu", "kepala_kua"), staffHandler.UpdateStatusFlexible)
 
 		// Penghulu Operations
 		simnikahRoutes.POST("/penghulu/verify-documents/:id", AuthMiddleware(), RoleMiddleware("penghulu"), penghuluHandler.VerifyDocuments)
