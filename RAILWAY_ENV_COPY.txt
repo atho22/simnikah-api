@@ -1,0 +1,25 @@
+# ============================================
+# COPY FILE INI UNTUK RAILWAY ENVIRONMENT VARIABLES
+# ============================================
+# 
+# CARA PAKAI:
+# 1. Copy SEMUA kode di bawah ini (Ctrl+A, Ctrl+C)
+# 2. Buka Railway Dashboard → Service kamu → Variables → RAW Editor
+# 3. Paste (Ctrl+V)
+# 4. GANTI 2 hal:
+#    a. GANTI "MySQL" dengan nama service MySQL kamu (lihat di Railway Services)
+#    b. GANTI "YOUR_JWT_SECRET_HERE" dengan JWT secret yang sudah di-generate
+# 5. Click "Update Variables"
+# 
+# ============================================
+
+DB_HOST=${{MySQL.MYSQLHOST}}
+DB_PORT=${{MySQL.MYSQLPORT}}
+DB_USER=${{MySQL.MYSQLUSER}}
+DB_PASSWORD=${{MySQL.MYSQL_ROOT_PASSWORD}}
+DB_NAME=${{MySQL.MYSQL_DATABASE}}
+JWT_KEY=YOUR_JWT_SECRET_HERE
+PORT=8080
+GIN_MODE=release
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8080
+

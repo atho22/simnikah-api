@@ -1,0 +1,51 @@
+# ============================================
+# RAILWAY ENVIRONMENT VARIABLES TEMPLATE
+# ============================================
+# 
+# INSTRUKSI:
+# 1. Copy semua kode di bawah ini
+# 2. Buka Railway Dashboard → Your Service → Variables → RAW Editor
+# 3. Paste kode ini
+# 4. GANTI 2 hal:
+#    a. YOUR_JWT_SECRET_HERE → Paste JWT secret yang sudah di-generate
+#    b. MySQL → Ganti dengan nama service MySQL kamu (lihat di Railway Services)
+# 5. Click "Update Variables"
+# 
+# ============================================
+
+# ============================================
+# DATABASE CONFIGURATION
+# Railway otomatis inject dari MySQL service
+# ============================================
+# ⚠️ GANTI "MySQL" dengan nama service MySQL kamu!
+# Contoh: Jika nama service adalah "mysql-prod", ganti jadi:
+# DB_HOST=${{mysql-prod.MYSQL_HOST}}
+DB_HOST=${{MySQL.MYSQLHOST}}
+DB_PORT=${{MySQL.MYSQLPORT}}
+DB_USER=${{MySQL.MYSQLUSER}}
+DB_PASSWORD=${{MySQL.MYSQL_ROOT_PASSWORD}}
+DB_NAME=${{MySQL.MYSQL_DATABASE}}
+
+# ============================================
+# JWT CONFIGURATION
+# ============================================
+# ⚠️ GANTI dengan JWT secret yang sudah di-generate!
+# Generate dengan: .\scripts\generate-jwt-key.ps1
+# Atau: openssl rand -base64 32
+JWT_KEY=YOUR_JWT_SECRET_HERE
+
+# ============================================
+# SERVER CONFIGURATION
+# ============================================
+PORT=8080
+GIN_MODE=release
+
+# ============================================
+# CORS CONFIGURATION
+# ============================================
+# Untuk development (frontend local)
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8080
+
+# Untuk production (uncomment dan ganti setelah frontend di-deploy)
+# ALLOWED_ORIGINS=https://your-frontend.vercel.app,https://your-app.netlify.app
+

@@ -1,0 +1,55 @@
+# ============================================
+# ENVIRONMENT VARIABLES UNTUK RAILWAY
+# ============================================
+# 
+# INSTRUKSI:
+# 1. Copy semua kode di bawah (mulai dari DB_HOST sampai ALLOWED_ORIGINS)
+# 2. Buka Railway Dashboard → Service aplikasi → Variables → RAW Editor
+# 3. Paste kode yang sudah di-copy
+# 4. GANTI 2 hal:
+#    a. "MySQL" → Ganti dengan nama service MySQL kamu (lihat di Railway Services)
+#       Contoh: Jika nama service adalah "mysql-prod", ganti semua "MySQL" jadi "mysql-prod"
+#    b. "YOUR_JWT_SECRET_HERE" → Ganti dengan JWT secret yang sudah di-generate
+#       Generate dengan: .\scripts\generate-jwt-key.ps1
+# 5. Click "Update Variables"
+# 
+# ============================================
+# MULAI COPY DARI SINI ↓
+# ============================================
+
+DB_HOST=${{MySQL.MYSQLHOST}}
+DB_PORT=${{MySQL.MYSQLPORT}}
+DB_USER=${{MySQL.MYSQLUSER}}
+DB_PASSWORD=${{MySQL.MYSQL_ROOT_PASSWORD}}
+DB_NAME=${{MySQL.MYSQL_DATABASE}}
+JWT_KEY=YOUR_JWT_SECRET_HERE
+PORT=8080
+GIN_MODE=release
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8080
+
+# ============================================
+# SAMPAI SINI ↑
+# ============================================
+# 
+# CATATAN PENTING:
+# 
+# 1. NAMA SERVICE MYSQL:
+#    - Buka Railway Dashboard → Tab "Services"
+#    - Lihat nama service MySQL (biasanya: MySQL, mysql, mysql-prod, database)
+#    - Ganti "MySQL" di atas dengan nama yang sesuai
+#    - Contoh jika nama service adalah "mysql-prod":
+#      DB_HOST=${{mysql-prod.MYSQL_HOST}}
+# 
+# 2. JWT SECRET:
+#    - Minimal 32 karakter
+#    - Generate dengan: .\scripts\generate-jwt-key.ps1
+#    - Atau: openssl rand -base64 32
+#    - JANGAN gunakan secret yang sama untuk production!
+# 
+# 3. CORS (ALLOWED_ORIGINS):
+#    - Untuk development: biarkan seperti di atas
+#    - Untuk production: ganti dengan domain frontend kamu
+#    - Contoh: ALLOWED_ORIGINS=https://your-app.vercel.app
+# 
+# ============================================
+

@@ -170,10 +170,10 @@ func main() {
 		simnikahRoutes.PUT("/jadwal/:id", AuthMiddleware(), MultiRoleMiddleware("staff", "kepala_kua"), UpdateJadwalNikah)
 
 		// Kalender Ketersediaan
-		simnikahRoutes.GET("/kalender-ketersediaan", AuthMiddleware(), GetKalenderKetersediaan)
-		simnikahRoutes.GET("/kalender-tanggal-detail", AuthMiddleware(), GetKalenderTanggalDetail)
-		simnikahRoutes.GET("/ketersediaan-tanggal/:tanggal", AuthMiddleware(), GetKetersediaanTanggal)
-		simnikahRoutes.GET("/penghulu-jadwal/:tanggal", AuthMiddleware(), GetPenghuluJadwal)
+		simnikahRoutes.GET("/kalender-ketersediaan", GetKalenderKetersediaan)
+		simnikahRoutes.GET("/kalender-tanggal-detail",  GetKalenderTanggalDetail)
+		simnikahRoutes.GET("/ketersediaan-tanggal/:tanggal", GetKetersediaanTanggal)
+		simnikahRoutes.GET("/penghulu-jadwal/:tanggal", GetPenghuluJadwal)
 
 		// Management Penghulu (Kepala KUA)
 		simnikahRoutes.POST("/pendaftaran/:id/assign-penghulu", AuthMiddleware(), MultiRoleMiddleware("kepala_kua"), AssignPenghulu)
