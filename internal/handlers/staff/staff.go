@@ -690,26 +690,40 @@ func (h *InDB) UpdateStatusFlexible(c *gin.Context) {
 		return
 	}
 
-	// Validasi status yang diizinkan
-	validStatuses := map[string]bool{
-		structs.StatusPendaftaranDraft:                      true,
-		structs.StatusPendaftaranMenungguVerifikasi:         true,
-		structs.StatusPendaftaranMenungguPengumpulanBerkas:  true,
-		structs.StatusPendaftaranBerkasDiterima:            true,
+	// Status yang terkait dengan assign penghulu hanya bisa diubah oleh Kepala KUA
+	// melalui endpoint khusus assign-penghulu
+	penghuluRelatedStatuses := map[string]bool{
 		structs.StatusPendaftaranMenungguPenugasan:         true,
 		structs.StatusPendaftaranPenghuluDitugaskan:         true,
 		structs.StatusPendaftaranMenungguVerifikasiPenghulu: true,
+	}
+
+	if penghuluRelatedStatuses[input.Status] {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Akses ditolak",
+			"error":   "Status '" + input.Status + "' hanya bisa diubah oleh Kepala KUA melalui endpoint assign-penghulu. Gunakan endpoint POST /simnikah/pendaftaran/:id/assign-penghulu untuk menugaskan penghulu.",
+		})
+		return
+	}
+
+	// Validasi status yang diizinkan (tanpa status terkait penghulu)
+	validStatuses := map[string]bool{
+		structs.StatusPendaftaranDraft:                     true,
+		structs.StatusPendaftaranMenungguVerifikasi:        true,
+		structs.StatusPendaftaranMenungguPengumpulanBerkas: true,
+		structs.StatusPendaftaranBerkasDiterima:            true,
 		structs.StatusPendaftaranMenungguBimbingan:         true,
 		structs.StatusPendaftaranSudahBimbingan:             true,
 		structs.StatusPendaftaranSelesai:                   true,
-		structs.StatusPendaftaranDitolak:                    true,
+		structs.StatusPendaftaranDitolak:                   true,
 	}
 
 	if !validStatuses[input.Status] {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Status tidak valid",
-			"error":   "Status yang diizinkan: Draft, Menunggu Verifikasi, Menunggu Pengumpulan Berkas, Berkas Diterima, Menunggu Penugasan, Penghulu Ditugaskan, Menunggu Verifikasi Penghulu, Menunggu Bimbingan, Sudah Bimbingan, Selesai, Ditolak",
+			"error":   "Status yang diizinkan: Draft, Menunggu Verifikasi, Menunggu Pengumpulan Berkas, Berkas Diterima, Menunggu Bimbingan, Sudah Bimbingan, Selesai, Ditolak. Untuk status terkait penghulu, gunakan endpoint assign-penghulu.",
 		})
 		return
 	}

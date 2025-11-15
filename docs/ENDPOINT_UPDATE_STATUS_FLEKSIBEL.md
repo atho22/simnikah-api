@@ -53,13 +53,22 @@ Content-Type: application/json
 - `"Menunggu Verifikasi"`
 - `"Menunggu Pengumpulan Berkas"`
 - `"Berkas Diterima"`
-- `"Menunggu Penugasan"`
-- `"Penghulu Ditugaskan"`
-- `"Menunggu Verifikasi Penghulu"`
 - `"Menunggu Bimbingan"`
 - `"Sudah Bimbingan"`
 - `"Selesai"`
 - `"Ditolak"`
+
+### ⚠️ Status yang TIDAK Bisa Diupdate via Endpoint Ini
+Status berikut **hanya bisa diubah oleh Kepala KUA** melalui endpoint khusus assign-penghulu:
+- `"Menunggu Penugasan"` - Gunakan endpoint assign-penghulu
+- `"Penghulu Ditugaskan"` - Otomatis saat assign penghulu
+- `"Menunggu Verifikasi Penghulu"` - Otomatis saat assign penghulu
+
+**Endpoint untuk assign penghulu:**
+```
+POST /simnikah/pendaftaran/:id/assign-penghulu
+```
+*(Hanya bisa diakses oleh Kepala KUA)*
 
 ---
 
@@ -102,12 +111,21 @@ Content-Type: application/json
 }
 ```
 
-#### 400 Bad Request
+#### 400 Bad Request - Status Tidak Valid
 ```json
 {
   "success": false,
   "message": "Status tidak valid",
-  "error": "Status yang diizinkan: Draft, Menunggu Verifikasi, Menunggu Pengumpulan Berkas, Berkas Diterima, Menunggu Penugasan, Penghulu Ditugaskan, Menunggu Verifikasi Penghulu, Menunggu Bimbingan, Sudah Bimbingan, Selesai, Ditolak"
+  "error": "Status yang diizinkan: Draft, Menunggu Verifikasi, Menunggu Pengumpulan Berkas, Berkas Diterima, Menunggu Bimbingan, Sudah Bimbingan, Selesai, Ditolak. Untuk status terkait penghulu, gunakan endpoint assign-penghulu."
+}
+```
+
+#### 403 Forbidden - Status Terkait Penghulu
+```json
+{
+  "success": false,
+  "message": "Akses ditolak",
+  "error": "Status 'Menunggu Penugasan' hanya bisa diubah oleh Kepala KUA melalui endpoint assign-penghulu. Gunakan endpoint POST /simnikah/pendaftaran/:id/assign-penghulu untuk menugaskan penghulu."
 }
 ```
 
@@ -161,30 +179,36 @@ curl -X PUT "https://api.example.com/simnikah/pendaftaran/1/update-status" \
 
 ## ⚠️ Catatan Penting
 
-1. **Fleksibilitas**: Endpoint ini **tidak memvalidasi** status sebelumnya. Bisa update dari status apapun ke status apapun.
+1. **Fleksibilitas**: Endpoint ini **tidak memvalidasi** status sebelumnya. Bisa update dari status apapun ke status apapun (kecuali status terkait penghulu).
 
-2. **Notifikasi Otomatis**: Setiap perubahan status akan mengirim notifikasi otomatis ke user (calon pasangan).
+2. **Pembatasan Status Penghulu**: Status terkait assign penghulu (`Menunggu Penugasan`, `Penghulu Ditugaskan`, `Menunggu Verifikasi Penghulu`) **TIDAK BISA** diupdate via endpoint ini. Hanya Kepala KUA yang bisa assign penghulu melalui endpoint khusus:
+   ```
+   POST /simnikah/pendaftaran/:id/assign-penghulu
+   ```
 
-3. **Audit Trail**: Semua perubahan dicatat dengan:
+3. **Notifikasi Otomatis**: Setiap perubahan status akan mengirim notifikasi otomatis ke user (calon pasangan).
+
+4. **Audit Trail**: Semua perubahan dicatat dengan:
    - `updated_by`: User ID yang melakukan update
    - `updated_at`: Timestamp perubahan
    - `disetujui_oleh`: User ID yang melakukan update
    - `disetujui_pada`: Timestamp persetujuan
 
-4. **Role-Based Access**: Hanya Staff, Penghulu, dan Kepala KUA yang bisa menggunakan endpoint ini.
+5. **Role-Based Access**: Hanya Staff, Penghulu, dan Kepala KUA yang bisa menggunakan endpoint ini.
 
-5. **Validasi Status**: Meskipun fleksibel, status yang diinput harus valid (ada dalam daftar status yang diizinkan).
+6. **Validasi Status**: Meskipun fleksibel, status yang diinput harus valid (ada dalam daftar status yang diizinkan).
 
 ---
 
 ## 🔄 Perbandingan dengan Endpoint Lain
 
-| Endpoint | Validasi Status Sebelumnya | Fleksibilitas |
-|----------|---------------------------|----------------|
-| `/staff/verify-formulir/:id` | ✅ Harus "Menunggu Verifikasi" | ❌ Ketat |
-| `/staff/verify-berkas/:id` | ✅ Harus "Menunggu Pengumpulan Berkas" | ❌ Ketat |
-| `/penghulu/verify-documents/:id` | ✅ Harus "Menunggu Verifikasi Penghulu" | ❌ Ketat |
-| `/pendaftaran/:id/update-status` | ❌ Tidak ada validasi | ✅ **Fleksibel** |
+| Endpoint | Validasi Status Sebelumnya | Fleksibilitas | Keterangan |
+|----------|---------------------------|----------------|------------|
+| `/staff/verify-formulir/:id` | ✅ Harus "Menunggu Verifikasi" | ❌ Ketat | Staff only |
+| `/staff/verify-berkas/:id` | ✅ Harus "Menunggu Pengumpulan Berkas" | ❌ Ketat | Staff only |
+| `/penghulu/verify-documents/:id` | ✅ Harus "Menunggu Verifikasi Penghulu" | ❌ Ketat | Penghulu only |
+| `/pendaftaran/:id/assign-penghulu` | ✅ Harus "Menunggu Penugasan" | ❌ Ketat | **Kepala KUA only** |
+| `/pendaftaran/:id/update-status` | ❌ Tidak ada validasi | ✅ **Fleksibel** | Staff, Penghulu, Kepala KUA (kecuali status penghulu) |
 
 ---
 
@@ -234,7 +258,16 @@ Status apapun → Selesai (jika nikah sudah dilaksanakan)
 {
   "success": false,
   "message": "Status tidak valid",
-  "error": "Status yang diizinkan: Draft, Menunggu Verifikasi, Menunggu Pengumpulan Berkas, Berkas Diterima, Menunggu Penugasan, Penghulu Ditugaskan, Menunggu Verifikasi Penghulu, Menunggu Bimbingan, Sudah Bimbingan, Selesai, Ditolak"
+  "error": "Status yang diizinkan: Draft, Menunggu Verifikasi, Menunggu Pengumpulan Berkas, Berkas Diterima, Menunggu Bimbingan, Sudah Bimbingan, Selesai, Ditolak. Untuk status terkait penghulu, gunakan endpoint assign-penghulu."
+}
+```
+
+### Error - Status Terkait Penghulu (403 Forbidden)
+```json
+{
+  "success": false,
+  "message": "Akses ditolak",
+  "error": "Status 'Menunggu Penugasan' hanya bisa diubah oleh Kepala KUA melalui endpoint assign-penghulu. Gunakan endpoint POST /simnikah/pendaftaran/:id/assign-penghulu untuk menugaskan penghulu."
 }
 ```
 
