@@ -1040,12 +1040,14 @@ func (h *InDB) GetAllMarriageRegistrations(c *gin.Context) {
 		}
 	}
 
+	// Always join with calon_pasangans to get names
+	query = query.Joins("LEFT JOIN calon_pasangans cs ON pendaftaran_nikahs.calon_suami_id = cs.id").
+		Joins("LEFT JOIN calon_pasangans ci ON pendaftaran_nikahs.calon_istri_id = ci.id")
+	
 	if search != "" {
 		// Search in registration number, groom name, bride name, or NIK
-		query = query.Joins("LEFT JOIN calon_pasangans cs ON pendaftaran_nikahs.calon_suami_id = cs.id").
-			Joins("LEFT JOIN calon_pasangans ci ON pendaftaran_nikahs.calon_istri_id = ci.id").
-			Where("pendaftaran_nikahs.nomor_pendaftaran LIKE ? OR cs.nama_lengkap LIKE ? OR ci.nama_lengkap LIKE ? OR cs.nik LIKE ? OR ci.nik LIKE ?",
-				"%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%")
+		query = query.Where("pendaftaran_nikahs.nomor_pendaftaran LIKE ? OR cs.nama_lengkap LIKE ? OR ci.nama_lengkap LIKE ? OR cs.nik LIKE ? OR ci.nik LIKE ?",
+			"%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}
 
 	// Apply sorting
@@ -1096,9 +1098,18 @@ func (h *InDB) GetAllMarriageRegistrations(c *gin.Context) {
 
 	countQuery.Count(&total)
 
-	// Get paginated results
-	var pendaftarans []structs.PendaftaranNikah
-	if err := query.Offset(offset).Limit(limitInt).Find(&pendaftarans).Error; err != nil {
+	// Get paginated results with join to get calon suami and istri names
+	type RegistrationWithNames struct {
+		structs.PendaftaranNikah
+		CalonSuamiNama string `gorm:"column:calon_suami_nama"`
+		CalonIstriNama string `gorm:"column:calon_istri_nama"`
+	}
+	
+	var results []RegistrationWithNames
+	if err := query.
+		Select("pendaftaran_nikahs.*, cs.nama_lengkap as calon_suami_nama, ci.nama_lengkap as calon_istri_nama").
+		Offset(offset).Limit(limitInt).
+		Scan(&results).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "Database error",
@@ -1115,23 +1126,31 @@ func (h *InDB) GetAllMarriageRegistrations(c *gin.Context) {
 
 	// Prepare response data
 	var registrations []gin.H
-	for _, p := range pendaftarans {
+	for _, r := range results {
 		registrations = append(registrations, gin.H{
-			"id":                  p.ID,
-			"nomor_pendaftaran":   p.Nomor_pendaftaran,
-			"pendaftar_id":        p.Pendaftar_id,
-			"status_pendaftaran":  p.Status_pendaftaran,
-			"status_bimbingan":    p.Status_bimbingan,
-			"tanggal_pendaftaran": p.Tanggal_pendaftaran,
-			"tanggal_nikah":       p.Tanggal_nikah,
-			"waktu_nikah":         p.Waktu_nikah,
-			"tempat_nikah":        p.Tempat_nikah,
-			"alamat_akad":         p.Alamat_akad,
-			"nomor_dispensasi":    p.Nomor_dispensasi,
-			"penghulu_id":         p.Penghulu_id,
-			"catatan":             p.Catatan,
-			"created_at":          p.Created_at,
-			"updated_at":          p.Updated_at,
+			"id":                  r.ID,
+			"nomor_pendaftaran":   r.Nomor_pendaftaran,
+			"pendaftar_id":        r.Pendaftar_id,
+			"status_pendaftaran":  r.Status_pendaftaran,
+			"status_bimbingan":    r.Status_bimbingan,
+			"tanggal_pendaftaran": r.Tanggal_pendaftaran,
+			"tanggal_nikah":       r.Tanggal_nikah,
+			"waktu_nikah":         r.Waktu_nikah,
+			"tempat_nikah":        r.Tempat_nikah,
+			"alamat_akad":         r.Alamat_akad,
+			"nomor_dispensasi":    r.Nomor_dispensasi,
+			"penghulu_id":         r.Penghulu_id,
+			"catatan":             r.Catatan,
+			"calon_suami": gin.H{
+				"id":           r.Calon_suami_id,
+				"nama_lengkap": r.CalonSuamiNama,
+			},
+			"calon_istri": gin.H{
+				"id":           r.Calon_istri_id,
+				"nama_lengkap": r.CalonIstriNama,
+			},
+			"created_at": r.Created_at,
+			"updated_at": r.Updated_at,
 		})
 	}
 

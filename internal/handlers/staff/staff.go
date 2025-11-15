@@ -3,6 +3,7 @@ package staff
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"simnikah/internal/models"
@@ -677,7 +678,7 @@ func (h *InDB) UpdateStatusFlexible(c *gin.Context) {
 	}
 
 	var input struct {
-		Status  string `json:"status" binding:"required"`
+		Status  string `json:"status"`
 		Catatan string `json:"catatan"`
 	}
 
@@ -686,6 +687,16 @@ func (h *InDB) UpdateStatusFlexible(c *gin.Context) {
 			"success": false,
 			"message": "Format data tidak valid",
 			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Validate status is not empty (manual validation)
+	if strings.TrimSpace(input.Status) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format data tidak valid",
+			"error":   "Field 'status' wajib diisi",
 		})
 		return
 	}
