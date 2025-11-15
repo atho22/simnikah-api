@@ -19,6 +19,7 @@ import (
 	"simnikah/internal/handlers/staff"
 	"simnikah/internal/middleware"
 	structs "simnikah/internal/models"
+	"simnikah/internal/seeders"
 	"simnikah/internal/services"
 	"simnikah/pkg/crypto"
 	"simnikah/pkg/utils"
@@ -69,7 +70,21 @@ func main() {
 		// Don't fatal, just warn - indexes are optional (but highly recommended)
 	}
 
-	// Replace individual seed calls with SeedAll
+	// Seed initial data (Kepala KUA, Staff, Penghulu)
+	if err := seeders.SeedKepalaKUA(DB); err != nil {
+		log.Printf("Warning: Failed to seed kepala KUA: %v", err)
+		// Don't fatal, just warn - seeder is optional
+	}
+
+	if err := seeders.SeedStaff(DB); err != nil {
+		log.Printf("Warning: Failed to seed staff: %v", err)
+		// Don't fatal, just warn - seeder is optional
+	}
+
+	if err := seeders.SeedPenghulu(DB); err != nil {
+		log.Printf("Warning: Failed to seed penghulu: %v", err)
+		// Don't fatal, just warn - seeder is optional
+	}
 
 	// Set Gin to release mode in production
 	ginMode := os.Getenv("GIN_MODE")
