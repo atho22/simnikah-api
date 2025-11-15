@@ -470,7 +470,6 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		No_hp:               dataFormPendaftaran.CalonSuami.NomorTelepon,
 		Email:               dataFormPendaftaran.CalonSuami.Email,
 		Warga_negara:        dataFormPendaftaran.CalonSuami.Kewarganegaraan,
-		No_paspor:           dataFormPendaftaran.CalonSuami.NomorPaspor,
 		Created_at:          createdAt,
 		Updated_at:          createdAt,
 	}
@@ -514,7 +513,6 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 		No_hp:               dataFormPendaftaran.CalonIstri.NomorTelepon,
 		Email:               dataFormPendaftaran.CalonIstri.Email,
 		Warga_negara:        dataFormPendaftaran.CalonIstri.Kewarganegaraan,
-		No_paspor:           dataFormPendaftaran.CalonIstri.NomorPaspor,
 		Created_at:          createdAt,
 		Updated_at:          createdAt,
 	}
@@ -696,17 +694,16 @@ func (h *InDB) CreateMarriageRegistrationForm(c *gin.Context) {
 
 	// Create marriage guardian
 	waliNikah := structs.WaliNikah{
-		Pendaftaran_id:    pendaftaranNikah.ID,
-		NIK:               dataFormPendaftaran.WaliNikah.NikWali,
-		Nama_lengkap:      dataFormPendaftaran.WaliNikah.NamaLengkapWali,
-		Hubungan_wali:     dataFormPendaftaran.WaliNikah.HubunganWali,
-		Alamat:            dataFormPendaftaran.WaliNikah.AlamatWali,
-		No_hp:             dataFormPendaftaran.WaliNikah.NomorTeleponWali,
-		Agama:             dataFormPendaftaran.WaliNikah.AgamaWali,
+		Pendaftaran_id:   pendaftaranNikah.ID,
+		NIK:              dataFormPendaftaran.WaliNikah.NikWali,
+		Nama_lengkap:     dataFormPendaftaran.WaliNikah.NamaLengkapWali,
+		Hubungan_wali:    dataFormPendaftaran.WaliNikah.HubunganWali,
+		Alamat:           dataFormPendaftaran.WaliNikah.AlamatWali,
+		No_hp:            dataFormPendaftaran.WaliNikah.NomorTeleponWali,
+		Agama:            dataFormPendaftaran.WaliNikah.AgamaWali,
 		Status_keberadaan: dataFormPendaftaran.WaliNikah.StatusWali,
-		Status_kehadiran:  structs.WaliStatusKehadiranBelumDiketahui,
-		Created_at:        createdAt,
-		Updated_at:        createdAt,
+		Created_at:       createdAt,
+		Updated_at:       createdAt,
 	}
 
 	if err := tx.Create(&waliNikah).Error; err != nil {

@@ -22,12 +22,10 @@ type CalonPasangan struct {
 	Status_perkawinan   string    `gorm:"size:20;not null;default:'Belum Kawin'" json:"status_perkawinan"` // Use constants from constants.go
 	Pekerjaan           string    `gorm:"size:50" json:"pekerjaan"`
 	Deskripsi_pekerjaan string    `gorm:"size:200" json:"deskripsi_pekerjaan"`
-	Penghasilan         string    `gorm:"size:50" json:"penghasilan"`
 	Pendidikan_terakhir string    `gorm:"size:50" json:"pendidikan_terakhir"`
 	No_hp               string    `gorm:"size:15" json:"nomor_telepon"`
 	Email               string    `gorm:"size:100" json:"email"`
 	Warga_negara        string    `gorm:"size:20;default:'WNI'" json:"warga_negara"`
-	No_paspor           string    `gorm:"size:20" json:"nomor_paspor"`
 	Created_at          time.Time `json:"dibuat_pada"`
 	Updated_at          time.Time `json:"diperbarui_pada"`
 }
@@ -82,26 +80,17 @@ type PendaftaranNikah struct {
 }
 
 type WaliNikah struct {
-	ID                uint       `gorm:"primaryKey" json:"id"`
-	Pendaftaran_id    uint       `gorm:"not null" json:"id_pendaftaran"`
-	NIK               string     `gorm:"size:16;not null" json:"nik"`
-	Nama_lengkap      string     `gorm:"size:100;not null" json:"nama_lengkap"`
-	Hubungan_wali     string     `gorm:"size:50;not null" json:"hubungan_wali"`
-	Alamat            string     `gorm:"size:200;not null" json:"alamat"`
-	No_hp             string     `gorm:"size:15" json:"nomor_telepon"`
-	Email             string     `gorm:"size:100" json:"email"`
-	Warga_negara      string     `gorm:"size:20;default:'WNI'" json:"warga_negara"`
-	Agama             string     `gorm:"size:20;not null" json:"agama"`
-	Tempat_lahir      string     `gorm:"size:50" json:"tempat_lahir"`
-	Tanggal_lahir     *time.Time `json:"tanggal_lahir"`
-	Negara_asal       string     `gorm:"size:50;default:'Indonesia'" json:"negara_asal"`
-	Pekerjaan         string     `gorm:"size:50" json:"pekerjaan"`
-	No_paspor         string     `gorm:"size:20" json:"nomor_paspor"`
-	Pekerjaan_lain    string     `gorm:"size:50" json:"pekerjaan_lain"`
-	Status_keberadaan string     `gorm:"size:20;not null;default:'Hidup'" json:"status_keberadaan"` // Use constants from constants.go
-	Status_kehadiran  string     `gorm:"size:20;not null;default:'Belum'" json:"status_kehadiran"`  // Use constants from constants.go
-	Created_at        time.Time  `json:"dibuat_pada"`
-	Updated_at        time.Time  `json:"diperbarui_pada"`
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	Pendaftaran_id    uint      `gorm:"not null" json:"id_pendaftaran"`
+	NIK               string    `gorm:"size:16;not null" json:"nik"`
+	Nama_lengkap      string    `gorm:"size:100;not null" json:"nama_lengkap"`
+	Hubungan_wali     string    `gorm:"size:50;not null" json:"hubungan_wali"`
+	Alamat            string    `gorm:"size:200;not null" json:"alamat"`
+	No_hp             string    `gorm:"size:15" json:"nomor_telepon"`
+	Agama             string    `gorm:"size:20;not null" json:"agama"`
+	Status_keberadaan  string    `gorm:"size:20;not null;default:'Hidup'" json:"status_keberadaan"` // Use constants from constants.go
+	Created_at        time.Time `json:"dibuat_pada"`
+	Updated_at        time.Time `json:"diperbarui_pada"`
 }
 
 // ==================== USER MANAGEMENT & ROLES ====================

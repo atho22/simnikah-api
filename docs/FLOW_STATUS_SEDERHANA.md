@@ -177,15 +177,17 @@ Aplikasi SimNikah fokus pada:
 ### 3. Alamat Nikah (Penghulu)
 
 **Endpoint:**
-- `GET /simnikah/pendaftaran/:id/location` - Detail lokasi nikah
+- `GET /simnikah/penghulu/assigned-registrations` - **Daftar pendaftaran yang ditugaskan (dengan alamat lengkap)**
+- `GET /simnikah/pendaftaran/:id/location` - Detail lokasi nikah lengkap
 - `PUT /simnikah/pendaftaran/:id/location` - Update lokasi dengan koordinat
 - `POST /simnikah/location/geocode` - Alamat → Koordinat
 - `POST /simnikah/location/reverse-geocode` - Koordinat → Alamat
 
 **Fitur:**
-- ✅ Penghulu bisa lihat alamat nikah (jika di luar KUA)
-- ✅ Link Google Maps, Waze, OpenStreetMap
-- ✅ Koordinat GPS untuk navigasi
+- ✅ **Penghulu bisa lihat alamat nikah di daftar assigned registrations**
+- ✅ **Koordinat GPS (latitude/longitude) untuk nikah di luar KUA**
+- ✅ **Link Google Maps, Waze, OpenStreetMap untuk navigasi**
+- ✅ **Flag `is_outside_kua` untuk mengetahui apakah perlu datang ke lokasi**
 - ✅ Geocoding otomatis saat input alamat
 
 ---
@@ -240,16 +242,23 @@ Aplikasi SimNikah fokus pada:
    → Status: Menunggu Penugasan → Penghulu Ditugaskan
 
 4. Penghulu lihat alamat & lokasi
-   → GET /simnikah/pendaftaran/:id/location
-   → Response: {
+   → GET /simnikah/penghulu/assigned-registrations
+   → Response sudah termasuk alamat lengkap untuk setiap pendaftaran:
+     {
        "alamat_akad": "Jl. Pangeran Samudra No. 88",
        "latitude": -3.3194374,
        "longitude": 114.5900675,
-       "maps": {
-         "google_maps": "https://www.google.com/maps?q=...",
-         "waze": "https://waze.com/ul?ll=..."
-       }
+       "has_coordinates": true,
+       "is_outside_kua": true,
+       "google_maps_url": "https://www.google.com/maps/search/?api=1&query=...",
+       "google_maps_directions_url": "https://www.google.com/maps/dir/?api=1&destination=...",
+       "waze_url": "https://www.waze.com/ul?ll=...&navigate=yes",
+       "osm_url": "https://www.openstreetmap.org/?mlat=...&mlon=..."
      }
+   
+   Atau bisa juga:
+   → GET /simnikah/pendaftaran/:id/location
+   → Untuk detail lokasi lebih lengkap
 
 5. Penghulu bisa navigasi ke lokasi
    → Buka link Google Maps atau Waze

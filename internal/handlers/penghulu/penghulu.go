@@ -1,6 +1,7 @@
 package penghulu
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -207,7 +208,7 @@ func (h *InDB) GetAssignedRegistrations(c *gin.Context) {
 
 	var registrations []gin.H
 	for _, p := range pendaftarans {
-		registrations = append(registrations, gin.H{
+		regData := gin.H{
 			"id":                 p.ID,
 			"nomor_pendaftaran":  p.Nomor_pendaftaran,
 			"status_pendaftaran": p.Status_pendaftaran,
@@ -218,7 +219,30 @@ func (h *InDB) GetAssignedRegistrations(c *gin.Context) {
 			"catatan":            p.Catatan,
 			"created_at":         p.Created_at,
 			"updated_at":         p.Updated_at,
-		})
+		}
+
+		// Tambahkan informasi lokasi jika ada koordinat (untuk nikah di luar KUA)
+		if p.Latitude != nil && p.Longitude != nil {
+			regData["latitude"] = *p.Latitude
+			regData["longitude"] = *p.Longitude
+			regData["has_coordinates"] = true
+			regData["google_maps_url"] = fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%f,%f", *p.Latitude, *p.Longitude)
+			regData["google_maps_directions_url"] = fmt.Sprintf("https://www.google.com/maps/dir/?api=1&destination=%f,%f", *p.Latitude, *p.Longitude)
+			regData["waze_url"] = fmt.Sprintf("https://www.waze.com/ul?ll=%f,%f&navigate=yes", *p.Latitude, *p.Longitude)
+			regData["osm_url"] = fmt.Sprintf("https://www.openstreetmap.org/?mlat=%f&mlon=%f&zoom=16", *p.Latitude, *p.Longitude)
+		} else {
+			regData["has_coordinates"] = false
+		}
+
+		// Tambahkan flag untuk nikah di luar KUA
+		if p.Tempat_nikah == "Di Luar KUA" {
+			regData["is_outside_kua"] = true
+			regData["note"] = "Pernikahan dilaksanakan di luar KUA. Penghulu perlu datang ke lokasi."
+		} else {
+			regData["is_outside_kua"] = false
+		}
+
+		registrations = append(registrations, regData)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
