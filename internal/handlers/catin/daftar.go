@@ -290,6 +290,11 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 	groomUserID := hashGroom[:20]
 	brideUserID := hashBride[:20]
 
+	// Generate unique NIK yang lebih pendek (max 16 karakter) dan unik
+	// Format: T + hash (15 karakter) = 16 karakter total
+	nikGroom := fmt.Sprintf("T%s", hashGroom[:15])
+	nikBride := fmt.Sprintf("T%s", hashBride[:15])
+
 	// Calculate tanggal lahir dari umur (approximate)
 	now := time.Now()
 	tanggalLahirGroom := now.AddDate(-formSederhana.CalonLakiLaki.Umur, 0, 0)
@@ -298,7 +303,7 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 	// Create calon suami dengan data minimal (hanya dari form sederhana)
 	calonSuami := structs.CalonPasangan{
 		User_id:             groomUserID,
-		NIK:                 fmt.Sprintf("TEMP_%d", timestamp), // Temporary NIK untuk search
+		NIK:                 nikGroom, // Temporary NIK untuk search (max 16 karakter)
 		Nama_lengkap:        formSederhana.CalonLakiLaki.NamaDanBin,
 		Tanggal_lahir:       tanggalLahirGroom,
 		Jenis_kelamin:       "L",
@@ -312,7 +317,7 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "Database error",
-			"error":   "Gagal membuat data calon suami",
+			"error":   fmt.Sprintf("Gagal membuat data calon suami: %v", err),
 			"type":    "database",
 		})
 		return
@@ -321,7 +326,7 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 	// Create calon istri dengan data minimal (hanya dari form sederhana)
 	calonIstri := structs.CalonPasangan{
 		User_id:             brideUserID,
-		NIK:                 fmt.Sprintf("TEMP_%d", timestamp+1), // Temporary NIK untuk search
+		NIK:                 nikBride, // Temporary NIK untuk search (max 16 karakter)
 		Nama_lengkap:        formSederhana.CalonPerempuan.NamaDanBinti,
 		Tanggal_lahir:       tanggalLahirBride,
 		Jenis_kelamin:       "P",
@@ -335,7 +340,7 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "Database error",
-			"error":   "Gagal membuat data calon istri",
+			"error":   fmt.Sprintf("Gagal membuat data calon istri: %v", err),
 			"type":    "database",
 		})
 		return
