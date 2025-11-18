@@ -558,11 +558,12 @@ func (h *InDB) VerifyDocuments(c *gin.Context) {
 	}
 
 	// Check if registration is in correct status for document verification
-	if pendaftaran.Status_pendaftaran != structs.StatusPendaftaranMenungguPengumpulanBerkas {
+	// Dalam flow sederhana, verifikasi berkas bisa dilakukan pada status Draft
+	if pendaftaran.Status_pendaftaran != structs.StatusPendaftaranDraft {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Status tidak sesuai",
-			"error":   "Pendaftaran harus dalam status 'Menunggu Pengumpulan Berkas' untuk verifikasi berkas",
+			"error":   "Pendaftaran harus dalam status 'Draft' untuk verifikasi berkas",
 		})
 		return
 	}
