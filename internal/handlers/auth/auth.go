@@ -207,10 +207,19 @@ func (h *InDB) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Login berhasil",
+		"token":   token,
+		"user": gin.H{
+			"user_id":  user.User_id,
+			"username": user.Username,
+			"email":    user.Email,
+			"role":     user.Role,
+			"nama":     user.Nama,
+		},
+		// Juga include di data untuk backward compatibility
 		"data": gin.H{
 			"token": token,
 			"user": gin.H{
-				"user_id": user.User_id,
+				"user_id":  user.User_id,
 				"username": user.Username,
 				"email":    user.Email,
 				"role":     user.Role,
