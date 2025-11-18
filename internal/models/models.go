@@ -3,54 +3,39 @@ package structs
 import "time"
 
 // SimNikah Models
+// CalonPasangan - Model minimal untuk form sederhana
+// Hanya menyimpan data yang diinput dari form sederhana: nama, pendidikan, umur (via tanggal_lahir)
 type CalonPasangan struct {
 	ID                  uint      `gorm:"primaryKey" json:"id"`
 	User_id             string    `gorm:"size:20;not null;unique" json:"id_pengguna"`
-	NIK                 string    `gorm:"size:16;not null;unique" json:"nik"`
-	Nama_lengkap        string    `gorm:"size:100;not null" json:"nama_lengkap"`
-	Tempat_lahir        string    `gorm:"size:50;not null" json:"tempat_lahir"`
-	Tanggal_lahir       time.Time `gorm:"not null" json:"tanggal_lahir"`
-	Jenis_kelamin       string    `gorm:"type:VARCHAR(1);not null" json:"jenis_kelamin"` // postgres: gunakan VARCHAR(1) untuk L/P
-	Alamat              string    `gorm:"size:200;not null" json:"alamat"`
-	RT                  string    `gorm:"size:3" json:"rt"`
-	RW                  string    `gorm:"size:3" json:"rw"`
-	Kelurahan           string    `gorm:"size:50;not null" json:"kelurahan"`
-	Kecamatan           string    `gorm:"size:50;not null" json:"kecamatan"`
-	Kabupaten           string    `gorm:"size:50;not null" json:"kabupaten"`
-	Provinsi            string    `gorm:"size:50;not null" json:"provinsi"`
-	Agama               string    `gorm:"size:20;not null" json:"agama"`
-	Status_perkawinan   string    `gorm:"size:20;not null;default:'Belum Kawin'" json:"status_perkawinan"` // Use constants from constants.go
-	Pekerjaan           string    `gorm:"size:50" json:"pekerjaan"`
-	Deskripsi_pekerjaan string    `gorm:"size:200" json:"deskripsi_pekerjaan"`
-	Pendidikan_terakhir string    `gorm:"size:50" json:"pendidikan_terakhir"`
-	No_hp               string    `gorm:"size:15" json:"nomor_telepon"`
-	Email               string    `gorm:"size:100" json:"email"`
-	Warga_negara        string    `gorm:"size:20;default:'WNI'" json:"warga_negara"`
+	NIK                 string    `gorm:"size:16;unique" json:"nik"` // Optional, temporary untuk search
+	Nama_lengkap        string    `gorm:"size:100;not null" json:"nama_lengkap"` // Dari form sederhana
+	Tanggal_lahir       time.Time `gorm:"not null" json:"tanggal_lahir"` // Diperlukan untuk umur, dihitung dari form
+	Jenis_kelamin       string    `gorm:"type:VARCHAR(1);not null" json:"jenis_kelamin"` // L/P (diperlukan untuk identifikasi)
+	Pendidikan_terakhir string    `gorm:"size:50" json:"pendidikan_terakhir"` // Dari form sederhana
+	// Field lain dihapus - tidak digunakan di form sederhana
+	// Jika diperlukan field lain (alamat, tempat_lahir, dll) bisa ditambahkan kembali untuk scalability
 	Created_at          time.Time `json:"dibuat_pada"`
 	Updated_at          time.Time `json:"diperbarui_pada"`
 }
 
-// DataOrangTua untuk data orang tua calon pasangan
-type DataOrangTua struct {
-	ID                  uint       `gorm:"primaryKey" json:"id"`
-	User_id             string     `gorm:"size:20;not null" json:"id_pengguna"`
-	Jenis_kelamin_calon string     `gorm:"type:VARCHAR(1);not null" json:"jenis_kelamin_calon"` // L = Suami, P = Istri
-	Hubungan            string     `gorm:"type:VARCHAR(10);not null" json:"hubungan"`           // enum -> varchar
-	Nama_lengkap        string     `gorm:"size:100;not null" json:"nama_lengkap"`
-	NIK                 string     `gorm:"size:16" json:"nik"`
-	Warga_negara        string     `gorm:"size:20" json:"warga_negara"`
-	Agama               string     `gorm:"size:20" json:"agama"`
-	Tempat_lahir        string     `gorm:"size:50" json:"tempat_lahir"`
-	Negara_asal         string     `gorm:"size:50" json:"negara_asal"`
-	Pekerjaan           string     `gorm:"size:50" json:"pekerjaan"`
-	No_paspor           string     `gorm:"size:20" json:"nomor_paspor"`
-	Tanggal_lahir       *time.Time `json:"tanggal_lahir"`
-	Pekerjaan_lain      string     `gorm:"size:50" json:"pekerjaan_lain"`
-	Alamat              string     `gorm:"size:200" json:"alamat"`
-	Status_keberadaan   string     `gorm:"size:20;not null;default:'Hidup'" json:"status_keberadaan"` // Use constants from constants.go
-	Jenis_kelamin       string     `gorm:"size:1;not null" json:"jenis_kelamin"`                      // L = Ayah, P = Ibu
-	Created_at          time.Time  `json:"dibuat_pada"`
-	Updated_at          time.Time  `json:"diperbarui_pada"`
+
+// ==================== FEEDBACK PERNIKAHAN ====================
+
+// FeedbackPernikahan untuk feedback, saran, kritik, atau laporan dari catin setelah pernikahan selesai
+type FeedbackPernikahan struct {
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	Pendaftaran_id    uint      `gorm:"not null" json:"id_pendaftaran"` // ID pendaftaran nikah
+	User_id           string    `gorm:"size:20;not null" json:"id_pengguna"` // User ID yang memberikan feedback (catin)
+	Jenis_feedback    string    `gorm:"size:20;not null" json:"jenis_feedback"` // "Rating", "Saran", "Kritik", "Laporan"
+	Rating            *int      `json:"rating"` // 1-5, hanya untuk jenis "Rating"
+	Judul             string    `gorm:"size:200;not null" json:"judul"`
+	Pesan             string    `gorm:"type:TEXT;not null" json:"pesan"` // Isi feedback/saran/kritik/laporan
+	Status_baca       string    `gorm:"size:20;not null;default:'Belum Dibaca'" json:"status_baca"` // "Belum Dibaca", "Sudah Dibaca"
+	Dibaca_oleh       string    `gorm:"size:20" json:"dibaca_oleh"` // ID kepala KUA yang membaca
+	Dibaca_pada       *time.Time `json:"dibaca_pada"`
+	Created_at        time.Time `json:"dibuat_pada"`
+	Updated_at        time.Time `json:"diperbarui_pada"`
 }
 
 type PendaftaranNikah struct {
@@ -63,12 +48,12 @@ type PendaftaranNikah struct {
 	Tanggal_nikah        time.Time  `gorm:"not null" json:"tanggal_nikah"`
 	Waktu_nikah          string     `gorm:"size:10;not null" json:"waktu_nikah"` // format: HH:MM
 	Tempat_nikah         string     `gorm:"size:100;not null" json:"tempat_nikah"`
-	Nomor_dispensasi     string     `gorm:"size:50" json:"nomor_dispensasi"`
+	// Nomor_dispensasi dihapus - tidak digunakan di form sederhana (bisa ditambahkan kembali jika diperlukan)
 	Alamat_akad          string     `gorm:"size:200" json:"alamat_akad"`
 	Latitude             *float64   `json:"latitude"`                                                   // Koordinat lintang untuk alamat nikah di luar KUA
 	Longitude            *float64   `json:"longitude"`                                                  // Koordinat bujur untuk alamat nikah di luar KUA
 	Status_pendaftaran   string     `gorm:"size:40;not null;default:'Draft'" json:"status_pendaftaran"` // Use constants from constants.go
-	Status_bimbingan     string     `gorm:"size:30;not null;default:'Belum'" json:"status_bimbingan"`   // Use constants from constants.go
+	// Status_bimbingan dihapus - tidak digunakan di form sederhana (bisa ditambahkan kembali jika diperlukan)
 	Penghulu_id          *uint      `json:"id_penghulu"`                                                // ID penghulu yang ditugaskan
 	Penghulu_assigned_by string     `gorm:"size:20" json:"penghulu_ditugaskan_oleh"`                    // ID kepala KUA yang assign
 	Penghulu_assigned_at *time.Time `json:"penghulu_ditugaskan_pada"`                                   // Waktu assign penghulu
@@ -79,19 +64,6 @@ type PendaftaranNikah struct {
 	Updated_at           time.Time  `json:"diperbarui_pada"`
 }
 
-type WaliNikah struct {
-	ID                uint      `gorm:"primaryKey" json:"id"`
-	Pendaftaran_id    uint      `gorm:"not null" json:"id_pendaftaran"`
-	NIK               string    `gorm:"size:16;not null" json:"nik"`
-	Nama_lengkap      string    `gorm:"size:100;not null" json:"nama_lengkap"`
-	Hubungan_wali     string    `gorm:"size:50;not null" json:"hubungan_wali"`
-	Alamat            string    `gorm:"size:200;not null" json:"alamat"`
-	No_hp             string    `gorm:"size:15" json:"nomor_telepon"`
-	Agama             string    `gorm:"size:20;not null" json:"agama"`
-	Status_keberadaan  string    `gorm:"size:20;not null;default:'Hidup'" json:"status_keberadaan"` // Use constants from constants.go
-	Created_at        time.Time `json:"dibuat_pada"`
-	Updated_at        time.Time `json:"diperbarui_pada"`
-}
 
 // ==================== USER MANAGEMENT & ROLES ====================
 
@@ -109,14 +81,7 @@ type Users struct {
 	Updated_at time.Time `gorm:"autoUpdateTime" json:"diperbarui_pada"`
 }
 
-// Role definitions - role tersimpan langsung di tabel Users
-// Role yang tersedia:
-// - user_biasa: User biasa untuk daftar nikah
-// - penghulu: Penghulu untuk memimpin nikah
-// - staff: Staff KUA untuk verifikasi
-// - kepala_kua: Kepala KUA untuk approval
 
-// StaffKUA untuk data staff KUA
 type StaffKUA struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	User_id      string    `gorm:"size:20;not null;unique" json:"id_pengguna"`
@@ -163,153 +128,49 @@ type Notifikasi struct {
 	Updated_at  time.Time `json:"diperbarui_pada"`
 }
 
-// BimbinganPerkawinan model untuk sesi bimbingan perkawinan
-type BimbinganPerkawinan struct {
-	ID                uint      `gorm:"primaryKey" json:"id"`
-	Tanggal_bimbingan time.Time `gorm:"not null" json:"tanggal_bimbingan"`
-	Waktu_mulai       string    `gorm:"size:10;not null" json:"waktu_mulai"`
-	Waktu_selesai     string    `gorm:"size:10;not null" json:"waktu_selesai"`
-	Tempat_bimbingan  string    `gorm:"size:100;not null" json:"tempat_bimbingan"`
-	Pembimbing        string    `gorm:"size:100;not null" json:"pembimbing"`
-	Kapasitas         int       `gorm:"default:10" json:"kapasitas"`
-	Status            string    `gorm:"size:20;not null;default:'Aktif'" json:"status"` // Use constants from constants.go
-	Catatan           string    `gorm:"size:500" json:"catatan"`
-	Created_at        time.Time `json:"dibuat_pada"`
-	Updated_at        time.Time `json:"diperbarui_pada"`
+
+// ==================== FORM PENDAFTARAN NIKAH SEDERHANA ====================
+
+// DataFormPendaftaranSederhana untuk form pendaftaran yang disederhanakan
+// Hanya berisi field-field penting untuk memudahkan catin
+type DataFormPendaftaranSederhana struct {
+	// Calon Laki-laki
+	CalonLakiLaki struct {
+		NamaDanBin       string `json:"nama_dan_bin" binding:"required"` // Contoh: "Ahmad bin Abdullah"
+		PendidikanAkhir  string `json:"pendidikan_akhir" binding:"required"`
+		Umur             int    `json:"umur" binding:"required,min=1"`
+	} `json:"calon_laki_laki" binding:"required"`
+
+	// Calon Perempuan
+	CalonPerempuan struct {
+		NamaDanBinti     string `json:"nama_dan_binti" binding:"required"` // Contoh: "Siti binti Abdullah"
+		PendidikanAkhir  string `json:"pendidikan_akhir" binding:"required"`
+		Umur             int    `json:"umur" binding:"required,min=1"`
+	} `json:"calon_perempuan" binding:"required"`
+
+	// Lokasi Nikah
+	LokasiNikah struct {
+		TempatNikah      string `json:"tempat_nikah" binding:"required"` // "Di KUA" atau "Di Luar KUA"
+		TanggalNikah     string `json:"tanggal_nikah" binding:"required"` // Format: YYYY-MM-DD
+		WaktuNikah       string `json:"waktu_nikah" binding:"required"`   // Format: HH:MM
+		
+		// Hanya jika tempat_nikah = "Di Luar KUA"
+		AlamatNikah      string `json:"alamat_nikah"`              // Alamat lengkap
+		DetailAlamat     string `json:"detail_alamat"`             // Detail alamat (RT/RW/dll)
+		Kelurahan        string `json:"kelurahan"`                 // Nama kelurahan (hanya lingkup Banjarmasin Utara)
+	} `json:"lokasi_nikah" binding:"required"`
 }
 
-// ==================== NEW MARRIAGE REGISTRATION FORM STRUCTS ====================
-
-// DataFormPendaftaranNikah untuk input form pendaftaran nikah sesuai kontrak API baru
-type DataFormPendaftaranNikah struct {
-	JadwalDanLokasi struct {
-		LokasiNikah     string `json:"weddingLocation" binding:"required"` // "Di KUA" atau "Di Luar KUA"
-		AlamatNikah     string `json:"weddingAddress"`
-		TanggalNikah    string `json:"weddingDate" binding:"required"`
-		WaktuNikah      string `json:"weddingTime" binding:"required"`
-		NomorDispensasi string `json:"dispensationNumber"`
-	} `json:"scheduleAndLocation" binding:"required"`
-
-	CalonSuami struct {
-		NamaLengkap        string `json:"groomFullName" binding:"required"`
-		Nik                string `json:"groomNik" binding:"required"`
-		Kewarganegaraan    string `json:"groomCitizenship" binding:"required"`
-		NomorPaspor        string `json:"groomPassportNumber"`
-		TempatLahir        string `json:"groomPlaceOfBirth" binding:"required"`
-		TanggalLahir       string `json:"groomDateOfBirth" binding:"required"`
-		Status             string `json:"groomStatus" binding:"required"`
-		Agama              string `json:"groomReligion" binding:"required"`
-		Pendidikan         string `json:"groomEducation" binding:"required"`
-		Pekerjaan          string `json:"groomOccupation" binding:"required"`
-		DeskripsiPekerjaan string `json:"groomOccupationDescription"`
-		NomorTelepon       string `json:"groomPhoneNumber" binding:"required"`
-		Email              string `json:"groomEmail" binding:"required"`
-		Alamat             string `json:"groomAddress" binding:"required"`
-	} `json:"groom" binding:"required"`
-
-	CalonIstri struct {
-		NamaLengkap        string `json:"brideFullName" binding:"required"`
-		Nik                string `json:"brideNik" binding:"required"`
-		Kewarganegaraan    string `json:"brideCitizenship" binding:"required"`
-		NomorPaspor        string `json:"bridePassportNumber"`
-		TempatLahir        string `json:"bridePlaceOfBirth" binding:"required"`
-		TanggalLahir       string `json:"brideDateOfBirth" binding:"required"`
-		Status             string `json:"brideStatus" binding:"required"`
-		Agama              string `json:"brideReligion" binding:"required"`
-		Pendidikan         string `json:"brideEducation" binding:"required"`
-		Pekerjaan          string `json:"brideOccupation" binding:"required"`
-		DeskripsiPekerjaan string `json:"brideOccupationDescription"`
-		NomorTelepon       string `json:"bridePhoneNumber" binding:"required"`
-		Email              string `json:"brideEmail" binding:"required"`
-		Alamat             string `json:"brideAddress" binding:"required"`
-	} `json:"bride" binding:"required"`
-
-	OrangTuaCalonSuami struct {
-		Ayah struct {
-			StatusKeberadaan   string `json:"groomFatherPresenceStatus" binding:"required"`
-			Nama               string `json:"groomFatherName"`
-			Nik                string `json:"groomFatherNik"`
-			Kewarganegaraan    string `json:"groomFatherCitizenship"`
-			NegaraAsal         string `json:"groomFatherCountryOfOrigin"`
-			NomorPaspor        string `json:"groomFatherPassportNumber"`
-			TempatLahir        string `json:"groomFatherPlaceOfBirth"`
-			TanggalLahir       string `json:"groomFatherDateOfBirth"`
-			Agama              string `json:"groomFatherReligion"`
-			Pekerjaan          string `json:"groomFatherOccupation"`
-			DeskripsiPekerjaan string `json:"groomFatherOccupationDescription"`
-			Alamat             string `json:"groomFatherAddress"`
-		} `json:"groomFather"`
-
-		Ibu struct {
-			StatusKeberadaan   string `json:"groomMotherPresenceStatus" binding:"required"`
-			Nama               string `json:"groomMotherName"`
-			Nik                string `json:"groomMotherNik"`
-			Kewarganegaraan    string `json:"groomMotherCitizenship"`
-			NegaraAsal         string `json:"groomMotherCountryOfOrigin"`
-			NomorPaspor        string `json:"groomMotherPassportNumber"`
-			TempatLahir        string `json:"groomMotherPlaceOfBirth"`
-			TanggalLahir       string `json:"groomMotherDateOfBirth"`
-			Agama              string `json:"groomMotherReligion"`
-			Pekerjaan          string `json:"groomMotherOccupation"`
-			DeskripsiPekerjaan string `json:"groomMotherOccupationDescription"`
-			Alamat             string `json:"groomMotherAddress"`
-		} `json:"groomMother"`
-	} `json:"groomParents" binding:"required"`
-
-	OrangTuaCalonIstri struct {
-		Ayah struct {
-			StatusKeberadaan   string `json:"brideFatherPresenceStatus" binding:"required"`
-			Nama               string `json:"brideFatherName"`
-			Nik                string `json:"brideFatherNik"`
-			Kewarganegaraan    string `json:"brideFatherCitizenship"`
-			NegaraAsal         string `json:"brideFatherCountryOfOrigin"`
-			NomorPaspor        string `json:"brideFatherPassportNumber"`
-			TempatLahir        string `json:"brideFatherPlaceOfBirth"`
-			TanggalLahir       string `json:"brideFatherDateOfBirth"`
-			Agama              string `json:"brideFatherReligion"`
-			Pekerjaan          string `json:"brideFatherOccupation"`
-			DeskripsiPekerjaan string `json:"brideFatherOccupationDescription"`
-			Alamat             string `json:"brideFatherAddress"`
-		} `json:"brideFather"`
-
-		Ibu struct {
-			StatusKeberadaan   string `json:"brideMotherPresenceStatus" binding:"required"`
-			Nama               string `json:"brideMotherName"`
-			Nik                string `json:"brideMotherNik"`
-			Kewarganegaraan    string `json:"brideMotherCitizenship"`
-			NegaraAsal         string `json:"brideMotherCountryOfOrigin"`
-			NomorPaspor        string `json:"brideMotherPassportNumber"`
-			TempatLahir        string `json:"brideMotherPlaceOfBirth"`
-			TanggalLahir       string `json:"brideMotherDateOfBirth"`
-			Agama              string `json:"brideMotherReligion"`
-			Pekerjaan          string `json:"brideMotherOccupation"`
-			DeskripsiPekerjaan string `json:"brideMotherOccupationDescription"`
-			Alamat             string `json:"brideMotherAddress"`
-		} `json:"brideMother"`
-	} `json:"brideParents" binding:"required"`
-
-	WaliNikah struct {
-		NamaLengkapWali  string `json:"guardianFullName" binding:"required"`
-		NikWali          string `json:"guardianNik" binding:"required"`
-		HubunganWali     string `json:"guardianRelationship" binding:"required"`
-		StatusWali       string `json:"guardianStatus" binding:"required"`
-		AgamaWali        string `json:"guardianReligion" binding:"required"`
-		AlamatWali       string `json:"guardianAddress" binding:"required"`
-		NomorTeleponWali string `json:"guardianPhoneNumber" binding:"required"`
-	} `json:"guardian" binding:"required"`
+// KelurahanBanjarmasinUtara - Daftar kelurahan di Kecamatan Banjarmasin Utara
+var KelurahanBanjarmasinUtara = []string{
+	"Sungai Miai",
+	"Sungai Andai",
+	"Surgi Mufti",
+	"Pangeran",
+	"Kuin Utara",
+	"Antasan Kecil Timur",
+	"Alalak Utara",
+	"Alalak Tengah",
+	"Alalak Selatan",
 }
 
-// PendaftaranBimbingan model untuk pendaftaran bimbingan perkawinan
-type PendaftaranBimbingan struct {
-	ID                      uint      `gorm:"primaryKey" json:"id"`
-	Pendaftaran_nikah_id    uint      `gorm:"not null" json:"id_pendaftaran_nikah"`
-	Bimbingan_perkawinan_id uint      `gorm:"not null" json:"id_bimbingan_perkawinan"`
-	Calon_suami_id          string    `gorm:"size:20;not null" json:"id_calon_suami"`
-	Calon_istri_id          string    `gorm:"size:20;not null" json:"id_calon_istri"`
-	Status_kehadiran        string    `gorm:"size:20;not null;default:'Belum'" json:"status_kehadiran"`  // Use constants from constants.go
-	Status_sertifikat       string    `gorm:"size:20;not null;default:'Belum'" json:"status_sertifikat"` // Use constants from constants.go
-	No_sertifikat           string    `gorm:"size:50" json:"nomor_sertifikat"`
-	Catatan                 string    `gorm:"size:500" json:"catatan"`
-	Created_at              time.Time `json:"dibuat_pada"`
-	Updated_at              time.Time `json:"diperbarui_pada"`
-}

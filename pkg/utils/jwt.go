@@ -24,13 +24,11 @@ func getJWTKey() []byte {
 }
 
 type TokenClaims struct {
-	UserID     string `json:"user_id"`
-	Email      string `json:"email"`
-	Role       string `json:"role"`
-	Kode_prodi string `json:"kode_prodi"`
-	Nama       string `json:"nama"`
-	NIP        string `json:"nip"`
-	NIM        string `json:"nim"`
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	Role   string `json:"role"`
+	Nama   string `json:"nama"`
+	NIP    string `json:"nip,omitempty"`
 	jwt.RegisteredClaims
 }
 

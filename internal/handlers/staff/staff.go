@@ -21,8 +21,8 @@ type InDB struct {
 
 // ==================== STAFF MANAGEMENT HANDLERS ====================
 
-// CreateStaffKUA creates a new staff KUA
-func (h *InDB) CreateStaffKUA(c *gin.Context) {
+// CreateStaff creates a new staff member
+func (h *InDB) CreateStaff(c *gin.Context) {
 	var input struct {
 		Username string `json:"username" binding:"required"`
 		Email    string `json:"email" binding:"required,email"`
@@ -130,8 +130,8 @@ func (h *InDB) CreateStaffKUA(c *gin.Context) {
 	})
 }
 
-// GetAllStaff gets all staff KUA
-func (h *InDB) GetAllStaff(c *gin.Context) {
+// ListStaff gets all staff members
+func (h *InDB) ListStaff(c *gin.Context) {
 	var staff []structs.StaffKUA
 
 	if err := h.DB.Find(&staff).Error; err != nil {
@@ -145,8 +145,8 @@ func (h *InDB) GetAllStaff(c *gin.Context) {
 	})
 }
 
-// UpdateStaffKUA updates staff KUA information
-func (h *InDB) UpdateStaffKUA(c *gin.Context) {
+// UpdateStaff updates staff information
+func (h *InDB) UpdateStaff(c *gin.Context) {
 	id := c.Param("id")
 
 	var input struct {
@@ -208,8 +208,8 @@ func (h *InDB) UpdateStaffKUA(c *gin.Context) {
 
 // ==================== PENGHULU MANAGEMENT HANDLERS ====================
 
-// CreatePenghulu creates a new penghulu
-func (h *InDB) CreatePenghulu(c *gin.Context) {
+// CreateMarriageOfficer creates a new marriage officer (penghulu)
+func (h *InDB) CreateMarriageOfficer(c *gin.Context) {
 	var input struct {
 		Username string `json:"username" binding:"required"`
 		Email    string `json:"email" binding:"required,email"`
@@ -296,8 +296,8 @@ func (h *InDB) CreatePenghulu(c *gin.Context) {
 	})
 }
 
-// GetAllPenghulu gets all penghulu
-func (h *InDB) GetAllPenghulu(c *gin.Context) {
+// ListMarriageOfficers gets all marriage officers (penghulu)
+func (h *InDB) ListMarriageOfficers(c *gin.Context) {
 	var penghulu []structs.Penghulu
 
 	if err := h.DB.Find(&penghulu).Error; err != nil {
@@ -311,8 +311,8 @@ func (h *InDB) GetAllPenghulu(c *gin.Context) {
 	})
 }
 
-// UpdatePenghulu updates penghulu information
-func (h *InDB) UpdatePenghulu(c *gin.Context) {
+// UpdateMarriageOfficer updates marriage officer (penghulu) information
+func (h *InDB) UpdateMarriageOfficer(c *gin.Context) {
 	id := c.Param("id")
 
 	var input struct {
@@ -370,8 +370,8 @@ func (h *InDB) UpdatePenghulu(c *gin.Context) {
 
 // ==================== MARRIAGE REGISTRATION VERIFICATION ====================
 
-// VerifyFormulir verifies the form data by staff (Tahap 1)
-func (h *InDB) VerifyFormulir(c *gin.Context) {
+// VerifyRegistrationForm verifies the registration form data by staff
+func (h *InDB) VerifyRegistrationForm(c *gin.Context) {
 	registrationID := c.Param("id")
 
 	// Get user_id from context (staff who is verifying)
@@ -421,19 +421,20 @@ func (h *InDB) VerifyFormulir(c *gin.Context) {
 	}
 
 	// Check if registration is in correct status for form verification
-	if pendaftaran.Status_pendaftaran != structs.StatusPendaftaranMenungguVerifikasi {
+	// Flow sederhana: Draft bisa diverifikasi
+	if pendaftaran.Status_pendaftaran != structs.StatusPendaftaranDraft {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Status tidak sesuai",
-			"error":   "Pendaftaran harus dalam status 'Menunggu Verifikasi' untuk diverifikasi",
+			"error":   "Pendaftaran harus dalam status 'Draft' untuk diverifikasi",
 		})
 		return
 	}
 
 	// Update registration status
-	// Jika formulir disetujui, langsung ubah ke "Menunggu Pengumpulan Berkas"
+	// Jika formulir disetujui, langsung ubah ke "Disetujui"
 	if input.Status == "Formulir Disetujui" {
-		pendaftaran.Status_pendaftaran = structs.StatusPendaftaranMenungguPengumpulanBerkas
+		pendaftaran.Status_pendaftaran = structs.StatusPendaftaranDisetujui
 	} else {
 		pendaftaran.Status_pendaftaran = input.Status
 	}
@@ -506,8 +507,8 @@ func (h *InDB) VerifyFormulir(c *gin.Context) {
 	})
 }
 
-// VerifyBerkas verifies the physical documents by staff (Tahap 2)
-func (h *InDB) VerifyBerkas(c *gin.Context) {
+// VerifyDocuments verifies the physical documents by staff
+func (h *InDB) VerifyDocuments(c *gin.Context) {
 	registrationID := c.Param("id")
 
 	// Get user_id from context (staff who is verifying)
@@ -567,9 +568,9 @@ func (h *InDB) VerifyBerkas(c *gin.Context) {
 	}
 
 	// Update registration status
-	// Jika berkas diterima, ubah ke "Berkas Diterima"
+	// Jika berkas diterima, ubah ke "Disetujui" (flow sederhana)
 	if input.Status == "Berkas Diterima" {
-		pendaftaran.Status_pendaftaran = structs.StatusPendaftaranBerkasDiterima
+		pendaftaran.Status_pendaftaran = structs.StatusPendaftaranDisetujui
 	} else {
 		pendaftaran.Status_pendaftaran = input.Status
 	}
@@ -633,11 +634,136 @@ func (h *InDB) VerifyBerkas(c *gin.Context) {
 	})
 }
 
+// ==================== APPROVE PENDAFTARAN (FLOW SEDERHANA) ====================
+
+// ApproveRegistration approves the registration after staff verifies documents offline
+// Flow: Draft → Disetujui
+func (h *InDB) ApproveRegistration(c *gin.Context) {
+	registrationID := c.Param("id")
+
+	// Get user_id from context (staff who is approving)
+	staffID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized",
+			"error":   "User ID tidak ditemukan",
+		})
+		return
+	}
+
+	var input struct {
+		Status  string `json:"status" binding:"required"` // "Disetujui" or "Ditolak"
+		Catatan string `json:"catatan"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format data tidak valid",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Validate status
+	if input.Status != structs.StatusPendaftaranDisetujui && input.Status != structs.StatusPendaftaranDitolak {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Status tidak valid",
+			"error":   "Status harus 'Disetujui' atau 'Ditolak'",
+		})
+		return
+	}
+
+	// Check if registration exists
+	var pendaftaran structs.PendaftaranNikah
+	if err := h.DB.Where("id = ?", registrationID).First(&pendaftaran).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Pendaftaran tidak ditemukan",
+			"error":   "Pendaftaran dengan ID tersebut tidak ditemukan",
+		})
+		return
+	}
+
+	// Check if registration is in Draft status
+	if pendaftaran.Status_pendaftaran != structs.StatusPendaftaranDraft {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Status tidak sesuai",
+			"error":   "Pendaftaran harus dalam status 'Draft' untuk disetujui",
+		})
+		return
+	}
+
+	// Update registration status
+	pendaftaran.Status_pendaftaran = input.Status
+	pendaftaran.Catatan = input.Catatan
+	pendaftaran.Disetujui_oleh = staffID.(string)
+	now := time.Now()
+	pendaftaran.Disetujui_pada = &now
+	pendaftaran.Updated_at = time.Now()
+
+	if err := h.DB.Save(&pendaftaran).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengupdate status pendaftaran",
+		})
+		return
+	}
+
+	// Create notification for the couple
+	var notification structs.Notifikasi
+	if input.Status == structs.StatusPendaftaranDisetujui {
+		notification = structs.Notifikasi{
+			User_id:     pendaftaran.Pendaftar_id,
+			Judul:       "Pendaftaran Disetujui",
+			Pesan:       "Pendaftaran nikah Anda telah disetujui. Menunggu penugasan penghulu oleh kepala KUA.",
+			Tipe:        structs.NotifikasiTipeSuccess,
+			Status_baca: structs.NotifikasiStatusBelumDibaca,
+			Link:        "/pendaftaran/" + registrationID,
+			Created_at:  time.Now(),
+			Updated_at:  time.Now(),
+		}
+	} else {
+		notification = structs.Notifikasi{
+			User_id:     pendaftaran.Pendaftar_id,
+			Judul:       "Pendaftaran Ditolak",
+			Pesan:       "Pendaftaran nikah Anda ditolak. " + input.Catatan,
+			Tipe:        structs.NotifikasiTipeError,
+			Status_baca: structs.NotifikasiStatusBelumDibaca,
+			Link:        "/pendaftaran/" + registrationID,
+			Created_at:  time.Now(),
+			Updated_at:  time.Now(),
+		}
+	}
+
+	if err := h.DB.Create(&notification).Error; err != nil {
+		// Log error but don't fail the main operation
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Pendaftaran berhasil disetujui",
+		"data": gin.H{
+			"id":                 pendaftaran.ID,
+			"nomor_pendaftaran":  pendaftaran.Nomor_pendaftaran,
+			"status_pendaftaran": pendaftaran.Status_pendaftaran,
+			"disetujui_oleh":     pendaftaran.Disetujui_oleh,
+			"disetujui_pada":     pendaftaran.Disetujui_pada,
+			"catatan":            pendaftaran.Catatan,
+			"updated_at":         pendaftaran.Updated_at,
+		},
+	})
+}
+
 // ==================== FLEKSIBEL STATUS UPDATE ====================
 
-// UpdateStatusFlexible - Update status pendaftaran secara fleksibel tanpa validasi ketat
-// Bisa digunakan oleh Staff, Penghulu, dan Kepala KUA untuk update status secara manual
-func (h *InDB) UpdateStatusFlexible(c *gin.Context) {
+// UpdateRegistrationStatus - Updates registration status flexibly without strict validation
+// Can be used by Staff, Penghulu, and Kepala KUA for manual status updates
+func (h *InDB) UpdateRegistrationStatus(c *gin.Context) {
 	registrationID := c.Param("id")
 
 	// Get user_id from context
@@ -704,9 +830,8 @@ func (h *InDB) UpdateStatusFlexible(c *gin.Context) {
 	// Status yang terkait dengan assign penghulu hanya bisa diubah oleh Kepala KUA
 	// melalui endpoint khusus assign-penghulu
 	penghuluRelatedStatuses := map[string]bool{
-		structs.StatusPendaftaranMenungguPenugasan:         true,
-		structs.StatusPendaftaranPenghuluDitugaskan:         true,
-		structs.StatusPendaftaranMenungguVerifikasiPenghulu: true,
+		structs.StatusPendaftaranMenungguPenugasan:  true,
+		structs.StatusPendaftaranPenghuluDitugaskan: true,
 	}
 
 	if penghuluRelatedStatuses[input.Status] {
@@ -718,16 +843,12 @@ func (h *InDB) UpdateStatusFlexible(c *gin.Context) {
 		return
 	}
 
-	// Validasi status yang diizinkan (tanpa status terkait penghulu)
+	// Validasi status yang diizinkan (flow sederhana)
 	validStatuses := map[string]bool{
-		structs.StatusPendaftaranDraft:                     true,
-		structs.StatusPendaftaranMenungguVerifikasi:        true,
-		structs.StatusPendaftaranMenungguPengumpulanBerkas: true,
-		structs.StatusPendaftaranBerkasDiterima:            true,
-		structs.StatusPendaftaranMenungguBimbingan:         true,
-		structs.StatusPendaftaranSudahBimbingan:             true,
-		structs.StatusPendaftaranSelesai:                   true,
-		structs.StatusPendaftaranDitolak:                   true,
+		structs.StatusPendaftaranDraft:     true,
+		structs.StatusPendaftaranDisetujui: true,
+		structs.StatusPendaftaranSelesai:   true,
+		structs.StatusPendaftaranDitolak:   true,
 	}
 
 	if !validStatuses[input.Status] {

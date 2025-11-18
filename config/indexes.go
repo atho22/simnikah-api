@@ -42,11 +42,7 @@ func AddDatabaseIndexes(db *gorm.DB) error {
 	// ==================== CALON PASANGAN TABLE ====================
 	createIndex("idx_calon_pasangan_user_id", "calon_pasangans", "user_id")
 	createIndex("idx_calon_pasangan_nik", "calon_pasangans", "nik")
-	createIndex("idx_calon_pasangan_email", "calon_pasangans", "email")
-
-	// ==================== DATA ORANG TUA TABLE ====================
-	createIndex("idx_data_orang_tua_user_id", "data_orang_tuas", "user_id")
-	createIndex("idx_data_orang_tua_jk_calon", "data_orang_tuas", "jenis_kelamin_calon")
+	// Index email dihapus - field Email di CalonPasangan sudah dihapus
 
 	// ==================== PENDAFTARAN NIKAH TABLE ====================
 	// Foreign key indexes (PALING PENTING!)
@@ -57,7 +53,7 @@ func AddDatabaseIndexes(db *gorm.DB) error {
 
 	// Status indexes (SANGAT SERING DI-QUERY!)
 	createIndex("idx_pendaftaran_status_pendaftaran", "pendaftaran_nikahs", "status_pendaftaran")
-	createIndex("idx_pendaftaran_status_bimbingan", "pendaftaran_nikahs", "status_bimbingan")
+	// Index status_bimbingan dihapus - field Status_bimbingan sudah dihapus
 
 	// Date indexes
 	createIndex("idx_pendaftaran_tanggal_nikah", "pendaftaran_nikahs", "tanggal_nikah")
@@ -65,21 +61,6 @@ func AddDatabaseIndexes(db *gorm.DB) error {
 
 	// Composite index (status + tanggal - VERY COMMON query pattern!)
 	createIndex("idx_pendaftaran_status_tanggal", "pendaftaran_nikahs", "status_pendaftaran, tanggal_nikah")
-
-	// ==================== WALI NIKAH TABLE ====================
-	createIndex("idx_wali_nikah_pendaftaran_id", "wali_nikahs", "pendaftaran_id")
-	createIndex("idx_wali_nikah_nik", "wali_nikahs", "nik")
-
-	// ==================== BIMBINGAN PERKAWINAN TABLE ====================
-	createIndex("idx_bimbingan_status", "bimbingan_perkawinans", "status")
-	createIndex("idx_bimbingan_tanggal", "bimbingan_perkawinans", "tanggal_bimbingan")
-
-	// ==================== PENDAFTARAN BIMBINGAN TABLE ====================
-	createIndex("idx_pendaftaran_bimbingan_nikah_id", "pendaftaran_bimbingans", "pendaftaran_nikah_id")
-	createIndex("idx_pendaftaran_bimbingan_perkawinan_id", "pendaftaran_bimbingans", "bimbingan_perkawinan_id")
-	createIndex("idx_pendaftaran_bimbingan_suami_id", "pendaftaran_bimbingans", "calon_suami_id")
-	createIndex("idx_pendaftaran_bimbingan_istri_id", "pendaftaran_bimbingans", "calon_istri_id")
-	createIndex("idx_pendaftaran_bimbingan_kehadiran", "pendaftaran_bimbingans", "status_kehadiran")
 
 	// ==================== NOTIFIKASI TABLE ====================
 	createIndex("idx_notifikasi_user_id", "notifikasis", "user_id")

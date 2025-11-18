@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"simnikah/internal/models"
+	structs "simnikah/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -18,8 +18,8 @@ type InDB struct {
 
 // ==================== DOCUMENT VERIFICATION ====================
 
-// VerifyDocuments verifies documents for a marriage registration
-func (h *InDB) VerifyDocuments(c *gin.Context) {
+// VerifyRegistrationDocuments verifies documents for a marriage registration assigned to this penghulu
+func (h *InDB) VerifyRegistrationDocuments(c *gin.Context) {
 	registrationID := c.Param("id")
 
 	// Get user_id from context (penghulu who is verifying)
@@ -171,8 +171,8 @@ func (h *InDB) VerifyDocuments(c *gin.Context) {
 	})
 }
 
-// GetAssignedRegistrations gets marriage registrations assigned to this penghulu
-func (h *InDB) GetAssignedRegistrations(c *gin.Context) {
+// ListMyAssignments gets marriage registrations assigned to this penghulu
+func (h *InDB) ListMyAssignments(c *gin.Context) {
 	// Get user_id from context
 	penghuluID, exists := c.Get("user_id")
 	if !exists {
@@ -252,6 +252,135 @@ func (h *InDB) GetAssignedRegistrations(c *gin.Context) {
 			"penghulu":      penghulu.Nama_lengkap,
 			"registrations": registrations,
 			"total":         len(registrations),
+		},
+	})
+}
+
+// ==================== COMPLETE NIKAH (FLOW SEDERHANA) ====================
+
+// CompleteMarriage updates status to Selesai after penghulu conducts the marriage ceremony
+// Flow: Penghulu Ditugaskan → Selesai
+func (h *InDB) CompleteMarriage(c *gin.Context) {
+	registrationID := c.Param("id")
+
+	// Get user_id from context (penghulu who is completing)
+	penghuluID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized",
+			"error":   "User ID tidak ditemukan",
+		})
+		return
+	}
+
+	var input struct {
+		Catatan string `json:"catatan"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		// Catatan is optional, so don't fail if it's missing
+		input.Catatan = ""
+	}
+
+	// Check if registration exists
+	var pendaftaran structs.PendaftaranNikah
+	if err := h.DB.Where("id = ?", registrationID).First(&pendaftaran).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Pendaftaran tidak ditemukan",
+			"error":   "Pendaftaran dengan ID tersebut tidak ditemukan",
+		})
+		return
+	}
+
+	// Check if registration is in correct status
+	if pendaftaran.Status_pendaftaran != structs.StatusPendaftaranPenghuluDitugaskan {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Status tidak sesuai",
+			"error":   "Pendaftaran harus dalam status 'Penghulu Ditugaskan' untuk diselesaikan",
+		})
+		return
+	}
+
+	// Check if this penghulu is assigned to this registration
+	if pendaftaran.Penghulu_id == nil || *pendaftaran.Penghulu_id == 0 {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Akses ditolak",
+			"error":   "Anda tidak ditugaskan untuk pendaftaran ini",
+		})
+		return
+	}
+
+	// Get penghulu info to verify assignment
+	var penghulu structs.Penghulu
+	if err := h.DB.Where("user_id = ?", penghuluID.(string)).First(&penghulu).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Akses ditolak",
+			"error":   "Data penghulu tidak ditemukan",
+		})
+		return
+	}
+
+	if penghulu.ID != *pendaftaran.Penghulu_id {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Akses ditolak",
+			"error":   "Anda tidak ditugaskan untuk pendaftaran ini",
+		})
+		return
+	}
+
+	// Update registration status to Selesai
+	pendaftaran.Status_pendaftaran = structs.StatusPendaftaranSelesai
+	if input.Catatan != "" {
+		pendaftaran.Catatan = input.Catatan
+	}
+	pendaftaran.Updated_at = time.Now()
+
+	// Update penghulu's jumlah_nikah (increment)
+	if err := h.DB.Model(&penghulu).Update("jumlah_nikah", penghulu.Jumlah_nikah+1).Error; err != nil {
+		// Log error but don't fail the main operation
+	}
+
+	if err := h.DB.Save(&pendaftaran).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengupdate status pendaftaran",
+		})
+		return
+	}
+
+	// Create notification for the couple
+	notification := structs.Notifikasi{
+		User_id:     pendaftaran.Pendaftar_id,
+		Judul:       "Pernikahan Selesai",
+		Pesan:       "Pernikahan Anda telah selesai dilaksanakan. Selamat menempuh hidup baru!",
+		Tipe:        structs.NotifikasiTipeSuccess,
+		Status_baca: structs.NotifikasiStatusBelumDibaca,
+		Link:        "/pendaftaran/" + registrationID,
+		Created_at:  time.Now(),
+		Updated_at:  time.Now(),
+	}
+
+	if err := h.DB.Create(&notification).Error; err != nil {
+		// Log error but don't fail the main operation
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Pernikahan berhasil diselesaikan",
+		"data": gin.H{
+			"id":                 pendaftaran.ID,
+			"nomor_pendaftaran":  pendaftaran.Nomor_pendaftaran,
+			"status_pendaftaran": pendaftaran.Status_pendaftaran,
+			"penghulu_id":        pendaftaran.Penghulu_id,
+			"catatan":            pendaftaran.Catatan,
+			"updated_at":         pendaftaran.Updated_at,
 		},
 	})
 }
