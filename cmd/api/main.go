@@ -14,6 +14,7 @@ import (
 	"simnikah/config"
 	"simnikah/internal/handlers/auth"
 	"simnikah/internal/handlers/catin"
+	"simnikah/internal/handlers/dashboard"
 	"simnikah/internal/handlers/kepala_kua"
 	"simnikah/internal/handlers/notification"
 	"simnikah/internal/handlers/penghulu"
@@ -103,6 +104,7 @@ func main() {
 	penghuluHandler := &penghulu.InDB{DB: DB}
 	kepalaKuaHandler := &kepala_kua.InDB{DB: DB}
 	notificationHandler := &notification.InDB{DB: DB}
+	dashboardHandler := &dashboard.InDB{DB: DB}
 
 	// Start cron job untuk pengingat notifikasi
 	cronJobService := services.NewCronJobService(DB)
@@ -155,6 +157,13 @@ func main() {
 		simnikahRoutes.POST("/penghulu/verify-documents/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("penghulu"), penghuluHandler.VerifyRegistrationDocuments)
 		simnikahRoutes.GET("/penghulu/assigned-registrations", middleware.AuthMiddleware(), middleware.RoleMiddleware("penghulu"), penghuluHandler.ListMyAssignments)
 		simnikahRoutes.POST("/penghulu/complete-marriage/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("penghulu"), penghuluHandler.CompleteMarriage)
+
+		// ==================== DASHBOARD ROUTES ====================
+		simnikahRoutes.GET("/dashboard/kepala-kua", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), dashboardHandler.GetKepalaKUADashboard)
+		simnikahRoutes.GET("/dashboard/staff", middleware.AuthMiddleware(), middleware.RoleMiddleware("staff"), dashboardHandler.GetStaffDashboard)
+		simnikahRoutes.GET("/dashboard/statistik-pernikahan", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), dashboardHandler.GetMarriageStatistics)
+		simnikahRoutes.GET("/dashboard/penghulu-performance", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), dashboardHandler.GetPenghuluPerformance)
+		simnikahRoutes.GET("/dashboard/peak-hours", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), dashboardHandler.GetPeakHoursAnalysis)
 
 		// ==================== KEPALA KUA ROUTES ====================
 		simnikahRoutes.POST("/kepala-kua/staff", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.CreateStaff)
