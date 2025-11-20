@@ -195,7 +195,7 @@ func (h *InDB) ListMyAssignments(c *gin.Context) {
 		return
 	}
 
-	// Get assigned registrations
+	// Get assigned registrations with calon suami and istri names
 	var pendaftarans []structs.PendaftaranNikah
 	if err := h.DB.Where("penghulu_id = ?", penghulu.ID).Find(&pendaftarans).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -208,6 +208,11 @@ func (h *InDB) ListMyAssignments(c *gin.Context) {
 
 	var registrations []gin.H
 	for _, p := range pendaftarans {
+		// Get calon suami and istri names
+		var calonSuami, calonIstri structs.CalonPasangan
+		h.DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami)
+		h.DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri)
+
 		regData := gin.H{
 			"id":                 p.ID,
 			"nomor_pendaftaran":  p.Nomor_pendaftaran,
@@ -217,6 +222,14 @@ func (h *InDB) ListMyAssignments(c *gin.Context) {
 			"tempat_nikah":       p.Tempat_nikah,
 			"alamat_akad":        p.Alamat_akad,
 			"catatan":            p.Catatan,
+			"calon_suami": gin.H{
+				"id":           p.Calon_suami_id,
+				"nama_lengkap": calonSuami.Nama_lengkap,
+			},
+			"calon_istri": gin.H{
+				"id":           p.Calon_istri_id,
+				"nama_lengkap": calonIstri.Nama_lengkap,
+			},
 			"created_at":         p.Created_at,
 			"updated_at":         p.Updated_at,
 		}
