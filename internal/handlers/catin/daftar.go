@@ -259,13 +259,14 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		waktuNikahNormalized = waktuNikahNormalized[:5] // Take only HH:MM part
 	}
 
-	// Check existing registrations with same date and time (exclude draft and rejected)
+	// Check existing registrations with same date and time (include Draft, exclude only rejected)
+	// Draft juga dihitung dalam kuota meskipun belum pasti
 	// Cek total pernikahan di jam yang sama (baik di KUA maupun di luar KUA)
 	var countTotalRegistrations int64
 	err = h.DB.Model(&structs.PendaftaranNikah{}).
 		Where("tanggal_nikah = ? AND waktu_nikah = ? AND status_pendaftaran NOT IN ?",
 			tanggalNikah, waktuNikahNormalized,
-			[]string{structs.StatusPendaftaranDraft, structs.StatusPendaftaranDitolak}).
+			[]string{structs.StatusPendaftaranDitolak}).
 		Count(&countTotalRegistrations).Error
 
 	if err != nil {
@@ -278,12 +279,12 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		return
 	}
 
-	// Cek jumlah pernikahan di KUA di jam yang sama
+	// Cek jumlah pernikahan di KUA di jam yang sama (include Draft)
 	var countKUA int64
 	err = h.DB.Model(&structs.PendaftaranNikah{}).
 		Where("tanggal_nikah = ? AND waktu_nikah = ? AND tempat_nikah = ? AND status_pendaftaran NOT IN ?",
 			tanggalNikah, waktuNikahNormalized, "Di KUA",
-			[]string{structs.StatusPendaftaranDraft, structs.StatusPendaftaranDitolak}).
+			[]string{structs.StatusPendaftaranDitolak}).
 		Count(&countKUA).Error
 
 	if err != nil {
@@ -986,9 +987,10 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 		jumlahDraft := draftPerDate[tanggalStr]           // Kuning - belum pasti
 		jumlahDisetujui := disetujuiPerDate[tanggalStr]   // Hijau - sudah pasti
 		
-		// Sisa kuota dihitung berdasarkan yang sudah pasti (Disetujui)
-		// Draft tidak mengurangi kuota karena belum pasti
-		sisaKuota := MaxWeddingsPerDay - jumlahDisetujui
+		// Sisa kuota dihitung berdasarkan total (Draft + Disetujui)
+		// Draft juga dihitung dalam kuota meskipun belum pasti
+		totalNikah := jumlahDraft + jumlahDisetujui
+		sisaKuota := MaxWeddingsPerDay - totalNikah
 
 		// Determine status
 		var status string
@@ -996,7 +998,7 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 		if tanggalTime.Before(now.Truncate(24 * time.Hour)) {
 			status = "Terlewat"
 			tersedia = false
-		} else if jumlahDisetujui >= MaxWeddingsPerDay {
+		} else if totalNikah >= MaxWeddingsPerDay {
 			status = "Penuh"
 			tersedia = false
 		} else {
@@ -1020,19 +1022,22 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 			}
 			
 			// Determine availability
-			// KUA: maksimal 1 per jam (hanya yang sudah pasti/Disetujui)
-			// Luar KUA: maksimal 3 total per jam (hanya yang sudah pasti/Disetujui)
+			// KUA: maksimal 1 per jam (Draft + Disetujui dihitung)
+			// Luar KUA: maksimal 3 total per jam (Draft + Disetujui dihitung)
 			// - Jika sudah ada 1 di KUA, maka slot luar KUA = 2 (total 3)
 			// - Jika belum ada di KUA, maka slot luar KUA = 3 (total 3)
 			const maxTotalPerHour = 3
 			const maxKUAPerHour = 1
 			
-			tersediaKUA := slotData.DisetujuiKUA < maxKUAPerHour && !tanggalTime.Before(now.Truncate(24 * time.Hour))
+			// Total di KUA (Draft + Disetujui)
+			totalKUA := slotData.KUA
+			tersediaKUA := totalKUA < maxKUAPerHour && !tanggalTime.Before(now.Truncate(24 * time.Hour))
 			
 			// Logika untuk luar KUA sesuai dengan CreateRegistration
-			totalDisetujui := slotData.DisetujuiKUA + slotData.DisetujuiLuarKUA
+			// Total semua (Draft + Disetujui) di KUA dan luar KUA
+			totalAll := slotData.KUA + slotData.LuarKUA
 			var maxLuarKUAPerHour int
-			if slotData.DisetujuiKUA >= 1 {
+			if totalKUA >= 1 {
 				// Sudah ada 1 di KUA, maka slot luar KUA maksimal 2
 				maxLuarKUAPerHour = 2
 			} else {
@@ -1040,22 +1045,24 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 				maxLuarKUAPerHour = 3
 			}
 			
-			tersediaLuarKUA := totalDisetujui < maxTotalPerHour && 
-				slotData.DisetujuiLuarKUA < maxLuarKUAPerHour && 
+			// Total di luar KUA (Draft + Disetujui)
+			totalLuarKUA := slotData.LuarKUA
+			tersediaLuarKUA := totalAll < maxTotalPerHour && 
+				totalLuarKUA < maxLuarKUAPerHour && 
 				!tanggalTime.Before(now.Truncate(24 * time.Hour))
 			
 			timeSlotsData = append(timeSlotsData, map[string]interface{}{
 				"waktu": slot,
 				"kua": gin.H{
 					"tersedia":         tersediaKUA,
-					"terbooking":       slotData.DisetujuiKUA >= maxKUAPerHour,
+					"terbooking":       totalKUA >= maxKUAPerHour,
 					"jumlah_total":     slotData.KUA,
 					"jumlah_draft":     slotData.DraftKUA,
 					"jumlah_disetujui": slotData.DisetujuiKUA,
 				},
 				"luar_kua": gin.H{
 					"tersedia":         tersediaLuarKUA,
-					"terbooking":       totalDisetujui >= maxTotalPerHour,
+					"terbooking":       totalAll >= maxTotalPerHour || totalLuarKUA >= maxLuarKUAPerHour,
 					"jumlah_total":     slotData.LuarKUA,
 					"jumlah_draft":     slotData.DraftLuarKUA,
 					"jumlah_disetujui": slotData.DisetujuiLuarKUA,
@@ -1183,8 +1190,8 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 		jumlahDraft := draftPerTimeSlot[slot]           // Kuning - belum pasti
 		jumlahDisetujui := disetujuiPerTimeSlot[slot]    // Hijau - sudah pasti
 		
-		// Slot dianggap terbooking jika ada yang sudah pasti (Disetujui)
-		isBooked := jumlahDisetujui > 0
+		// Slot dianggap terbooking jika ada Draft atau Disetujui (Draft juga dihitung dalam kuota)
+		isBooked := jumlahTotal > 0
 		// Use time comparison instead of string comparison for accuracy
 		isAvailable := !isBooked && !tanggalStartOfDay.Before(today)
 
@@ -1204,7 +1211,7 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 		})
 	}
 
-	// Get summary - sisa kuota berdasarkan yang sudah pasti
+	// Get summary - sisa kuota berdasarkan total (Draft + Disetujui)
 	totalCapacity := len(TimeSlots)
 	sisaKuota := totalCapacity - totalBooked
 
