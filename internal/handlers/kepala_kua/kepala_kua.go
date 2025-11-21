@@ -75,12 +75,66 @@ func (h *InDB) AssignMarriageOfficer(c *gin.Context) {
 	// Check if penghulu exists and is active
 	var penghulu structs.Penghulu
 	if err := h.DB.Where("id = ? AND status = ?", input.PenghuluID, structs.PenghuluStatusAktif).First(&penghulu).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "Penghulu tidak ditemukan",
-			"error":   "Penghulu dengan ID tersebut tidak ditemukan atau tidak aktif",
-		})
-		return
+		// If penghulu not found, check if kepala KUA is trying to assign themselves
+		// In that case, create a penghulu record for kepala KUA if it doesn't exist
+		var existingPenghulu structs.Penghulu
+		if err := h.DB.Where("user_id = ?", kepalaKuaID.(string)).First(&existingPenghulu).Error; err == nil {
+			// Kepala KUA has a penghulu record, check if they're trying to assign themselves
+			if existingPenghulu.ID == input.PenghuluID {
+				penghulu = existingPenghulu
+			} else {
+				c.JSON(http.StatusNotFound, gin.H{
+					"success": false,
+					"message": "Penghulu tidak ditemukan",
+					"error":   "Penghulu dengan ID tersebut tidak ditemukan atau tidak aktif",
+				})
+				return
+			}
+		} else {
+			// Kepala KUA doesn't have a penghulu record yet
+			// Check if they're trying to assign themselves (by checking if the requested ID matches their user_id pattern)
+			// For now, we'll allow kepala KUA to assign themselves by creating a record
+			var user structs.Users
+			if err := h.DB.Where("user_id = ?", kepalaKuaID.(string)).First(&user).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{
+					"success": false,
+					"message": "User tidak ditemukan",
+					"error":   "User dengan ID tersebut tidak ditemukan",
+				})
+				return
+			}
+
+			// Create penghulu record for kepala KUA
+			newPenghulu := structs.Penghulu{
+				User_id:      user.User_id,
+				NIP:          fmt.Sprintf("KUA-%s", user.User_id),
+				Nama_lengkap: user.Nama,
+				Status:       structs.PenghuluStatusAktif,
+				Jumlah_nikah: 0,
+				Rating:       0,
+			}
+
+			if err := h.DB.Create(&newPenghulu).Error; err != nil {
+				// If creation fails, try to get existing record
+				if err := h.DB.Where("user_id = ?", kepalaKuaID.(string)).First(&penghulu).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{
+						"success": false,
+						"message": "Database error",
+						"error":   "Gagal membuat atau mengambil data penghulu",
+					})
+					return
+				}
+			} else {
+				penghulu = newPenghulu
+				// Update input.PenghuluID to match the newly created penghulu record ID
+				input.PenghuluID = penghulu.ID
+			}
+		}
+	} else {
+		// Penghulu found - verify kepala KUA can assign themselves if user_id matches
+		if penghulu.User_id == kepalaKuaID.(string) {
+			// Kepala KUA is assigning themselves - this is allowed
+		}
 	}
 
 	// Update registration with penghulu assignment

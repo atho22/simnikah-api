@@ -87,4 +87,32 @@ const (
 	NotifikasiStatusSudahDibaca = "Sudah Dibaca"
 )
 
+// Define constants for WaliNikah Hubungan_wali (Urutan Wali Nasab)
+const (
+	WaliHubunganAyahKandung            = "Ayah Kandung"
+	WaliHubunganKakek                  = "Kakek"
+	WaliHubunganSaudaraLakiLakiKandung = "Saudara Laki-Laki Kandung"
+	WaliHubunganSaudaraLakiLakiSeayah  = "Saudara Laki-Laki Seayah"
+	WaliHubunganKeponakanLakiLaki      = "Keponakan Laki-Laki"
+	WaliHubunganPamanKandung           = "Paman Kandung"
+	WaliHubunganPamanSeayah            = "Paman Seayah"
+	WaliHubunganSepupuLakiLaki         = "Sepupu Laki-Laki"
+	WaliHubunganWaliHakim              = "Wali Hakim"
+	WaliHubunganLainnya                = "Lainnya"
+)
+
+// ValidHubunganWali - Daftar hubungan wali yang valid
+var ValidHubunganWali = []string{
+	WaliHubunganAyahKandung,
+	WaliHubunganKakek,
+	WaliHubunganSaudaraLakiLakiKandung,
+	WaliHubunganSaudaraLakiLakiSeayah,
+	WaliHubunganKeponakanLakiLaki,
+	WaliHubunganPamanKandung,
+	WaliHubunganPamanSeayah,
+	WaliHubunganSepupuLakiLaki,
+	WaliHubunganWaliHakim,
+	WaliHubunganLainnya,
+}
+
 

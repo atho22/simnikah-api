@@ -38,12 +38,24 @@ type FeedbackPernikahan struct {
 	Updated_at        time.Time `json:"diperbarui_pada"`
 }
 
+// WaliNikah untuk data wali nikah (wali untuk calon pengantin perempuan)
+// Data sederhana: hanya nama wali (dengan bin) dan hubungan nasab
+type WaliNikah struct {
+	ID                    uint      `gorm:"primaryKey" json:"id"`
+	Pendaftaran_id        uint      `gorm:"not null" json:"id_pendaftaran"` // Foreign key ke PendaftaranNikah
+	Nama_dan_bin          string    `gorm:"size:100;not null" json:"nama_dan_bin"` // Contoh: "Abdullah bin Muhammad"
+	Hubungan_wali         string    `gorm:"size:50;not null" json:"hubungan_wali"` // Ayah Kandung, Kakek, Saudara Laki-Laki Kandung, dll
+	Created_at            time.Time `json:"dibuat_pada"`
+	Updated_at            time.Time `json:"diperbarui_pada"`
+}
+
 type PendaftaranNikah struct {
 	ID                   uint       `gorm:"primaryKey" json:"id"`
 	Nomor_pendaftaran    string     `gorm:"size:20;not null;unique" json:"nomor_pendaftaran"`
 	Pendaftar_id         string     `gorm:"size:20;not null" json:"id_pendaftar"` // User ID yang mendaftar (suami atau istri)
 	Calon_suami_id       string     `gorm:"size:20;not null" json:"id_calon_suami"`
 	Calon_istri_id       string     `gorm:"size:20;not null" json:"id_calon_istri"`
+	Wali_nikah_id        *uint      `json:"id_wali_nikah"` // Foreign key ke WaliNikah
 	Tanggal_pendaftaran  time.Time  `gorm:"not null" json:"tanggal_pendaftaran"`
 	Tanggal_nikah        time.Time  `gorm:"not null" json:"tanggal_nikah"`
 	Waktu_nikah          string     `gorm:"size:10;not null" json:"waktu_nikah"` // format: HH:MM
@@ -159,6 +171,13 @@ type DataFormPendaftaranSederhana struct {
 		DetailAlamat     string `json:"detail_alamat"`             // Detail alamat (RT/RW/dll)
 		Kelurahan        string `json:"kelurahan"`                 // Nama kelurahan (hanya lingkup Banjarmasin Utara)
 	} `json:"lokasi_nikah" binding:"required"`
+
+	// Wali Nikah (untuk calon pengantin perempuan)
+	// Data sederhana: hanya nama wali (dengan bin) dan hubungan nasab
+	WaliNikah struct {
+		NamaDanBin      string `json:"nama_dan_bin" binding:"required"` // Contoh: "Abdullah bin Muhammad"
+		HubunganWali    string `json:"hubungan_wali" binding:"required"` // Ayah Kandung, Kakek, Saudara Laki-Laki Kandung, dll
+	} `json:"wali_nikah" binding:"required"`
 }
 
 // KelurahanBanjarmasinUtara - Daftar kelurahan di Kecamatan Banjarmasin Utara

@@ -1,6 +1,6 @@
   # 📚 SimNikah API Documentation
 
-  **Versi:** 1.1.0  
+  **Versi:** 1.2.0  
   **Update Terakhir:** November 2024  
   **Base URL:** `http://localhost:8080` (Development) atau `https://your-domain.com` (Production)
 
@@ -217,6 +217,10 @@
       "tempat_nikah": "Di KUA",
       "tanggal_nikah": "2024-12-15",
       "waktu_nikah": "10:00"
+    },
+    "wali_nikah": {
+      "nama_dan_bin": "Abdullah bin Muhammad",
+      "hubungan_wali": "Ayah Kandung"
     }
   }
   ```
@@ -241,6 +245,10 @@
       "alamat_nikah": "Jl. Ahmad Yani No. 123",
       "alamat_detail": "Rumah Pengantin Perempuan",
       "kelurahan": "Pangeran"
+    },
+    "wali_nikah": {
+      "nama_dan_bin": "Abdullah bin Muhammad",
+      "hubungan_wali": "Ayah Kandung"
     }
   }
   ```
@@ -251,22 +259,32 @@
   - Format waktu: `HH:MM` (24-jam, contoh: `09:00`, `14:30`)
   - Tanggal nikah tidak boleh di masa lalu
   - Kelurahan harus dalam lingkup **Kecamatan Banjarmasin Utara**
+  - **Wali Nikah wajib diisi** (untuk calon pengantin perempuan)
+    - `nama_dan_bin`: Nama lengkap wali dengan bin (contoh: "Abdullah bin Muhammad")
+    - `hubungan_wali`: Hubungan nasab wali (lihat daftar di bawah)
 
   **Kelurahan Valid:**
-  - Alalak
+  - Alalak Utara
+  - Alalak Tengah
+  - Alalak Selatan
   - Antasan Kecil Timur
-  - Antasan Besar
-  - Basirih
-  - Basirih Selatan
-  - Kuin Cerucuk
-  - Kuin Selatan
-  - Mantuil
+  - Kuin Utara
   - Pangeran
-  - Pelambuan
   - Sungai Miai
+  - Sungai Andai
   - Surgi Mufti
-  - Teluk Dalam
-  - Telawang
+
+  **Hubungan Wali Valid (Urutan Wali Nasab):**
+  1. `"Ayah Kandung"` - Wali yang paling berhak (jika ayah masih hidup)
+  2. `"Kakek"` - Ayah dari ayah (jika ayah meninggal)
+  3. `"Saudara Laki-Laki Kandung"` - Saudara sekandung
+  4. `"Saudara Laki-Laki Seayah"` - Saudara seayah
+  5. `"Keponakan Laki-Laki"` - Anak laki-laki dari saudara
+  6. `"Paman Kandung"` - Saudara kandung ayah
+  7. `"Paman Seayah"` - Saudara seayah dari ayah
+  8. `"Sepupu Laki-Laki"` - Anak laki-laki dari paman
+  9. `"Wali Hakim"` - Jika tidak ada wali nasab yang memenuhi syarat
+  10. `"Lainnya"` - Hubungan lainnya
 
   **Response Success (201):**
   ```json
@@ -290,6 +308,10 @@
         "nama_dan_binti": "Siti Nurhaliza binti Muhammad",
         "pendidikan": "S1",
         "umur": 23
+      },
+      "wali_nikah": {
+        "nama_dan_bin": "Abdullah bin Muhammad",
+        "hubungan_wali": "Ayah Kandung"
       },
       "created_at": "2024-01-01T10:00:00Z"
     }
@@ -736,7 +758,154 @@
 
   ---
 
-  ### 14. Approve Registration
+  ### 14. Create Registration for User (Staff)
+
+  **Endpoint:** `POST /simnikah/staff/pendaftaran`
+
+  **Description:** Staff dapat membuat pendaftaran nikah atas nama calon pengantin. Fitur ini berguna untuk membantu calon pengantin yang tidak paham teknologi. Sistem akan secara otomatis membuat akun user untuk calon pengantin dan memberikan username serta password default. **Pendaftaran yang dibuat oleh staff otomatis berstatus "Disetujui"** karena staff sudah melakukan verifikasi saat input data.
+
+  **Auth Required:** ✅ Yes
+
+  **Role Required:** `staff`, `kepala_kua`
+
+  **Request Body:**
+  Sama seperti endpoint pendaftaran biasa (`POST /simnikah/pendaftaran`):
+  ```json
+  {
+    "calon_laki_laki": {
+      "nama_dan_bin": "Ahmad Wijaya bin Abdullah",
+      "pendidikan_akhir": "S1",
+      "umur": 25
+    },
+    "calon_perempuan": {
+      "nama_dan_binti": "Siti Nurhaliza binti Muhammad",
+      "pendidikan_akhir": "S1",
+      "umur": 23
+    },
+    "lokasi_nikah": {
+      "tempat_nikah": "Di KUA",
+      "tanggal_nikah": "2024-12-25",
+      "waktu_nikah": "09:00"
+    }
+  }
+  ```
+
+  **Untuk Nikah di Luar KUA:**
+  ```json
+  {
+    "calon_laki_laki": {
+      "nama_dan_bin": "Ahmad Wijaya bin Abdullah",
+      "pendidikan_akhir": "S1",
+      "umur": 25
+    },
+    "calon_perempuan": {
+      "nama_dan_binti": "Siti Nurhaliza binti Muhammad",
+      "pendidikan_akhir": "S1",
+      "umur": 23
+    },
+    "lokasi_nikah": {
+      "tempat_nikah": "Di Luar KUA",
+      "tanggal_nikah": "2024-12-25",
+      "waktu_nikah": "09:00",
+      "alamat_nikah": "Jl. Ahmad Yani No. 123",
+      "detail_alamat": "Rumah Pengantin Perempuan",
+      "kelurahan": "Pangeran"
+    }
+  }
+  ```
+
+  **Validasi:**
+  - Semua validasi sama seperti endpoint pendaftaran biasa
+  - Umur minimal: 19 tahun
+  - Format tanggal: `YYYY-MM-DD`
+  - Format waktu: `HH:MM` (24-jam)
+  - Tanggal nikah tidak boleh di masa lalu
+  - Validasi ketersediaan jadwal (kapasitas per jam)
+  - **Wali Nikah wajib diisi** (untuk calon pengantin perempuan)
+
+  **Response Success (201):**
+  ```json
+  {
+    "success": true,
+    "message": "Pendaftaran nikah berhasil dibuat dan disetujui oleh staff",
+    "data": {
+      "id": 123,
+      "nomor_pendaftaran": "NIKAH-20241225-1234",
+      "status_pendaftaran": "Disetujui",
+      "tanggal_nikah": "2024-12-25T00:00:00Z",
+      "waktu_nikah": "09:00",
+      "tempat_nikah": "Di KUA",
+      "alamat_akad": "PH5Q+F8C, Jl. Wira Karya, Pangeran, Kec. Banjarmasin Utara, Kota Banjarmasin, Kalimantan Selatan 70123",
+      "dibuat_oleh_staff": {
+        "nama": "Budi Santoso",
+        "nip": "198001012003121001"
+      },
+      "akun_user": {
+        "user_id": "USR1704067200",
+        "username": "ahmadwijay1234",
+        "email": "ahmadwijay1234@simnikah.local",
+        "password_default": "Nikah12345",
+        "catatan": "Akun ini dibuat otomatis. User dapat login dan mengubah password."
+      },
+      "calon_suami": {
+        "nama_dan_bin": "Ahmad Wijaya bin Abdullah",
+        "pendidikan": "S1",
+        "umur": 25
+      },
+      "calon_istri": {
+        "nama_dan_binti": "Siti Nurhaliza binti Muhammad",
+        "pendidikan": "S1",
+        "umur": 23
+      },
+      "wali_nikah": {
+        "nama_dan_bin": "Abdullah bin Muhammad",
+        "hubungan_wali": "Ayah Kandung"
+      },
+      "catatan": "Pendaftaran dibuat oleh staff. User dapat login menggunakan username dan password default yang diberikan."
+    }
+  }
+  ```
+
+  **Response Error (400):**
+  ```json
+  {
+    "success": false,
+    "message": "Format tanggal tidak benar",
+    "error": "Format tanggal harus: Tahun-Bulan-Tanggal (contoh: 2024-12-25)",
+    "field": "tanggal_nikah",
+    "type": "format"
+  }
+  ```
+
+  **Response Error (403):**
+  ```json
+  {
+    "success": false,
+    "message": "Akses ditolak",
+    "error": "Hanya staff yang dapat membuat pendaftaran untuk user",
+    "type": "authorization"
+  }
+  ```
+
+  **Catatan Penting:**
+  1. **Akun User Otomatis**: Sistem akan membuat akun user otomatis untuk calon pengantin dengan:
+     - Username: Generated dari nama calon suami + timestamp
+     - Email: `username@simnikah.local`
+     - Password: Generated default (format: `Nikah` + angka)
+  2. **Informasi Login**: Staff harus memberikan username dan password default kepada calon pengantin
+  3. **Ubah Password**: Calon pengantin dapat login dan mengubah password setelah mendapatkan akses
+  4. **Catatan Otomatis**: Pendaftaran akan memiliki catatan otomatis yang menyebutkan staff yang membuat pendaftaran
+  5. **Status Otomatis Disetujui**: Pendaftaran yang dibuat oleh staff otomatis berstatus "Disetujui" karena staff sudah melakukan verifikasi saat input data. Tidak perlu approval lagi.
+
+  **Use Case:**
+  - Calon pengantin datang ke kantor KUA untuk mendaftar
+  - Staff membantu mengisi form pendaftaran melalui sistem
+  - Staff memberikan username dan password kepada calon pengantin
+  - Calon pengantin dapat login nanti untuk melihat status pendaftaran
+
+  ---
+
+  ### 15. Approve Registration
 
   **Endpoint:** `POST /simnikah/staff/approve/:id`
 
@@ -764,7 +933,7 @@
 
   ---
 
-  ### 15. Update Registration Status
+  ### 16. Update Registration Status
 
   **Endpoint:** `PUT /simnikah/pendaftaran/:id/update-status`
 
@@ -790,7 +959,7 @@
 
   ## 👨‍⚖️ Penghulu Endpoints
 
-  ### 16. List Marriage Officers
+  ### 17. List Marriage Officers
 
   **Endpoint:** `GET /simnikah/penghulu`
 
@@ -821,7 +990,7 @@
 
   ---
 
-  ### 17. Update Marriage Officer
+  ### 18. Update Marriage Officer
 
   **Endpoint:** `PUT /simnikah/penghulu/:id`
 
@@ -833,7 +1002,7 @@
 
   ---
 
-  ### 18. Get My Assignments
+  ### 19. Get My Assignments
 
   **Endpoint:** `GET /simnikah/penghulu/assigned-registrations`
 
@@ -880,7 +1049,7 @@
 
   ---
 
-  ### 19. Complete Marriage
+  ### 20. Complete Marriage
 
   **Endpoint:** `POST /simnikah/penghulu/complete-marriage/:id`
 
@@ -915,7 +1084,7 @@
 
   ## 👔 Kepala KUA Endpoints
 
-  ### 20. Create Staff
+  ### 21. Create Staff
 
   **Endpoint:** `POST /simnikah/kepala-kua/staff`
 
@@ -941,7 +1110,7 @@
 
   ---
 
-  ### 21. Create Marriage Officer
+  ### 22. Create Marriage Officer
 
   **Endpoint:** `POST /simnikah/kepala-kua/penghulu`
 
@@ -966,7 +1135,7 @@
 
   ---
 
-  ### 22. Assign Marriage Officer
+  ### 23. Assign Marriage Officer
 
   **Endpoint:** `POST /simnikah/pendaftaran/:id/assign-penghulu`
 
@@ -1005,7 +1174,7 @@
 
   ---
 
-  ### 23. List Available Officers
+  ### 24. List Available Officers
 
   **Endpoint:** `GET /simnikah/kepala-kua/available-penghulu`
 
@@ -1035,7 +1204,7 @@
 
   ---
 
-  ### 24. Get Penghulu Statistics
+  ### 25. Get Penghulu Statistics
 
   **Endpoint:** `GET /simnikah/kepala-kua/statistik-penghulu`
 
@@ -1092,7 +1261,7 @@
 
   ## 💬 Feedback Endpoints
 
-  ### 25. Create Feedback
+  ### 26. Create Feedback
 
   **Endpoint:** `POST /simnikah/feedback-pernikahan`
 
@@ -1139,7 +1308,7 @@
 
   ---
 
-  ### 26. List Feedback (Kepala KUA)
+  ### 27. List Feedback (Kepala KUA)
 
   **Endpoint:** `GET /simnikah/kepala-kua/feedback`
 
@@ -1180,7 +1349,7 @@
 
   ---
 
-  ### 27. Mark Feedback As Read
+  ### 28. Mark Feedback As Read
 
   **Endpoint:** `PUT /simnikah/kepala-kua/feedback/:id/mark-read`
 
@@ -1206,7 +1375,7 @@
 
   ---
 
-  ### 28. Get Feedback Statistics
+  ### 29. Get Feedback Statistics
 
   **Endpoint:** `GET /simnikah/kepala-kua/feedback/stats`
 
@@ -1240,7 +1409,7 @@
 
   ## 📍 Location Endpoints
 
-  ### 29. Geocode Address
+  ### 30. Geocode Address
 
   **Endpoint:** `POST /simnikah/location/geocode`
 
@@ -1270,7 +1439,7 @@
 
   ---
 
-  ### 30. Reverse Geocode
+  ### 31. Reverse Geocode
 
   **Endpoint:** `POST /simnikah/location/reverse-geocode`
 
@@ -1288,7 +1457,7 @@
 
   ---
 
-  ### 31. Get Wedding Location Detail
+  ### 32. Get Wedding Location Detail
 
   **Endpoint:** `GET /simnikah/pendaftaran/:id/location`
 
@@ -1319,7 +1488,7 @@
 
   ## 🔔 Notification Endpoints
 
-  ### 32. Get User Notifications
+  ### 33. Get User Notifications
 
   **Endpoint:** `GET /simnikah/notifikasi/user/:user_id`
 
@@ -1349,7 +1518,7 @@
 
   ---
 
-  ### 33. Create Notification
+  ### 34. Create Notification
 
   **Endpoint:** `POST /simnikah/notifikasi`
 
@@ -1791,13 +1960,20 @@
   ### Catatan Penting
 
   1. **Status Draft vs Disetujui di Kalender:**
-    - Draft (kuning): Belum pasti, tidak mengurangi kuota
-    - Disetujui (hijau): Sudah pasti, mengurangi kuota
+    - Draft (kuning): Belum pasti, **tetap dihitung dalam kuota** untuk mencegah double booking
+    - Disetujui (hijau): Sudah pasti, dihitung dalam kuota
 
   2. **Kuota Ketersediaan:**
-    - KUA: Maksimal 1 pernikahan per jam (hanya yang Disetujui)
-    - Luar KUA: Maksimal 3 total per jam (hanya yang Disetujui)
-    - Draft tidak dihitung dalam kuota karena belum pasti
+    - KUA: Maksimal 1 pernikahan per jam
+    - Luar KUA: Maksimal 3 total per jam
+    - **Draft dan Disetujui dihitung dalam kuota** (hanya "Ditolak" dan "Selesai" yang tidak dihitung)
+    - Total maksimal per jam: 3 pernikahan (1 di KUA + 2 di luar KUA, atau 3 di luar KUA)
+
+  3. **Aturan Jam/Waktu:**
+    - Jam operasional: 08:00 - 16:00 WITA
+    - Time slots: 08:00, 09:00, 10:00, 11:00, 12:00, 13:00, 14:00, 15:00, 16:00
+    - Format waktu: `HH:MM` (24 jam)
+    - Tanggal nikah tidak boleh di masa lalu
 
   ---
 
@@ -1839,6 +2015,7 @@
 
   ## 🔗 Additional Resources
 
+  - **Alur Pendaftaran & Aturan Jam:** Lihat `docs/ALUR_PENDAFTARAN_DAN_JAM.md`
   - **Status Flow:** Lihat `docs/FLOW_SEDERHANA.md`
   - **Architecture:** Lihat `docs/architecture/`
   - **Testing:** Lihat `docs/api/API_TESTING_DOCUMENTATION.md`

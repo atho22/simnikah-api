@@ -196,22 +196,26 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Validasi gagal",
-			"error":   "Format tanggal nikah tidak valid (YYYY-MM-DD)",
+			"message": "Format tanggal tidak benar",
+			"error":   "Format tanggal harus: Tahun-Bulan-Tanggal (contoh: 2024-12-25 untuk tanggal 25 Desember 2024)",
 			"field":   "tanggal_nikah",
 			"type":    "format",
+			"contoh_benar": []string{"2024-12-25", "2024-01-05", "2024-11-20"},
+			"contoh_salah": []string{"25-12-2024", "25/12/2024", "25 Desember 2024"},
 		})
 		return
 	}
 
 	// Validate that wedding date is not in the past
 	if tanggalNikah.Before(time.Now().Truncate(24 * time.Hour)) {
+		today := time.Now().Format("02 Januari 2006")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Validasi gagal",
-			"error":   "Tanggal nikah tidak boleh di masa lalu",
+			"message": "Tanggal tidak boleh sudah lewat",
+			"error":   fmt.Sprintf("Tanggal nikah tidak boleh di masa lalu. Hari ini adalah %s. Silakan pilih tanggal hari ini atau tanggal yang akan datang.", today),
 			"field":   "tanggal_nikah",
 			"type":    "validation",
+			"tanggal_hari_ini": today,
 		})
 		return
 	}
@@ -221,10 +225,13 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Validasi gagal",
-			"error":   "Format waktu nikah tidak valid (HH:MM dalam format 24-jam, contoh: 09:00)",
+			"message": "Format jam tidak benar",
+			"error":   "Format jam harus: Jam:Menit dengan 2 angka (contoh: 09:00 untuk jam 9 pagi, 14:30 untuk jam 2 siang)",
 			"field":   "waktu_nikah",
 			"type":    "format",
+			"contoh_benar": []string{"08:00", "09:00", "14:30", "16:00"},
+			"contoh_salah": []string{"9:00", "9:0", "2:30 PM", "14.30"},
+			"jam_tersedia": TimeSlots,
 		})
 		return
 	}
@@ -248,6 +255,39 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 			"error":   "Umur calon perempuan minimal 19 tahun",
 			"field":   "umur_perempuan",
 			"type":    "validation",
+		})
+		return
+	}
+
+	// Validate wali nikah
+	if strings.TrimSpace(formSederhana.WaliNikah.NamaDanBin) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi gagal",
+			"error":   "Nama wali nikah wajib diisi",
+			"field":   "wali_nikah.nama_dan_bin",
+			"type":    "required",
+		})
+		return
+	}
+
+	// Validate hubungan wali
+	validHubungan := false
+	for _, hubungan := range structs.ValidHubunganWali {
+		if formSederhana.WaliNikah.HubunganWali == hubungan {
+			validHubungan = true
+			break
+		}
+	}
+
+	if !validHubungan {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi gagal",
+			"error":   "Hubungan wali tidak valid",
+			"field":   "wali_nikah.hubungan_wali",
+			"type":    "enum",
+			"hubungan_valid": structs.ValidHubunganWali,
 		})
 		return
 	}
@@ -305,11 +345,12 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		if countKUA >= 1 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
-				"message": "Jadwal tidak tersedia",
-				"error":   fmt.Sprintf("Jadwal pernikahan di KUA pada tanggal %s pukul %s sudah terisi. Silakan pilih tanggal atau jam lain.", 
+				"message": "Jadwal di KUA sudah terisi",
+				"error":   fmt.Sprintf("Maaf, jadwal pernikahan di KUA pada tanggal %s pukul %s sudah terisi oleh pendaftar lain. Di KUA hanya bisa 1 pernikahan per jam. Silakan pilih tanggal atau jam lain yang masih tersedia.", 
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
 				"field":   "waktu_nikah",
 				"type":    "schedule_conflict",
+				"saran":   "Coba pilih jam lain pada tanggal yang sama, atau pilih tanggal lain. Gunakan fitur kalender untuk melihat jadwal yang tersedia.",
 				"data": gin.H{
 					"tanggal_nikah":    tanggalNikah.Format("2006-01-02"),
 					"waktu_nikah":       waktuNikahNormalized,
@@ -336,19 +377,20 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		if countTotalRegistrations >= maxTotalWeddings {
 			var errorMsg string
 			if countKUA >= 1 {
-				errorMsg = fmt.Sprintf("Jadwal pernikahan pada tanggal %s pukul %s sudah penuh (total 3 pernikahan: 1 di KUA dan 2 di luar KUA). Silakan pilih tanggal atau jam lain.", 
+				errorMsg = fmt.Sprintf("Maaf, jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Sudah ada 3 pernikahan (1 di KUA dan 2 di luar KUA). Maksimal hanya 3 pernikahan per jam. Silakan pilih tanggal atau jam lain yang masih tersedia.", 
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized)
 			} else {
-				errorMsg = fmt.Sprintf("Jadwal pernikahan pada tanggal %s pukul %s sudah penuh (total 3 pernikahan di luar KUA). Silakan pilih tanggal atau jam lain.", 
+				errorMsg = fmt.Sprintf("Maaf, jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Sudah ada 3 pernikahan di luar KUA. Maksimal hanya 3 pernikahan per jam. Silakan pilih tanggal atau jam lain yang masih tersedia.", 
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized)
 			}
 			
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
-				"message": "Jadwal tidak tersedia",
+				"message": "Jadwal sudah penuh",
 				"error":   errorMsg,
 				"field":   "waktu_nikah",
 				"type":    "schedule_conflict",
+				"saran":   "Coba pilih jam lain pada tanggal yang sama, atau pilih tanggal lain. Gunakan fitur kalender untuk melihat jadwal yang tersedia.",
 				"data": gin.H{
 					"tanggal_nikah":          tanggalNikah.Format("2006-01-02"),
 					"waktu_nikah":             waktuNikahNormalized,
@@ -367,11 +409,12 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		if countKUA >= 1 && countLuarKUA >= 2 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
-				"message": "Jadwal tidak tersedia",
-				"error":   fmt.Sprintf("Jadwal pernikahan di luar KUA pada tanggal %s pukul %s sudah penuh (sudah ada 1 pernikahan di KUA dan 2 di luar KUA). Silakan pilih tanggal atau jam lain.", 
+				"message": "Jadwal di luar KUA sudah penuh",
+				"error":   fmt.Sprintf("Maaf, jadwal pernikahan di luar KUA pada tanggal %s pukul %s sudah penuh. Sudah ada 1 pernikahan di KUA dan 2 di luar KUA (total maksimal 3 pernikahan per jam). Silakan pilih tanggal atau jam lain yang masih tersedia.", 
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
 				"field":   "waktu_nikah",
 				"type":    "schedule_conflict",
+				"saran":   "Coba pilih jam lain pada tanggal yang sama, atau pilih tanggal lain. Gunakan fitur kalender untuk melihat jadwal yang tersedia.",
 				"data": gin.H{
 					"tanggal_nikah":          tanggalNikah.Format("2006-01-02"),
 					"waktu_nikah":             waktuNikahNormalized,
@@ -542,6 +585,39 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		return
 	}
 
+	// Create wali nikah
+	waliNikah := structs.WaliNikah{
+		Pendaftaran_id: pendaftaranNikah.ID,
+		Nama_dan_bin:   formSederhana.WaliNikah.NamaDanBin,
+		Hubungan_wali:  formSederhana.WaliNikah.HubunganWali,
+		Created_at:     createdAt,
+		Updated_at:     createdAt,
+	}
+
+	if err := tx.Create(&waliNikah).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal membuat data wali nikah",
+			"type":    "database",
+		})
+		return
+	}
+
+	// Update pendaftaran dengan wali_nikah_id
+	pendaftaranNikah.Wali_nikah_id = &waliNikah.ID
+	if err := tx.Save(&pendaftaranNikah).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengupdate pendaftaran dengan wali nikah",
+			"type":    "database",
+		})
+		return
+	}
+
 	// Commit transaction
 	if err := tx.Commit().Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -574,6 +650,10 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 				"nama_dan_binti": formSederhana.CalonPerempuan.NamaDanBinti,
 				"pendidikan":     formSederhana.CalonPerempuan.PendidikanAkhir,
 				"umur":           formSederhana.CalonPerempuan.Umur,
+			},
+			"wali_nikah": gin.H{
+				"nama_dan_bin":   waliNikah.Nama_dan_bin,
+				"hubungan_wali":  waliNikah.Hubungan_wali,
 			},
 			"catatan": "Data minimal telah disimpan. Untuk melengkapi data, silakan datang ke kantor KUA atau lengkapi melalui website SIMNIKAH.",
 		},

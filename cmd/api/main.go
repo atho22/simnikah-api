@@ -149,14 +149,16 @@ func main() {
 		simnikahRoutes.POST("/staff/verify-formulir/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("staff"), staffHandler.VerifyRegistrationForm)
 		simnikahRoutes.POST("/staff/verify-berkas/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("staff"), staffHandler.VerifyDocuments)
 		simnikahRoutes.POST("/staff/approve/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("staff"), staffHandler.ApproveRegistration)
+		simnikahRoutes.POST("/staff/pendaftaran", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.CreateRegistrationForUser)
 		simnikahRoutes.PUT("/pendaftaran/:id/update-status", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "penghulu", "kepala_kua"), staffHandler.UpdateRegistrationStatus)
 
 		// ==================== PENGHULU ROUTES ====================
 		simnikahRoutes.GET("/penghulu", middleware.AuthMiddleware(), staffHandler.ListMarriageOfficers)
 		simnikahRoutes.PUT("/penghulu/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), staffHandler.UpdateMarriageOfficer)
 		simnikahRoutes.POST("/penghulu/verify-documents/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("penghulu"), penghuluHandler.VerifyRegistrationDocuments)
-		simnikahRoutes.GET("/penghulu/assigned-registrations", middleware.AuthMiddleware(), middleware.RoleMiddleware("penghulu"), penghuluHandler.ListMyAssignments)
-		simnikahRoutes.POST("/penghulu/complete-marriage/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("penghulu"), penghuluHandler.CompleteMarriage)
+		simnikahRoutes.GET("/penghulu/assigned-registrations", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("penghulu", "kepala_kua"), penghuluHandler.ListMyAssignments)
+		simnikahRoutes.GET("/penghulu/today-schedule", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("penghulu", "kepala_kua"), penghuluHandler.GetTodaySchedule)
+		simnikahRoutes.POST("/penghulu/complete-marriage/:id", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("penghulu", "kepala_kua"), penghuluHandler.CompleteMarriage)
 
 		// ==================== DASHBOARD ROUTES ====================
 		simnikahRoutes.GET("/dashboard/kepala-kua", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), dashboardHandler.GetKepalaKUADashboard)

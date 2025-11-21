@@ -1,6 +1,7 @@
 package staff
 
 import (
+	"crypto/md5"
 	"fmt"
 	"net/http"
 	"strings"
@@ -920,6 +921,532 @@ func (h *InDB) UpdateRegistrationStatus(c *gin.Context) {
 			"catatan":             pendaftaran.Catatan,
 			"updated_by":          userID.(string),
 			"updated_at":          pendaftaran.Updated_at,
+		},
+	})
+}
+
+// ==================== STAFF CREATE REGISTRATION FOR USER ====================
+
+// CreateRegistrationForUser allows staff to create marriage registration on behalf of users
+// This is useful for users who are not tech-savvy and need help from staff
+func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
+	// Get staff user_id from context
+	staffID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized",
+			"error":   "User ID tidak ditemukan",
+			"type":    "authentication",
+		})
+		return
+	}
+
+	// Get staff info
+	var staff structs.StaffKUA
+	if err := h.DB.Where("user_id = ?", staffID.(string)).First(&staff).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Akses ditolak",
+			"error":   "Hanya staff yang dapat membuat pendaftaran untuk user",
+			"type":    "authorization",
+		})
+		return
+	}
+
+	// Parse form data (same structure as user registration)
+	var formSederhana structs.DataFormPendaftaranSederhana
+	if err := c.ShouldBindJSON(&formSederhana); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format data tidak valid",
+			"error":   "Format data tidak valid: " + err.Error(),
+			"type":    "validation",
+		})
+		return
+	}
+
+	// Create user account automatically for calon pengantin
+	timestamp := time.Now().Unix()
+	pendaftarUserID := "USR" + fmt.Sprintf("%d", timestamp)
+
+	// Generate username from calon suami name
+	usernameBase := strings.ToLower(strings.ReplaceAll(formSederhana.CalonLakiLaki.NamaDanBin, " ", ""))
+	if len(usernameBase) > 15 {
+		usernameBase = usernameBase[:15]
+	}
+	username := fmt.Sprintf("%s%d", usernameBase, timestamp%10000)
+	email := fmt.Sprintf("%s@simnikah.local", username)
+	defaultPassword := fmt.Sprintf("Nikah%d", timestamp%100000)
+	hashedPassword, err := crypto.HashPassword(defaultPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal membuat password default",
+			"type":    "database",
+		})
+		return
+	}
+
+	// Start transaction
+	tx := h.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Validate tempat nikah
+	if formSederhana.LokasiNikah.TempatNikah != "Di KUA" && formSederhana.LokasiNikah.TempatNikah != "Di Luar KUA" {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi gagal",
+			"error":   "Tempat nikah harus 'Di KUA' atau 'Di Luar KUA'",
+			"field":   "tempat_nikah",
+			"type":    "enum",
+		})
+		return
+	}
+
+	// Validasi alamat jika di luar KUA
+	if formSederhana.LokasiNikah.TempatNikah == "Di Luar KUA" {
+		if strings.TrimSpace(formSederhana.LokasiNikah.AlamatNikah) == "" {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Validasi gagal",
+				"error":   "Alamat nikah wajib diisi untuk nikah di luar KUA",
+				"field":   "alamat_nikah",
+				"type":    "required",
+			})
+			return
+		}
+	}
+
+	// Parse tanggal nikah
+	tanggalNikah, err := time.Parse("2006-01-02", formSederhana.LokasiNikah.TanggalNikah)
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format tanggal tidak benar",
+			"error":   "Format tanggal harus: Tahun-Bulan-Tanggal (contoh: 2024-12-25)",
+			"field":   "tanggal_nikah",
+			"type":    "format",
+		})
+		return
+	}
+
+	// Validate that wedding date is not in the past
+	if tanggalNikah.Before(time.Now().Truncate(24 * time.Hour)) {
+		today := time.Now().Format("02 Januari 2006")
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Tanggal tidak boleh sudah lewat",
+			"error":   fmt.Sprintf("Tanggal nikah tidak boleh di masa lalu. Hari ini adalah %s.", today),
+			"field":   "tanggal_nikah",
+			"type":    "validation",
+		})
+		return
+	}
+
+	// Validate wedding time format
+	_, err = time.Parse("15:04", formSederhana.LokasiNikah.WaktuNikah)
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format jam tidak benar",
+			"error":   "Format jam harus: Jam:Menit dengan 2 angka (contoh: 09:00)",
+			"field":   "waktu_nikah",
+			"type":    "format",
+		})
+		return
+	}
+
+	// Validate age
+	if formSederhana.CalonLakiLaki.Umur < 19 {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi gagal",
+			"error":   "Umur calon laki-laki minimal 19 tahun",
+			"field":   "umur_laki_laki",
+			"type":    "validation",
+		})
+		return
+	}
+
+	if formSederhana.CalonPerempuan.Umur < 19 {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi gagal",
+			"error":   "Umur calon perempuan minimal 19 tahun",
+			"field":   "umur_perempuan",
+			"type":    "validation",
+		})
+		return
+	}
+
+	// Validate wali nikah
+	if strings.TrimSpace(formSederhana.WaliNikah.NamaDanBin) == "" {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi gagal",
+			"error":   "Nama wali nikah wajib diisi",
+			"field":   "wali_nikah.nama_dan_bin",
+			"type":    "required",
+		})
+		return
+	}
+
+	// Validate hubungan wali
+	validHubungan := false
+	for _, hubungan := range structs.ValidHubunganWali {
+		if formSederhana.WaliNikah.HubunganWali == hubungan {
+			validHubungan = true
+			break
+		}
+	}
+
+	if !validHubungan {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Validasi gagal",
+			"error":   "Hubungan wali tidak valid",
+			"field":   "wali_nikah.hubungan_wali",
+			"type":    "enum",
+			"hubungan_valid": structs.ValidHubunganWali,
+		})
+		return
+	}
+
+	// Validate schedule availability (same logic as user registration)
+	waktuNikahNormalized := formSederhana.LokasiNikah.WaktuNikah
+	if len(waktuNikahNormalized) > 5 {
+		waktuNikahNormalized = waktuNikahNormalized[:5]
+	}
+
+	var countTotalRegistrations int64
+	err = tx.Model(&structs.PendaftaranNikah{}).
+		Where("tanggal_nikah = ? AND waktu_nikah = ? AND status_pendaftaran NOT IN ?",
+			tanggalNikah, waktuNikahNormalized,
+			[]string{structs.StatusPendaftaranDitolak}).
+		Count(&countTotalRegistrations).Error
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengecek ketersediaan jadwal",
+			"type":    "database",
+		})
+		return
+	}
+
+	var countKUA int64
+	err = tx.Model(&structs.PendaftaranNikah{}).
+		Where("tanggal_nikah = ? AND waktu_nikah = ? AND tempat_nikah = ? AND status_pendaftaran NOT IN ?",
+			tanggalNikah, waktuNikahNormalized, "Di KUA",
+			[]string{structs.StatusPendaftaranDitolak}).
+		Count(&countKUA).Error
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengecek ketersediaan jadwal di KUA",
+			"type":    "database",
+		})
+		return
+	}
+
+	const maxTotalWeddings = 3
+
+	if formSederhana.LokasiNikah.TempatNikah == "Di KUA" {
+		if countKUA >= 1 {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Jadwal di KUA sudah terisi",
+				"error":   fmt.Sprintf("Jadwal pernikahan di KUA pada tanggal %s pukul %s sudah terisi. Silakan pilih tanggal atau jam lain.",
+					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
+				"field":   "waktu_nikah",
+				"type":    "schedule_conflict",
+			})
+			return
+		}
+	} else {
+		countLuarKUA := countTotalRegistrations - countKUA
+		if countTotalRegistrations >= maxTotalWeddings {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Jadwal sudah penuh",
+				"error":   fmt.Sprintf("Jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Maksimal 3 pernikahan per jam.",
+					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
+				"field":   "waktu_nikah",
+				"type":    "schedule_conflict",
+			})
+			return
+		}
+		if countKUA >= 1 && countLuarKUA >= 2 {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Jadwal di luar KUA sudah penuh",
+				"error":   fmt.Sprintf("Jadwal pernikahan di luar KUA pada tanggal %s pukul %s sudah penuh. Silakan pilih tanggal atau jam lain.",
+					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
+				"field":   "waktu_nikah",
+				"type":    "schedule_conflict",
+			})
+			return
+		}
+	}
+
+	// Create user account
+	pendaftarUser := structs.Users{
+		User_id:    pendaftarUserID,
+		Username:   username,
+		Email:      email,
+		Password:   hashedPassword,
+		Role:       structs.UserRoleUserBiasa,
+		Status:     structs.UserStatusAktif,
+		Nama:       formSederhana.CalonLakiLaki.NamaDanBin,
+		Created_at: time.Now(),
+		Updated_at: time.Now(),
+	}
+
+	if err := tx.Create(&pendaftarUser).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal membuat akun user",
+			"type":    "database",
+		})
+		return
+	}
+
+	createdAt := time.Now()
+
+	// Generate unique IDs for calon pasangan
+	hashGroom := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s_groom_%d", pendaftarUserID, timestamp))))
+	hashBride := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s_bride_%d", timestamp, timestamp+1))))
+	groomUserID := hashGroom[:20]
+	brideUserID := hashBride[:20]
+	nikGroom := fmt.Sprintf("T%s", hashGroom[:15])
+	nikBride := fmt.Sprintf("T%s", hashBride[:15])
+
+	// Calculate tanggal lahir dari umur
+	now := time.Now()
+	tanggalLahirGroom := now.AddDate(-formSederhana.CalonLakiLaki.Umur, 0, 0)
+	tanggalLahirBride := now.AddDate(-formSederhana.CalonPerempuan.Umur, 0, 0)
+
+	// Create calon suami
+	calonSuami := structs.CalonPasangan{
+		User_id:             groomUserID,
+		NIK:                 nikGroom,
+		Nama_lengkap:        formSederhana.CalonLakiLaki.NamaDanBin,
+		Tanggal_lahir:       tanggalLahirGroom,
+		Jenis_kelamin:       "L",
+		Pendidikan_terakhir: formSederhana.CalonLakiLaki.PendidikanAkhir,
+		Created_at:          createdAt,
+		Updated_at:          createdAt,
+	}
+
+	if err := tx.Create(&calonSuami).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal membuat data calon suami",
+			"type":    "database",
+		})
+		return
+	}
+
+	// Create calon istri
+	calonIstri := structs.CalonPasangan{
+		User_id:             brideUserID,
+		NIK:                 nikBride,
+		Nama_lengkap:        formSederhana.CalonPerempuan.NamaDanBinti,
+		Tanggal_lahir:       tanggalLahirBride,
+		Jenis_kelamin:       "P",
+		Pendidikan_terakhir: formSederhana.CalonPerempuan.PendidikanAkhir,
+		Created_at:          createdAt,
+		Updated_at:          createdAt,
+	}
+
+	if err := tx.Create(&calonIstri).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal membuat data calon istri",
+			"type":    "database",
+		})
+		return
+	}
+
+	// Generate nomor pendaftaran
+	nomorPendaftaran := fmt.Sprintf("NIKAH-%s-%d",
+		tanggalNikah.Format("20060102"),
+		timestamp%10000)
+
+	// Setup alamat akad
+	var alamatAkad string
+	var latitude, longitude *float64
+
+	if formSederhana.LokasiNikah.TempatNikah == "Di KUA" {
+		alamatAkad = "PH5Q+F8C, Jl. Wira Karya, Pangeran, Kec. Banjarmasin Utara, Kota Banjarmasin, Kalimantan Selatan 70123"
+		lat := -3.291304649442475
+		lon := 114.58814746634684
+		latitude = &lat
+		longitude = &lon
+	} else {
+		alamatParts := []string{}
+		if formSederhana.LokasiNikah.AlamatNikah != "" {
+			alamatParts = append(alamatParts, formSederhana.LokasiNikah.AlamatNikah)
+		}
+		if formSederhana.LokasiNikah.DetailAlamat != "" {
+			alamatParts = append(alamatParts, formSederhana.LokasiNikah.DetailAlamat)
+		}
+		if formSederhana.LokasiNikah.Kelurahan != "" {
+			alamatParts = append(alamatParts, "Kelurahan "+formSederhana.LokasiNikah.Kelurahan)
+		}
+		alamatParts = append(alamatParts, "Kecamatan Banjarmasin Utara, Kota Banjarmasin, Kalimantan Selatan")
+		alamatAkad = strings.Join(alamatParts, ", ")
+	}
+
+	// Create marriage registration with note that it was created by staff
+	// Status otomatis "Disetujui" karena staff sudah melakukan verifikasi saat input
+	catatanStaff := fmt.Sprintf("Pendaftaran dibuat dan disetujui oleh staff: %s (NIP: %s) pada %s",
+		staff.Nama_lengkap, staff.NIP, time.Now().Format("02 Januari 2006 15:04"))
+
+	pendaftaranNikah := structs.PendaftaranNikah{
+		Nomor_pendaftaran:   nomorPendaftaran,
+		Pendaftar_id:        pendaftarUserID,
+		Calon_suami_id:      fmt.Sprintf("%d", calonSuami.ID),
+		Calon_istri_id:      fmt.Sprintf("%d", calonIstri.ID),
+		Tanggal_pendaftaran: createdAt,
+		Tanggal_nikah:       tanggalNikah,
+		Waktu_nikah:         formSederhana.LokasiNikah.WaktuNikah,
+		Tempat_nikah:        formSederhana.LokasiNikah.TempatNikah,
+		Alamat_akad:         alamatAkad,
+		Latitude:            latitude,
+		Longitude:           longitude,
+		Status_pendaftaran:  structs.StatusPendaftaranDisetujui, // Otomatis disetujui karena dibuat oleh staff
+		Disetujui_oleh:      staffID.(string), // Staff yang membuat pendaftaran
+		Disetujui_pada:      &createdAt, // Waktu disetujui = waktu dibuat
+		Catatan:             catatanStaff,
+		Created_at:          createdAt,
+		Updated_at:          createdAt,
+	}
+
+	if err := tx.Create(&pendaftaranNikah).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal membuat pendaftaran nikah",
+			"type":    "database",
+		})
+		return
+	}
+
+	// Create wali nikah
+	waliNikah := structs.WaliNikah{
+		Pendaftaran_id: pendaftaranNikah.ID,
+		Nama_dan_bin:   formSederhana.WaliNikah.NamaDanBin,
+		Hubungan_wali:  formSederhana.WaliNikah.HubunganWali,
+		Created_at:     createdAt,
+		Updated_at:     createdAt,
+	}
+
+	if err := tx.Create(&waliNikah).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal membuat data wali nikah",
+			"type":    "database",
+		})
+		return
+	}
+
+	// Update pendaftaran dengan wali_nikah_id
+	pendaftaranNikah.Wali_nikah_id = &waliNikah.ID
+	if err := tx.Save(&pendaftaranNikah).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengupdate pendaftaran dengan wali nikah",
+			"type":    "database",
+		})
+		return
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal menyimpan data pendaftaran",
+			"type":    "database",
+		})
+		return
+	}
+
+	// Response sukses
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "Pendaftaran nikah berhasil dibuat dan disetujui oleh staff",
+		"data": gin.H{
+			"id":                 pendaftaranNikah.ID,
+			"nomor_pendaftaran":  nomorPendaftaran,
+			"status_pendaftaran": pendaftaranNikah.Status_pendaftaran,
+			"disetujui_oleh":     pendaftaranNikah.Disetujui_oleh,
+			"disetujui_pada":     pendaftaranNikah.Disetujui_pada,
+			"tanggal_nikah":      pendaftaranNikah.Tanggal_nikah,
+			"waktu_nikah":        pendaftaranNikah.Waktu_nikah,
+			"tempat_nikah":       pendaftaranNikah.Tempat_nikah,
+			"alamat_akad":        pendaftaranNikah.Alamat_akad,
+			"dibuat_oleh_staff": gin.H{
+				"nama": staff.Nama_lengkap,
+				"nip":  staff.NIP,
+			},
+			"akun_user": gin.H{
+				"user_id":         pendaftarUserID,
+				"username":        username,
+				"email":           email,
+				"password_default": defaultPassword,
+				"catatan":         "Akun ini dibuat otomatis. User dapat login dan mengubah password.",
+			},
+			"calon_suami": gin.H{
+				"nama_dan_bin": formSederhana.CalonLakiLaki.NamaDanBin,
+				"pendidikan":   formSederhana.CalonLakiLaki.PendidikanAkhir,
+				"umur":         formSederhana.CalonLakiLaki.Umur,
+			},
+			"calon_istri": gin.H{
+				"nama_dan_binti": formSederhana.CalonPerempuan.NamaDanBinti,
+				"pendidikan":     formSederhana.CalonPerempuan.PendidikanAkhir,
+				"umur":           formSederhana.CalonPerempuan.Umur,
+			},
+			"wali_nikah": gin.H{
+				"nama_dan_bin":   waliNikah.Nama_dan_bin,
+				"hubungan_wali":  waliNikah.Hubungan_wali,
+			},
+			"catatan": "Pendaftaran dibuat oleh staff. User dapat login menggunakan username dan password default yang diberikan.",
 		},
 	})
 }
