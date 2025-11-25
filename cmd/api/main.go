@@ -48,6 +48,7 @@ func main() {
 		&structs.Penghulu{},
 		&structs.CalonPasangan{},
 		&structs.PendaftaranNikah{},
+		&structs.WaliNikah{},
 		&structs.Notifikasi{},
 		&structs.FeedbackPernikahan{},
 	); err != nil {
@@ -151,6 +152,8 @@ func main() {
 		simnikahRoutes.POST("/staff/approve/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("staff"), staffHandler.ApproveRegistration)
 		simnikahRoutes.POST("/staff/pendaftaran", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.CreateRegistrationForUser)
 		simnikahRoutes.PUT("/pendaftaran/:id/update-status", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "penghulu", "kepala_kua"), staffHandler.UpdateRegistrationStatus)
+		simnikahRoutes.GET("/staff/pengumuman-nikah/list", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.GetApprovedRegistrationsPerWeek)
+		simnikahRoutes.GET("/staff/pengumuman-nikah/generate", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.GeneratePengumumanNikah)
 
 		// ==================== PENGHULU ROUTES ====================
 		simnikahRoutes.GET("/penghulu", middleware.AuthMiddleware(), staffHandler.ListMarriageOfficers)
@@ -178,6 +181,10 @@ func main() {
 		simnikahRoutes.GET("/kepala-kua/feedback", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.ListFeedbackPernikahan)
 		simnikahRoutes.PUT("/kepala-kua/feedback/:id/mark-read", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.MarkFeedbackAsRead)
 		simnikahRoutes.GET("/kepala-kua/feedback/stats", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetFeedbackStats)
+
+		// ==================== SURAT PENGUMUMAN NIKAH (KEPALA KUA) ====================
+		simnikahRoutes.GET("/kepala-kua/pengumuman-nikah/list", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetApprovedRegistrationsPerWeek)
+		simnikahRoutes.GET("/kepala-kua/pengumuman-nikah/generate", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GeneratePengumumanNikah)
 
 		// ==================== LOCATION ROUTES ====================
 		simnikahRoutes.POST("/location/geocode", middleware.AuthMiddleware(), catinHandler.GetCoordinatesFromAddressEndpoint)

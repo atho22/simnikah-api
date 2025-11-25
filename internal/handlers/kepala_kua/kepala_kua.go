@@ -1143,3 +1143,561 @@ func (h *InDB) GetFeedbackStats(c *gin.Context) {
 		},
 	})
 }
+
+// ==================== SURAT PENGUMUMAN NIKAH ====================
+
+// GetApprovedRegistrationsPerWeek gets approved registrations for a specific week
+// Used for generating pengumuman nikah (marriage announcement)
+func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
+	// Get query parameters
+	tanggalAwal := c.Query("tanggal_awal")  // Format: YYYY-MM-DD (start of week)
+	tanggalAkhir := c.Query("tanggal_akhir") // Format: YYYY-MM-DD (end of week)
+
+	// If not provided, use current week
+	now := time.Now()
+	var startOfWeek, endOfWeek time.Time
+
+	if tanggalAwal != "" && tanggalAkhir != "" {
+		// Parse provided dates
+		start, err := time.Parse("2006-01-02", tanggalAwal)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Format tanggal tidak valid",
+				"error":   "Format tanggal_awal harus YYYY-MM-DD",
+			})
+			return
+		}
+		end, err := time.Parse("2006-01-02", tanggalAkhir)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Format tanggal tidak valid",
+				"error":   "Format tanggal_akhir harus YYYY-MM-DD",
+			})
+			return
+		}
+		startOfWeek = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+		endOfWeek = time.Date(end.Year(), end.Month(), end.Day(), 23, 59, 59, 999999999, time.UTC)
+	} else {
+		// Default: current week (Monday to Sunday)
+		weekday := int(now.Weekday())
+		if weekday == 0 {
+			weekday = 7 // Sunday = 7
+		}
+		daysFromMonday := weekday - 1
+		startOfWeek = time.Date(now.Year(), now.Month(), now.Day()-daysFromMonday, 0, 0, 0, 0, time.UTC)
+		endOfWeek = startOfWeek.AddDate(0, 0, 6).Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	}
+
+	// Get approved registrations within the week
+	var pendaftaran []structs.PendaftaranNikah
+	err := h.DB.Where("tanggal_nikah >= ? AND tanggal_nikah <= ? AND status_pendaftaran = ?",
+		startOfWeek, endOfWeek, structs.StatusPendaftaranDisetujui).
+		Order("tanggal_nikah ASC, waktu_nikah ASC").
+		Find(&pendaftaran).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengambil data pendaftaran",
+		})
+		return
+	}
+
+	// Get calon pasangan and wali nikah data
+	var registrations []gin.H
+	for _, p := range pendaftaran {
+		// Get calon suami
+		var calonSuami structs.CalonPasangan
+		h.DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami)
+
+		// Get calon istri
+		var calonIstri structs.CalonPasangan
+		h.DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri)
+
+		// Get wali nikah
+		var waliNikah structs.WaliNikah
+		if p.Wali_nikah_id != nil {
+			h.DB.Where("id = ?", *p.Wali_nikah_id).First(&waliNikah)
+		}
+
+		regData := gin.H{
+			"id":                p.ID,
+			"nomor_pendaftaran": p.Nomor_pendaftaran,
+			"tanggal_nikah":     p.Tanggal_nikah,
+			"waktu_nikah":       p.Waktu_nikah,
+			"tempat_nikah":      p.Tempat_nikah,
+			"alamat_akad":       p.Alamat_akad,
+			"calon_suami": gin.H{
+				"nama_lengkap": calonSuami.Nama_lengkap,
+			},
+			"calon_istri": gin.H{
+				"nama_lengkap": calonIstri.Nama_lengkap,
+			},
+		}
+
+		// Add wali nikah if exists
+		if waliNikah.ID != 0 {
+			regData["wali_nikah"] = gin.H{
+				"nama_dan_bin":  waliNikah.Nama_dan_bin,
+				"hubungan_wali": waliNikah.Hubungan_wali,
+			}
+		}
+
+		registrations = append(registrations, regData)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Data pendaftaran disetujui berhasil diambil",
+		"data": gin.H{
+			"tanggal_awal":   startOfWeek.Format("2006-01-02"),
+			"tanggal_akhir":  endOfWeek.Format("2006-01-02"),
+			"periode":       fmt.Sprintf("%s s/d %s", startOfWeek.Format("02 Januari 2006"), endOfWeek.Format("02 Januari 2006")),
+			"total":         len(registrations),
+			"registrations": registrations,
+		},
+	})
+}
+
+// GeneratePengumumanNikah generates a marriage announcement document (HTML format)
+// This can be printed or converted to PDF
+func (h *InDB) GeneratePengumumanNikah(c *gin.Context) {
+	// Get query parameters
+	tanggalAwal := c.Query("tanggal_awal")  // Format: YYYY-MM-DD
+	tanggalAkhir := c.Query("tanggal_akhir") // Format: YYYY-MM-DD
+
+	// Get kop surat from request body or use default
+	var kopSurat struct {
+		NamaKUA   string `json:"nama_kua"`   // Nama KUA
+		AlamatKUA string `json:"alamat_kua"` // Alamat lengkap KUA
+		Kota      string `json:"kota"`        // Kota
+		Provinsi  string `json:"provinsi"`    // Provinsi
+		KodePos   string `json:"kode_pos"`   // Kode pos
+		Telepon   string `json:"telepon"`    // Nomor telepon
+		Email     string `json:"email"`       // Email
+		Website   string `json:"website"`     // Website (optional)
+		LogoURL   string `json:"logo_url"`    // URL logo KUA (optional)
+	}
+
+	// Try to bind JSON body for kop surat, if not provided use default
+	if c.Request.ContentLength > 0 {
+		c.ShouldBindJSON(&kopSurat)
+	}
+
+	// Set default values if not provided
+	if kopSurat.NamaKUA == "" {
+		kopSurat.NamaKUA = "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA"
+	}
+	if kopSurat.AlamatKUA == "" {
+		kopSurat.AlamatKUA = "PH5Q+F8C, Jl. Wira Karya, Pangeran"
+	}
+	if kopSurat.Kota == "" {
+		kopSurat.Kota = "Kota Banjarmasin"
+	}
+	if kopSurat.Provinsi == "" {
+		kopSurat.Provinsi = "Kalimantan Selatan"
+	}
+	if kopSurat.KodePos == "" {
+		kopSurat.KodePos = "70123"
+	}
+	if kopSurat.Telepon == "" {
+		kopSurat.Telepon = "-"
+	}
+	if kopSurat.Email == "" {
+		kopSurat.Email = "-"
+	}
+
+	// Calculate week dates
+	now := time.Now()
+	var startOfWeek, endOfWeek time.Time
+
+	if tanggalAwal != "" && tanggalAkhir != "" {
+		start, err := time.Parse("2006-01-02", tanggalAwal)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Format tanggal tidak valid",
+				"error":   "Format tanggal_awal harus YYYY-MM-DD",
+			})
+			return
+		}
+		end, err := time.Parse("2006-01-02", tanggalAkhir)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Format tanggal tidak valid",
+				"error":   "Format tanggal_akhir harus YYYY-MM-DD",
+			})
+			return
+		}
+		startOfWeek = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+		endOfWeek = time.Date(end.Year(), end.Month(), end.Day(), 23, 59, 59, 999999999, time.UTC)
+	} else {
+		// Default: current week (Monday to Sunday)
+		weekday := int(now.Weekday())
+		if weekday == 0 {
+			weekday = 7
+		}
+		daysFromMonday := weekday - 1
+		startOfWeek = time.Date(now.Year(), now.Month(), now.Day()-daysFromMonday, 0, 0, 0, 0, time.UTC)
+		endOfWeek = startOfWeek.AddDate(0, 0, 6).Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	}
+
+	// Get approved registrations within the week
+	var pendaftaran []structs.PendaftaranNikah
+	err := h.DB.Where("tanggal_nikah >= ? AND tanggal_nikah <= ? AND status_pendaftaran = ?",
+		startOfWeek, endOfWeek, structs.StatusPendaftaranDisetujui).
+		Order("tanggal_nikah ASC, waktu_nikah ASC").
+		Find(&pendaftaran).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengambil data pendaftaran",
+		})
+		return
+	}
+
+	// Get calon pasangan and wali nikah data
+	type RegistrationData struct {
+		NomorPendaftaran string
+		TanggalNikah     string
+		WaktuNikah       string
+		TempatNikah      string
+		AlamatAkad       string
+		CalonSuami       string
+		CalonIstri       string
+		WaliNikah        string
+		HubunganWali     string
+	}
+
+	var regDataList []RegistrationData
+	for _, p := range pendaftaran {
+		// Get calon suami
+		var calonSuami structs.CalonPasangan
+		h.DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami)
+
+		// Get calon istri
+		var calonIstri structs.CalonPasangan
+		h.DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri)
+
+		// Get wali nikah
+		var waliNikah structs.WaliNikah
+		waliInfo := "-"
+		if p.Wali_nikah_id != nil {
+			h.DB.Where("id = ?", *p.Wali_nikah_id).First(&waliNikah)
+			if waliNikah.ID != 0 {
+				waliInfo = fmt.Sprintf("%s (%s)", waliNikah.Nama_dan_bin, waliNikah.Hubungan_wali)
+			}
+		}
+
+		regDataList = append(regDataList, RegistrationData{
+			NomorPendaftaran: p.Nomor_pendaftaran,
+			TanggalNikah:     p.Tanggal_nikah.Format("02 Januari 2006"),
+			WaktuNikah:       p.Waktu_nikah,
+			TempatNikah:      p.Tempat_nikah,
+			AlamatAkad:       p.Alamat_akad,
+			CalonSuami:       calonSuami.Nama_lengkap,
+			CalonIstri:       calonIstri.Nama_lengkap,
+			WaliNikah:        waliInfo,
+			HubunganWali:     waliNikah.Hubungan_wali,
+		})
+	}
+
+	// Generate HTML document
+	htmlContent := h.generatePengumumanHTML(kopSurat, startOfWeek, endOfWeek, regDataList)
+
+	// Set response headers for HTML
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK, htmlContent)
+}
+
+// generatePengumumanHTML generates HTML content for pengumuman nikah
+// Format mengikuti contoh surat resmi KUA
+func (h *InDB) generatePengumumanHTML(kopSurat struct {
+	NamaKUA   string
+	AlamatKUA string
+	Kota      string
+	Provinsi  string
+	KodePos   string
+	Telepon   string
+	Email     string
+	Website   string
+	LogoURL   string
+}, startOfWeek, endOfWeek time.Time, registrations []RegistrationData) string {
+	periode := fmt.Sprintf("%s s/d %s", startOfWeek.Format("02 Januari 2006"), endOfWeek.Format("02 Januari 2006"))
+	tanggalSurat := time.Now().Format("02 Januari 2006")
+
+	html := `<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pengumuman Nikah - ` + periode + `</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm 2cm;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Times New Roman', serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #000;
+        }
+        .container {
+            width: 100%%;
+            max-width: 100%%;
+        }
+        .kop-surat {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #000;
+        }
+        .kop-logo {
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 15px;
+        }
+        .kop-logo img {
+            max-width: 70px;
+            max-height: 70px;
+            object-fit: contain;
+        }
+        .kop-text {
+            display: inline-block;
+            vertical-align: middle;
+            text-align: center;
+        }
+        .kop-surat h1 {
+            font-size: 14pt;
+            font-weight: bold;
+            margin: 2px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .kop-surat h2 {
+            font-size: 12pt;
+            font-weight: bold;
+            margin: 2px 0;
+            text-transform: uppercase;
+        }
+        .kop-surat .alamat {
+            font-size: 10pt;
+            margin: 3px 0;
+        }
+        .kop-surat .kontak {
+            font-size: 9pt;
+            margin: 2px 0;
+        }
+        .nomor-surat {
+            text-align: right;
+            font-size: 10pt;
+            margin: 15px 0 10px 0;
+        }
+        .judul {
+            text-align: center;
+            font-size: 14pt;
+            font-weight: bold;
+            margin: 20px 0 10px 0;
+            text-decoration: underline;
+            text-transform: uppercase;
+        }
+        .periode {
+            text-align: center;
+            font-size: 11pt;
+            margin-bottom: 15px;
+            font-weight: normal;
+        }
+        .pembuka {
+            text-align: justify;
+            font-size: 11pt;
+            margin-bottom: 15px;
+            text-indent: 30px;
+        }
+        table {
+            width: 100%%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 10pt;
+        }
+        table th {
+            border: 1px solid #000;
+            padding: 6px 4px;
+            text-align: center;
+            font-weight: bold;
+            background-color: #f0f0f0;
+            vertical-align: middle;
+        }
+        table td {
+            border: 1px solid #000;
+            padding: 5px 4px;
+            text-align: left;
+            vertical-align: top;
+        }
+        table td.center {
+            text-align: center;
+        }
+        .no-data {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+        .penutup {
+            text-align: justify;
+            font-size: 11pt;
+            margin: 20px 0 15px 0;
+            text-indent: 30px;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: right;
+        }
+        .footer .tanggal {
+            margin-bottom: 50px;
+        }
+        .ttd {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .ttd .jabatan {
+            margin-bottom: 80px;
+            font-weight: bold;
+        }
+        .ttd .nama {
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 5px;
+        }
+        .ttd .nip {
+            font-size: 10pt;
+        }
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="kop-surat">`
+
+	// Kop surat dengan logo di kiri (jika ada)
+	if kopSurat.LogoURL != "" {
+		html += fmt.Sprintf(`
+            <div style="display: flex; align-items: center; justify-content: center;">
+                <div class="kop-logo">
+                    <img src="%s" alt="Logo KUA">
+                </div>
+                <div class="kop-text">`, kopSurat.LogoURL)
+	} else {
+		html += `<div class="kop-text">`
+	}
+
+	html += fmt.Sprintf(`
+                    <h1>%s</h1>
+                    <h2>KECAMATAN BANJARMASIN UTARA</h2>
+                    <div class="alamat">%s</div>
+                    <div class="alamat">%s, %s %s</div>
+                    <div class="kontak">Telp: %s | Email: %s`, kopSurat.NamaKUA, kopSurat.AlamatKUA, kopSurat.Kota, kopSurat.Provinsi, kopSurat.KodePos, kopSurat.Telepon, kopSurat.Email)
+
+	if kopSurat.Website != "" {
+		html += fmt.Sprintf(` | Website: %s`, kopSurat.Website)
+	}
+
+	if kopSurat.LogoURL != "" {
+		html += `</div></div>`
+	} else {
+		html += `</div>`
+	}
+
+	html += `
+        </div>
+
+        <div class="nomor-surat">
+            Nomor : ................../KUA.BNU/` + time.Now().Format("2006") + `
+        </div>
+
+        <div class="judul">PENGUMUMAN PERNIKAHAN</div>
+        
+        <div class="periode">
+            Periode: ` + periode + `
+        </div>
+
+        <div class="pembuka">
+            Berdasarkan data pendaftaran nikah yang telah disetujui, dengan ini diumumkan rencana pernikahan sebagai berikut:
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 4%%;">No</th>
+                    <th style="width: 12%%;">No. Pendaftaran</th>
+                    <th style="width: 11%%;">Tanggal Nikah</th>
+                    <th style="width: 7%%;">Waktu</th>
+                    <th style="width: 10%%;">Tempat</th>
+                    <th style="width: 18%%;">Calon Suami</th>
+                    <th style="width: 18%%;">Calon Istri</th>
+                    <th style="width: 20%%;">Wali Nikah</th>
+                </tr>
+            </thead>
+            <tbody>`
+
+	if len(registrations) == 0 {
+		html += `<tr><td colspan="8" class="no-data center">Tidak ada pendaftaran nikah yang disetujui pada periode ini</td></tr>`
+	} else {
+		for i, reg := range registrations {
+			html += fmt.Sprintf(`
+                <tr>
+                    <td class="center">%d</td>
+                    <td>%s</td>
+                    <td>%s</td>
+                    <td class="center">%s</td>
+                    <td>%s</td>
+                    <td>%s</td>
+                    <td>%s</td>
+                    <td>%s</td>
+                </tr>`, i+1, reg.NomorPendaftaran, reg.TanggalNikah, reg.WaktuNikah, reg.TempatNikah, reg.CalonSuami, reg.CalonIstri, reg.WaliNikah)
+		}
+	}
+
+	html += fmt.Sprintf(`
+            </tbody>
+        </table>
+
+        <div class="penutup">
+            Pengumuman ini dibuat untuk memberikan informasi kepada masyarakat mengenai rencana pernikahan yang akan dilaksanakan pada periode tersebut. Apabila ada keberatan atau sanggahan terhadap rencana pernikahan di atas, dapat disampaikan kepada Kantor Urusan Agama Kecamatan Banjarmasin Utara paling lambat 3 (tiga) hari sebelum tanggal pelaksanaan pernikahan.
+        </div>
+
+        <div class="footer">
+            <div class="tanggal">
+                %s, %s
+            </div>
+            <div class="ttd">
+                <div class="jabatan">Kepala KUA Kecamatan Banjarmasin Utara</div>
+                <div class="nama">[NAMA KEPALA KUA]</div>
+                <div class="nip">NIP. [NIP KEPALA KUA]</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`, kopSurat.Kota, tanggalSurat)
+
+	return html
+}

@@ -905,7 +905,104 @@
 
   ---
 
-  ### 15. Approve Registration
+  ### 15. Get Approved Registrations Per Week (Staff)
+
+  **Endpoint:** `GET /simnikah/staff/pengumuman-nikah/list`
+
+  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode mingguan (untuk membuat surat pengumuman nikah).
+
+  **Auth Required:** ✅ Yes
+
+  **Role Required:** `staff`, `kepala_kua`
+
+  **Query Parameters:**
+  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
+  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
+
+  **Example:**
+  ```
+  GET /simnikah/staff/pengumuman-nikah/list?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  ```
+
+  **Response Success (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Data pendaftaran disetujui berhasil diambil",
+    "data": {
+      "tanggal_awal": "2024-12-16",
+      "tanggal_akhir": "2024-12-22",
+      "periode": "16 Desember 2024 s/d 22 Desember 2024",
+      "total": 5,
+      "registrations": [
+        {
+          "id": 1,
+          "nomor_pendaftaran": "NIKAH-20241215-1234",
+          "tanggal_nikah": "2024-12-18T10:00:00Z",
+          "waktu_nikah": "10:00",
+          "tempat_nikah": "Di KUA",
+          "alamat_akad": "Kantor KUA Kecamatan Banjarmasin Utara",
+          "calon_suami": {
+            "nama_lengkap": "Ahmad bin Abdullah"
+          },
+          "calon_istri": {
+            "nama_lengkap": "Siti binti Muhammad"
+          },
+          "wali_nikah": {
+            "nama_dan_bin": "Muhammad bin Ali",
+            "hubungan_wali": "Ayah Kandung"
+          }
+        }
+      ]
+    }
+  }
+  ```
+
+  ---
+
+  ### 16. Generate Pengumuman Nikah (Staff)
+
+  **Endpoint:** `GET /simnikah/staff/pengumuman-nikah/generate`
+
+  **Description:** Generate surat pengumuman nikah dalam format HTML yang dapat dicetak atau dikonversi ke PDF. Surat ini berisi daftar pendaftaran nikah yang telah disetujui untuk periode mingguan.
+
+  **Auth Required:** ✅ Yes
+
+  **Role Required:** `staff`, `kepala_kua`
+
+  **Query Parameters:**
+  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
+  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
+
+  **Request Body (Optional - untuk custom kop surat):**
+  ```json
+  {
+    "nama_kua": "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA",
+    "alamat_kua": "PH5Q+F8C, Jl. Wira Karya, Pangeran",
+    "kota": "Kota Banjarmasin",
+    "provinsi": "Kalimantan Selatan",
+    "kode_pos": "70123",
+    "telepon": "0511-1234567",
+    "email": "kua.banjarmasinutara@kemenag.go.id",
+    "website": "https://kua.banjarmasinutara.go.id",
+    "logo_url": "https://example.com/logo-kua.png"
+  }
+  ```
+
+  **Note:** Jika request body tidak dikirim, akan menggunakan nilai default untuk kop surat.
+
+  **Response Success (200):**
+  - Content-Type: `text/html; charset=utf-8`
+  - Body: HTML document yang siap dicetak atau dikonversi ke PDF
+
+  **Use Case:**
+  - Staff atau Kepala KUA membuat surat pengumuman nikah setiap minggu
+  - Surat dicetak dan dipasang di papan pengumuman KUA
+  - Surat juga dapat dikirim ke media sosial atau website KUA
+
+  ---
+
+  ### 17. Approve Registration
 
   **Endpoint:** `POST /simnikah/staff/approve/:id`
 
@@ -933,7 +1030,7 @@
 
   ---
 
-  ### 16. Update Registration Status
+  ### 18. Update Registration Status
 
   **Endpoint:** `PUT /simnikah/pendaftaran/:id/update-status`
 
@@ -1259,9 +1356,106 @@
 
   ---
 
+  ### 26. Get Approved Registrations Per Week (Kepala KUA)
+
+  **Endpoint:** `GET /simnikah/kepala-kua/pengumuman-nikah/list`
+
+  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode mingguan (untuk membuat surat pengumuman nikah).
+
+  **Auth Required:** ✅ Yes
+
+  **Role Required:** `kepala_kua`
+
+  **Query Parameters:**
+  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
+  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
+
+  **Example:**
+  ```
+  GET /simnikah/kepala-kua/pengumuman-nikah/list?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  ```
+
+  **Response Success (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Data pendaftaran disetujui berhasil diambil",
+    "data": {
+      "tanggal_awal": "2024-12-16",
+      "tanggal_akhir": "2024-12-22",
+      "periode": "16 Desember 2024 s/d 22 Desember 2024",
+      "total": 5,
+      "registrations": [
+        {
+          "id": 1,
+          "nomor_pendaftaran": "NIKAH-20241215-1234",
+          "tanggal_nikah": "2024-12-18T10:00:00Z",
+          "waktu_nikah": "10:00",
+          "tempat_nikah": "Di KUA",
+          "alamat_akad": "Kantor KUA Kecamatan Banjarmasin Utara",
+          "calon_suami": {
+            "nama_lengkap": "Ahmad bin Abdullah"
+          },
+          "calon_istri": {
+            "nama_lengkap": "Siti binti Muhammad"
+          },
+          "wali_nikah": {
+            "nama_dan_bin": "Muhammad bin Ali",
+            "hubungan_wali": "Ayah Kandung"
+          }
+        }
+      ]
+    }
+  }
+  ```
+
+  ---
+
+  ### 27. Generate Pengumuman Nikah (Kepala KUA)
+
+  **Endpoint:** `GET /simnikah/kepala-kua/pengumuman-nikah/generate`
+
+  **Description:** Generate surat pengumuman nikah dalam format HTML yang dapat dicetak atau dikonversi ke PDF. Surat ini berisi daftar pendaftaran nikah yang telah disetujui untuk periode mingguan.
+
+  **Auth Required:** ✅ Yes
+
+  **Role Required:** `kepala_kua`
+
+  **Query Parameters:**
+  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
+  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
+
+  **Request Body (Optional - untuk custom kop surat):**
+  ```json
+  {
+    "nama_kua": "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA",
+    "alamat_kua": "PH5Q+F8C, Jl. Wira Karya, Pangeran",
+    "kota": "Kota Banjarmasin",
+    "provinsi": "Kalimantan Selatan",
+    "kode_pos": "70123",
+    "telepon": "0511-1234567",
+    "email": "kua.banjarmasinutara@kemenag.go.id",
+    "website": "https://kua.banjarmasinutara.go.id",
+    "logo_url": "https://example.com/logo-kua.png"
+  }
+  ```
+
+  **Note:** Jika request body tidak dikirim, akan menggunakan nilai default untuk kop surat.
+
+  **Response Success (200):**
+  - Content-Type: `text/html; charset=utf-8`
+  - Body: HTML document yang siap dicetak atau dikonversi ke PDF
+
+  **Use Case:**
+  - Kepala KUA membuat surat pengumuman nikah setiap minggu
+  - Surat dicetak dan dipasang di papan pengumuman KUA
+  - Surat juga dapat dikirim ke media sosial atau website KUA
+
+  ---
+
   ## 💬 Feedback Endpoints
 
-  ### 26. Create Feedback
+  ### 28. Create Feedback
 
   **Endpoint:** `POST /simnikah/feedback-pernikahan`
 
@@ -1308,7 +1502,7 @@
 
   ---
 
-  ### 27. List Feedback (Kepala KUA)
+  ### 29. List Feedback (Kepala KUA)
 
   **Endpoint:** `GET /simnikah/kepala-kua/feedback`
 
@@ -1349,7 +1543,7 @@
 
   ---
 
-  ### 28. Mark Feedback As Read
+  ### 30. Mark Feedback As Read
 
   **Endpoint:** `PUT /simnikah/kepala-kua/feedback/:id/mark-read`
 
@@ -1375,7 +1569,7 @@
 
   ---
 
-  ### 29. Get Feedback Statistics
+  ### 31. Get Feedback Statistics
 
   **Endpoint:** `GET /simnikah/kepala-kua/feedback/stats`
 
@@ -1409,7 +1603,7 @@
 
   ## 📍 Location Endpoints
 
-  ### 30. Geocode Address
+  ### 32. Geocode Address
 
   **Endpoint:** `POST /simnikah/location/geocode`
 
@@ -1439,7 +1633,7 @@
 
   ---
 
-  ### 31. Reverse Geocode
+  ### 33. Reverse Geocode
 
   **Endpoint:** `POST /simnikah/location/reverse-geocode`
 
@@ -1457,7 +1651,7 @@
 
   ---
 
-  ### 32. Get Wedding Location Detail
+  ### 34. Get Wedding Location Detail
 
   **Endpoint:** `GET /simnikah/pendaftaran/:id/location`
 
@@ -1488,7 +1682,7 @@
 
   ## 🔔 Notification Endpoints
 
-  ### 33. Get User Notifications
+  ### 35. Get User Notifications
 
   **Endpoint:** `GET /simnikah/notifikasi/user/:user_id`
 
@@ -1518,7 +1712,7 @@
 
   ---
 
-  ### 34. Create Notification
+  ### 36. Create Notification
 
   **Endpoint:** `POST /simnikah/notifikasi`
 
