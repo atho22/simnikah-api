@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"simnikah/internal/models"
+	structs "simnikah/internal/models"
 	"simnikah/internal/services"
 	"simnikah/pkg/crypto"
 
@@ -18,6 +18,32 @@ import (
 // InDB struct untuk dependency injection
 type InDB struct {
 	DB *gorm.DB
+}
+
+// RegistrationData struct for pengumuman nikah
+type RegistrationData struct {
+	NomorPendaftaran string
+	TanggalNikah     string
+	WaktuNikah       string
+	TempatNikah      string
+	AlamatAkad       string
+	CalonSuami       string
+	CalonIstri       string
+	WaliNikah        string
+	HubunganWali     string
+}
+
+// KopSurat struct for letterhead
+type KopSurat struct {
+	NamaKUA   string
+	AlamatKUA string
+	Kota      string
+	Provinsi  string
+	KodePos   string
+	Telepon   string
+	Email     string
+	Website   string
+	LogoURL   string
 }
 
 // ==================== STAFF MANAGEMENT HANDLERS ====================
@@ -793,7 +819,7 @@ func (h *InDB) UpdateRegistrationStatus(c *gin.Context) {
 	// Validasi role - hanya staff, penghulu, atau kepala_kua yang bisa update
 	allowedRoles := map[string]bool{
 		structs.UserRoleStaff:     true,
-		structs.UserRolePenghulu: true,
+		structs.UserRolePenghulu:  true,
 		structs.UserRoleKepalaKUA: true,
 	}
 	if !allowedRoles[userRole.(string)] {
@@ -914,13 +940,13 @@ func (h *InDB) UpdateRegistrationStatus(c *gin.Context) {
 		"success": true,
 		"message": "Status berhasil diupdate",
 		"data": gin.H{
-			"id":                 pendaftaran.ID,
-			"nomor_pendaftaran":  pendaftaran.Nomor_pendaftaran,
-			"status_sebelumnya":   statusLama,
-			"status_sekarang":     pendaftaran.Status_pendaftaran,
-			"catatan":             pendaftaran.Catatan,
-			"updated_by":          userID.(string),
-			"updated_at":          pendaftaran.Updated_at,
+			"id":                pendaftaran.ID,
+			"nomor_pendaftaran": pendaftaran.Nomor_pendaftaran,
+			"status_sebelumnya": statusLama,
+			"status_sekarang":   pendaftaran.Status_pendaftaran,
+			"catatan":           pendaftaran.Catatan,
+			"updated_by":        userID.(string),
+			"updated_at":        pendaftaran.Updated_at,
 		},
 	})
 }
@@ -1117,11 +1143,11 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 	if !validHubungan {
 		tx.Rollback()
 		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Validasi gagal",
-			"error":   "Hubungan wali tidak valid",
-			"field":   "wali_nikah.hubungan_wali",
-			"type":    "enum",
+			"success":        false,
+			"message":        "Validasi gagal",
+			"error":          "Hubungan wali tidak valid",
+			"field":          "wali_nikah.hubungan_wali",
+			"type":           "enum",
 			"hubungan_valid": structs.ValidHubunganWali,
 		})
 		return
@@ -1177,10 +1203,10 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "Jadwal di KUA sudah terisi",
-				"error":   fmt.Sprintf("Jadwal pernikahan di KUA pada tanggal %s pukul %s sudah terisi. Silakan pilih tanggal atau jam lain.",
+				"error": fmt.Sprintf("Jadwal pernikahan di KUA pada tanggal %s pukul %s sudah terisi. Silakan pilih tanggal atau jam lain.",
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
-				"field":   "waktu_nikah",
-				"type":    "schedule_conflict",
+				"field": "waktu_nikah",
+				"type":  "schedule_conflict",
 			})
 			return
 		}
@@ -1191,10 +1217,10 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "Jadwal sudah penuh",
-				"error":   fmt.Sprintf("Jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Maksimal 3 pernikahan per jam.",
+				"error": fmt.Sprintf("Jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Maksimal 3 pernikahan per jam.",
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
-				"field":   "waktu_nikah",
-				"type":    "schedule_conflict",
+				"field": "waktu_nikah",
+				"type":  "schedule_conflict",
 			})
 			return
 		}
@@ -1203,10 +1229,10 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "Jadwal di luar KUA sudah penuh",
-				"error":   fmt.Sprintf("Jadwal pernikahan di luar KUA pada tanggal %s pukul %s sudah penuh. Silakan pilih tanggal atau jam lain.",
+				"error": fmt.Sprintf("Jadwal pernikahan di luar KUA pada tanggal %s pukul %s sudah penuh. Silakan pilih tanggal atau jam lain.",
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
-				"field":   "waktu_nikah",
-				"type":    "schedule_conflict",
+				"field": "waktu_nikah",
+				"type":  "schedule_conflict",
 			})
 			return
 		}
@@ -1240,7 +1266,7 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 
 	// Generate unique IDs for calon pasangan
 	hashGroom := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s_groom_%d", pendaftarUserID, timestamp))))
-	hashBride := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s_bride_%d", timestamp, timestamp+1))))
+	hashBride := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%d_bride_%d", timestamp, timestamp+1))))
 	groomUserID := hashGroom[:20]
 	brideUserID := hashBride[:20]
 	nikGroom := fmt.Sprintf("T%s", hashGroom[:15])
@@ -1345,8 +1371,8 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 		Latitude:            latitude,
 		Longitude:           longitude,
 		Status_pendaftaran:  structs.StatusPendaftaranDisetujui, // Otomatis disetujui karena dibuat oleh staff
-		Disetujui_oleh:      staffID.(string), // Staff yang membuat pendaftaran
-		Disetujui_pada:      &createdAt, // Waktu disetujui = waktu dibuat
+		Disetujui_oleh:      staffID.(string),                   // Staff yang membuat pendaftaran
+		Disetujui_pada:      &createdAt,                         // Waktu disetujui = waktu dibuat
 		Catatan:             catatanStaff,
 		Created_at:          createdAt,
 		Updated_at:          createdAt,
@@ -1426,11 +1452,11 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 				"nip":  staff.NIP,
 			},
 			"akun_user": gin.H{
-				"user_id":         pendaftarUserID,
-				"username":        username,
-				"email":           email,
+				"user_id":          pendaftarUserID,
+				"username":         username,
+				"email":            email,
 				"password_default": defaultPassword,
-				"catatan":         "Akun ini dibuat otomatis. User dapat login dan mengubah password.",
+				"catatan":          "Akun ini dibuat otomatis. User dapat login dan mengubah password.",
 			},
 			"calon_suami": gin.H{
 				"nama_dan_bin": formSederhana.CalonLakiLaki.NamaDanBin,
@@ -1443,8 +1469,8 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 				"umur":           formSederhana.CalonPerempuan.Umur,
 			},
 			"wali_nikah": gin.H{
-				"nama_dan_bin":   waliNikah.Nama_dan_bin,
-				"hubungan_wali":  waliNikah.Hubungan_wali,
+				"nama_dan_bin":  waliNikah.Nama_dan_bin,
+				"hubungan_wali": waliNikah.Hubungan_wali,
 			},
 			"catatan": "Pendaftaran dibuat oleh staff. User dapat login menggunakan username dan password default yang diberikan.",
 		},
@@ -1457,7 +1483,7 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 // Used for generating pengumuman nikah (marriage announcement)
 func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 	// Get query parameters
-	tanggalAwal := c.Query("tanggal_awal")  // Format: YYYY-MM-DD (start of week)
+	tanggalAwal := c.Query("tanggal_awal")   // Format: YYYY-MM-DD (start of week)
 	tanggalAkhir := c.Query("tanggal_akhir") // Format: YYYY-MM-DD (end of week)
 
 	// If not provided, use current week
@@ -1560,8 +1586,8 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 		"success": true,
 		"message": "Data pendaftaran disetujui berhasil diambil",
 		"data": gin.H{
-			"tanggal_awal":   startOfWeek.Format("2006-01-02"),
-			"tanggal_akhir":  endOfWeek.Format("2006-01-02"),
+			"tanggal_awal":  startOfWeek.Format("2006-01-02"),
+			"tanggal_akhir": endOfWeek.Format("2006-01-02"),
 			"periode":       fmt.Sprintf("%s s/d %s", startOfWeek.Format("02 Januari 2006"), endOfWeek.Format("02 Januari 2006")),
 			"total":         len(registrations),
 			"registrations": registrations,
@@ -1573,25 +1599,38 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 // This can be printed or converted to PDF
 func (h *InDB) GeneratePengumumanNikah(c *gin.Context) {
 	// Get query parameters
-	tanggalAwal := c.Query("tanggal_awal")  // Format: YYYY-MM-DD
+	tanggalAwal := c.Query("tanggal_awal")   // Format: YYYY-MM-DD
 	tanggalAkhir := c.Query("tanggal_akhir") // Format: YYYY-MM-DD
 
 	// Get kop surat from request body or use default
-	var kopSurat struct {
+	var kopSuratInput struct {
 		NamaKUA   string `json:"nama_kua"`   // Nama KUA
 		AlamatKUA string `json:"alamat_kua"` // Alamat lengkap KUA
-		Kota      string `json:"kota"`        // Kota
-		Provinsi  string `json:"provinsi"`    // Provinsi
+		Kota      string `json:"kota"`       // Kota
+		Provinsi  string `json:"provinsi"`   // Provinsi
 		KodePos   string `json:"kode_pos"`   // Kode pos
 		Telepon   string `json:"telepon"`    // Nomor telepon
-		Email     string `json:"email"`       // Email
+		Email     string `json:"email"`      // Email
 		Website   string `json:"website"`    // Website (optional)
 		LogoURL   string `json:"logo_url"`   // URL logo KUA (optional)
 	}
 
 	// Try to bind JSON body for kop surat, if not provided use default
 	if c.Request.ContentLength > 0 {
-		c.ShouldBindJSON(&kopSurat)
+		c.ShouldBindJSON(&kopSuratInput)
+	}
+
+	// Convert to KopSurat type
+	kopSurat := KopSurat{
+		NamaKUA:   kopSuratInput.NamaKUA,
+		AlamatKUA: kopSuratInput.AlamatKUA,
+		Kota:      kopSuratInput.Kota,
+		Provinsi:  kopSuratInput.Provinsi,
+		KodePos:   kopSuratInput.KodePos,
+		Telepon:   kopSuratInput.Telepon,
+		Email:     kopSuratInput.Email,
+		Website:   kopSuratInput.Website,
+		LogoURL:   kopSuratInput.LogoURL,
 	}
 
 	// Set default values if not provided
@@ -1670,18 +1709,6 @@ func (h *InDB) GeneratePengumumanNikah(c *gin.Context) {
 	}
 
 	// Get calon pasangan and wali nikah data
-	type RegistrationData struct {
-		NomorPendaftaran string
-		TanggalNikah     string
-		WaktuNikah       string
-		TempatNikah      string
-		AlamatAkad       string
-		CalonSuami       string
-		CalonIstri       string
-		WaliNikah        string
-		HubunganWali     string
-	}
-
 	var regDataList []RegistrationData
 	for _, p := range pendaftaran {
 		// Get calon suami
@@ -1725,17 +1752,7 @@ func (h *InDB) GeneratePengumumanNikah(c *gin.Context) {
 
 // generatePengumumanHTML generates HTML content for pengumuman nikah
 // Format mengikuti contoh surat resmi KUA
-func (h *InDB) generatePengumumanHTML(kopSurat struct {
-	NamaKUA   string
-	AlamatKUA string
-	Kota      string
-	Provinsi  string
-	KodePos   string
-	Telepon   string
-	Email     string
-	Website   string
-	LogoURL   string
-}, startOfWeek, endOfWeek time.Time, registrations []RegistrationData) string {
+func (h *InDB) generatePengumumanHTML(kopSurat KopSurat, startOfWeek, endOfWeek time.Time, registrations []RegistrationData) string {
 	periode := fmt.Sprintf("%s s/d %s", startOfWeek.Format("02 Januari 2006"), endOfWeek.Format("02 Januari 2006"))
 	tanggalSurat := time.Now().Format("02 Januari 2006")
 

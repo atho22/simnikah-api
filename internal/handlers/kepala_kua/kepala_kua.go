@@ -19,6 +19,32 @@ type InDB struct {
 	DB *gorm.DB
 }
 
+// RegistrationData struct for pengumuman nikah
+type RegistrationData struct {
+	NomorPendaftaran string
+	TanggalNikah     string
+	WaktuNikah       string
+	TempatNikah      string
+	AlamatAkad       string
+	CalonSuami       string
+	CalonIstri       string
+	WaliNikah        string
+	HubunganWali     string
+}
+
+// KopSurat struct for letterhead
+type KopSurat struct {
+	NamaKUA   string
+	AlamatKUA string
+	Kota      string
+	Provinsi  string
+	KodePos   string
+	Telepon   string
+	Email     string
+	Website   string
+	LogoURL   string
+}
+
 // ==================== PENGHULU ASSIGNMENT ====================
 
 // AssignMarriageOfficer assigns a penghulu (marriage officer) to a marriage registration
@@ -410,14 +436,14 @@ func (h *InDB) CreateStaff(c *gin.Context) {
 // CreateMarriageOfficer creates a new marriage officer (penghulu) with user account
 func (h *InDB) CreateMarriageOfficer(c *gin.Context) {
 	var input struct {
-		Username string `json:"username" binding:"required"`
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required,min=6"`
-		Nama     string `json:"nama" binding:"required"`
-		NIP      string `json:"nip" binding:"required"`
-		No_hp    string `json:"no_hp"`
+		Username      string `json:"username" binding:"required"`
+		Email         string `json:"email" binding:"required,email"`
+		Password      string `json:"password" binding:"required,min=6"`
+		Nama          string `json:"nama" binding:"required"`
+		NIP           string `json:"nip" binding:"required"`
+		No_hp         string `json:"no_hp"`
 		EmailPenghulu string `json:"email_penghulu"`
-		Alamat   string `json:"alamat"`
+		Alamat        string `json:"alamat"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -713,12 +739,12 @@ func (h *InDB) getSinglePenghuluStatistics(c *gin.Context, penghuluID uint, star
 		"message": "Statistik penghulu berhasil diambil",
 		"data": gin.H{
 			"penghulu": gin.H{
-				"id":          penghulu.ID,
-				"nip":         penghulu.NIP,
+				"id":           penghulu.ID,
+				"nip":          penghulu.NIP,
 				"nama_lengkap": penghulu.Nama_lengkap,
-				"no_hp":       penghulu.No_hp,
-				"email":       penghulu.Email,
-				"status":      penghulu.Status,
+				"no_hp":        penghulu.No_hp,
+				"email":        penghulu.Email,
+				"status":       penghulu.Status,
 			},
 			"periode": gin.H{
 				"bulan":      bulan,
@@ -726,9 +752,9 @@ func (h *InDB) getSinglePenghuluStatistics(c *gin.Context, penghuluID uint, star
 				"nama_bulan": startOfMonth.Month().String(),
 			},
 			"statistik_keseluruhan": gin.H{
-				"total_semua":       totalAllTime,
-				"selesai_semua":     totalCompleted,
-				"progress_semua":    totalInProgress,
+				"total_semua":        totalAllTime,
+				"selesai_semua":      totalCompleted,
+				"progress_semua":     totalInProgress,
 				"persentase_selesai": completionPctAllTime,
 			},
 			"statistik_bulan_ini": gin.H{
@@ -739,7 +765,7 @@ func (h *InDB) getSinglePenghuluStatistics(c *gin.Context, penghuluID uint, star
 			},
 			"statistik_per_bulan": monthlyStats,
 			"rata_rata_per_bulan": avgPerMonth,
-			"registrasi_terbaru":   recentData,
+			"registrasi_terbaru":  recentData,
 		},
 	})
 }
@@ -797,10 +823,10 @@ func (h *InDB) getAllPenghuluStatistics(c *gin.Context, startOfMonth, endOfMonth
 
 		penghuluStats = append(penghuluStats, gin.H{
 			"penghulu": gin.H{
-				"id":          penghulu.ID,
-				"nip":         penghulu.NIP,
+				"id":           penghulu.ID,
+				"nip":          penghulu.NIP,
 				"nama_lengkap": penghulu.Nama_lengkap,
-				"status":      penghulu.Status,
+				"status":       penghulu.Status,
 			},
 			"statistik_semua": gin.H{
 				"total":              totalAllTime,
@@ -861,14 +887,14 @@ func (h *InDB) getAllPenghuluStatistics(c *gin.Context, startOfMonth, endOfMonth
 				"nama_bulan": startOfMonth.Month().String(),
 			},
 			"statistik_keseluruhan": gin.H{
-				"total_penghulu":         len(penghulus),
-				"total_semua":             totalAllPenghulu,
-				"selesai_semua":           totalCompletedAllPenghulu,
-				"progress_semua":          totalAllPenghulu - totalCompletedAllPenghulu,
-				"persentase_selesai":      completionPctAllTime,
-				"total_bulan_ini":         totalThisMonthAllPenghulu,
-				"selesai_bulan_ini":       completedThisMonthAllPenghulu,
-				"progress_bulan_ini":      totalThisMonthAllPenghulu - completedThisMonthAllPenghulu,
+				"total_penghulu":           len(penghulus),
+				"total_semua":              totalAllPenghulu,
+				"selesai_semua":            totalCompletedAllPenghulu,
+				"progress_semua":           totalAllPenghulu - totalCompletedAllPenghulu,
+				"persentase_selesai":       completionPctAllTime,
+				"total_bulan_ini":          totalThisMonthAllPenghulu,
+				"selesai_bulan_ini":        completedThisMonthAllPenghulu,
+				"progress_bulan_ini":       totalThisMonthAllPenghulu - completedThisMonthAllPenghulu,
 				"persentase_selesai_bulan": completionPctThisMonth,
 			},
 			"statistik_per_penghulu": penghuluStats,
@@ -882,8 +908,8 @@ func (h *InDB) getAllPenghuluStatistics(c *gin.Context, startOfMonth, endOfMonth
 // GET /simnikah/kepala-kua/feedback?jenis=Rating&status=Belum Dibaca&bulan=01&tahun=2024
 func (h *InDB) ListFeedbackPernikahan(c *gin.Context) {
 	// Get query parameters
-	jenisFeedback := c.Query("jenis")      // "Rating", "Saran", "Kritik", "Laporan"
-	statusBaca := c.Query("status")        // "Belum Dibaca", "Sudah Dibaca"
+	jenisFeedback := c.Query("jenis") // "Rating", "Saran", "Kritik", "Laporan"
+	statusBaca := c.Query("status")   // "Belum Dibaca", "Sudah Dibaca"
 	bulanStr := c.Query("bulan")
 	tahunStr := c.Query("tahun")
 	pageStr := c.DefaultQuery("page", "1")
@@ -969,13 +995,13 @@ func (h *InDB) ListFeedbackPernikahan(c *gin.Context) {
 			},
 			"jenis_feedback": r.Jenis_feedback,
 			"rating":         r.Rating,
-			"judul":           r.Judul,
-			"pesan":           r.Pesan,
-			"status_baca":     r.Status_baca,
-			"dibaca_oleh":     r.Dibaca_oleh,
-			"dibaca_pada":     r.Dibaca_pada,
-			"tanggal_nikah":   r.TanggalNikah.Format("2006-01-02"),
-			"created_at":      r.Created_at,
+			"judul":          r.Judul,
+			"pesan":          r.Pesan,
+			"status_baca":    r.Status_baca,
+			"dibaca_oleh":    r.Dibaca_oleh,
+			"dibaca_pada":    r.Dibaca_pada,
+			"tanggal_nikah":  r.TanggalNikah.Format("2006-01-02"),
+			"created_at":     r.Created_at,
 		})
 	}
 
@@ -999,7 +1025,7 @@ func (h *InDB) ListFeedbackPernikahan(c *gin.Context) {
 				"has_previous":  hasPrev,
 			},
 			"filters": gin.H{
-				"jenis": jenisFeedback,
+				"jenis":  jenisFeedback,
 				"status": statusBaca,
 				"bulan":  bulanStr,
 				"tahun":  tahunStr,
@@ -1066,11 +1092,11 @@ func (h *InDB) MarkFeedbackAsRead(c *gin.Context) {
 		"success": true,
 		"message": "Feedback berhasil ditandai sebagai sudah dibaca",
 		"data": gin.H{
-			"id":            feedback.ID,
-			"status_baca":   feedback.Status_baca,
-			"dibaca_oleh":   feedback.Dibaca_oleh,
-			"dibaca_pada":   feedback.Dibaca_pada,
-			"updated_at":    feedback.Updated_at,
+			"id":          feedback.ID,
+			"status_baca": feedback.Status_baca,
+			"dibaca_oleh": feedback.Dibaca_oleh,
+			"dibaca_pada": feedback.Dibaca_pada,
+			"updated_at":  feedback.Updated_at,
 		},
 	})
 }
@@ -1116,14 +1142,14 @@ func (h *InDB) GetFeedbackStats(c *gin.Context) {
 		var feedbacks []structs.FeedbackPernikahan
 		h.DB.Where("jenis_feedback = ? AND rating IS NOT NULL", structs.FeedbackJenisRating).
 			Find(&feedbacks)
-		
+
 		sumRating = 0
 		for _, fb := range feedbacks {
 			if fb.Rating != nil {
 				sumRating += int64(*fb.Rating)
 			}
 		}
-		
+
 		avgRating = float64(sumRating) / float64(ratingCount)
 	}
 
@@ -1132,10 +1158,10 @@ func (h *InDB) GetFeedbackStats(c *gin.Context) {
 		"success": true,
 		"message": "Statistik feedback berhasil diambil",
 		"data": gin.H{
-			"total_feedback":   totalFeedback,
-			"unread_feedback":  unreadFeedback,
-			"read_feedback":    totalFeedback - unreadFeedback,
-			"stats_by_jenis":   statsByJenis,
+			"total_feedback":  totalFeedback,
+			"unread_feedback": unreadFeedback,
+			"read_feedback":   totalFeedback - unreadFeedback,
+			"stats_by_jenis":  statsByJenis,
 			"rating_stats": gin.H{
 				"average_rating": avgRating,
 				"total_ratings":  ratingCount,
@@ -1150,7 +1176,7 @@ func (h *InDB) GetFeedbackStats(c *gin.Context) {
 // Used for generating pengumuman nikah (marriage announcement)
 func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 	// Get query parameters
-	tanggalAwal := c.Query("tanggal_awal")  // Format: YYYY-MM-DD (start of week)
+	tanggalAwal := c.Query("tanggal_awal")   // Format: YYYY-MM-DD (start of week)
 	tanggalAkhir := c.Query("tanggal_akhir") // Format: YYYY-MM-DD (end of week)
 
 	// If not provided, use current week
@@ -1253,8 +1279,8 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 		"success": true,
 		"message": "Data pendaftaran disetujui berhasil diambil",
 		"data": gin.H{
-			"tanggal_awal":   startOfWeek.Format("2006-01-02"),
-			"tanggal_akhir":  endOfWeek.Format("2006-01-02"),
+			"tanggal_awal":  startOfWeek.Format("2006-01-02"),
+			"tanggal_akhir": endOfWeek.Format("2006-01-02"),
 			"periode":       fmt.Sprintf("%s s/d %s", startOfWeek.Format("02 Januari 2006"), endOfWeek.Format("02 Januari 2006")),
 			"total":         len(registrations),
 			"registrations": registrations,
@@ -1266,25 +1292,38 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 // This can be printed or converted to PDF
 func (h *InDB) GeneratePengumumanNikah(c *gin.Context) {
 	// Get query parameters
-	tanggalAwal := c.Query("tanggal_awal")  // Format: YYYY-MM-DD
+	tanggalAwal := c.Query("tanggal_awal")   // Format: YYYY-MM-DD
 	tanggalAkhir := c.Query("tanggal_akhir") // Format: YYYY-MM-DD
 
 	// Get kop surat from request body or use default
-	var kopSurat struct {
+	var kopSuratInput struct {
 		NamaKUA   string `json:"nama_kua"`   // Nama KUA
 		AlamatKUA string `json:"alamat_kua"` // Alamat lengkap KUA
-		Kota      string `json:"kota"`        // Kota
-		Provinsi  string `json:"provinsi"`    // Provinsi
+		Kota      string `json:"kota"`       // Kota
+		Provinsi  string `json:"provinsi"`   // Provinsi
 		KodePos   string `json:"kode_pos"`   // Kode pos
 		Telepon   string `json:"telepon"`    // Nomor telepon
-		Email     string `json:"email"`       // Email
-		Website   string `json:"website"`     // Website (optional)
-		LogoURL   string `json:"logo_url"`    // URL logo KUA (optional)
+		Email     string `json:"email"`      // Email
+		Website   string `json:"website"`    // Website (optional)
+		LogoURL   string `json:"logo_url"`   // URL logo KUA (optional)
 	}
 
 	// Try to bind JSON body for kop surat, if not provided use default
 	if c.Request.ContentLength > 0 {
-		c.ShouldBindJSON(&kopSurat)
+		c.ShouldBindJSON(&kopSuratInput)
+	}
+
+	// Convert to KopSurat type
+	kopSurat := KopSurat{
+		NamaKUA:   kopSuratInput.NamaKUA,
+		AlamatKUA: kopSuratInput.AlamatKUA,
+		Kota:      kopSuratInput.Kota,
+		Provinsi:  kopSuratInput.Provinsi,
+		KodePos:   kopSuratInput.KodePos,
+		Telepon:   kopSuratInput.Telepon,
+		Email:     kopSuratInput.Email,
+		Website:   kopSuratInput.Website,
+		LogoURL:   kopSuratInput.LogoURL,
 	}
 
 	// Set default values if not provided
@@ -1363,18 +1402,6 @@ func (h *InDB) GeneratePengumumanNikah(c *gin.Context) {
 	}
 
 	// Get calon pasangan and wali nikah data
-	type RegistrationData struct {
-		NomorPendaftaran string
-		TanggalNikah     string
-		WaktuNikah       string
-		TempatNikah      string
-		AlamatAkad       string
-		CalonSuami       string
-		CalonIstri       string
-		WaliNikah        string
-		HubunganWali     string
-	}
-
 	var regDataList []RegistrationData
 	for _, p := range pendaftaran {
 		// Get calon suami
@@ -1418,17 +1445,7 @@ func (h *InDB) GeneratePengumumanNikah(c *gin.Context) {
 
 // generatePengumumanHTML generates HTML content for pengumuman nikah
 // Format mengikuti contoh surat resmi KUA
-func (h *InDB) generatePengumumanHTML(kopSurat struct {
-	NamaKUA   string
-	AlamatKUA string
-	Kota      string
-	Provinsi  string
-	KodePos   string
-	Telepon   string
-	Email     string
-	Website   string
-	LogoURL   string
-}, startOfWeek, endOfWeek time.Time, registrations []RegistrationData) string {
+func (h *InDB) generatePengumumanHTML(kopSurat KopSurat, startOfWeek, endOfWeek time.Time, registrations []RegistrationData) string {
 	periode := fmt.Sprintf("%s s/d %s", startOfWeek.Format("02 Januari 2006"), endOfWeek.Format("02 Januari 2006"))
 	tanggalSurat := time.Now().Format("02 Januari 2006")
 
