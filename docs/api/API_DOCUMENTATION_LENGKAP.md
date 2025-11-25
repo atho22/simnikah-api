@@ -1,6 +1,6 @@
   # 📚 SimNikah API Documentation
 
-  **Versi:** 1.2.0  
+  **Versi:** 1.3.0  
   **Update Terakhir:** November 2024  
   **Base URL:** `http://localhost:8080` (Development) atau `https://your-domain.com` (Production)
 
@@ -909,62 +909,7 @@
 
   **Endpoint:** `GET /simnikah/staff/pengumuman-nikah/list`
 
-  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode mingguan (untuk membuat surat pengumuman nikah).
-
-  **Auth Required:** ✅ Yes
-
-  **Role Required:** `staff`, `kepala_kua`
-
-  **Query Parameters:**
-  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
-  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
-
-  **Example:**
-  ```
-  GET /simnikah/staff/pengumuman-nikah/list?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
-  ```
-
-  **Response Success (200):**
-  ```json
-  {
-    "success": true,
-    "message": "Data pendaftaran disetujui berhasil diambil",
-    "data": {
-      "tanggal_awal": "2024-12-16",
-      "tanggal_akhir": "2024-12-22",
-      "periode": "16 Desember 2024 s/d 22 Desember 2024",
-      "total": 5,
-      "registrations": [
-        {
-          "id": 1,
-          "nomor_pendaftaran": "NIKAH-20241215-1234",
-          "tanggal_nikah": "2024-12-18T10:00:00Z",
-          "waktu_nikah": "10:00",
-          "tempat_nikah": "Di KUA",
-          "alamat_akad": "Kantor KUA Kecamatan Banjarmasin Utara",
-          "calon_suami": {
-            "nama_lengkap": "Ahmad bin Abdullah"
-          },
-          "calon_istri": {
-            "nama_lengkap": "Siti binti Muhammad"
-          },
-          "wali_nikah": {
-            "nama_dan_bin": "Muhammad bin Ali",
-            "hubungan_wali": "Ayah Kandung"
-          }
-        }
-      ]
-    }
-  }
-  ```
-
-  ---
-
-  ### 16. Generate Pengumuman Nikah (Staff)
-
-  **Endpoint:** `GET /simnikah/staff/pengumuman-nikah/generate`
-
-  **Description:** Generate surat pengumuman nikah dalam format HTML yang dapat dicetak atau dikonversi ke PDF. Surat ini berisi daftar pendaftaran nikah yang telah disetujui untuk periode mingguan.
+  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode mingguan beserta data kop surat. Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
 
   **Auth Required:** ✅ Yes
 
@@ -989,16 +934,65 @@
   }
   ```
 
-  **Note:** Jika request body tidak dikirim, akan menggunakan nilai default untuk kop surat.
+  **Note:** 
+  - Jika request body tidak dikirim, akan menggunakan nilai default untuk kop surat
+  - Frontend bertanggung jawab untuk generate HTML surat pengumuman nikah menggunakan data yang dikembalikan
+
+  **Example:**
+  ```
+  GET /simnikah/staff/pengumuman-nikah/list?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  ```
 
   **Response Success (200):**
-  - Content-Type: `text/html; charset=utf-8`
-  - Body: HTML document yang siap dicetak atau dikonversi ke PDF
+  ```json
+  {
+    "success": true,
+    "message": "Data pendaftaran disetujui berhasil diambil",
+    "data": {
+      "tanggal_awal": "2024-12-16",
+      "tanggal_akhir": "2024-12-22",
+      "periode": "16 Desember 2024 s/d 22 Desember 2024",
+      "total": 5,
+      "kop_surat": {
+        "nama_kua": "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA",
+        "alamat_kua": "PH5Q+F8C, Jl. Wira Karya, Pangeran",
+        "kota": "Kota Banjarmasin",
+        "provinsi": "Kalimantan Selatan",
+        "kode_pos": "70123",
+        "telepon": "-",
+        "email": "-",
+        "website": "",
+        "logo_url": ""
+      },
+      "registrations": [
+        {
+          "id": 1,
+          "nomor_pendaftaran": "NIKAH-20241215-1234",
+          "tanggal_nikah": "2024-12-18T10:00:00Z",
+          "waktu_nikah": "10:00",
+          "tempat_nikah": "Di KUA",
+          "alamat_akad": "Kantor KUA Kecamatan Banjarmasin Utara",
+          "calon_suami": {
+            "nama_lengkap": "Ahmad bin Abdullah"
+          },
+          "calon_istri": {
+            "nama_lengkap": "Siti binti Muhammad"
+          },
+          "wali_nikah": {
+            "nama_dan_bin": "Muhammad bin Ali",
+            "hubungan_wali": "Ayah Kandung"
+          }
+        }
+      ]
+    }
+  }
+  ```
 
   **Use Case:**
-  - Staff atau Kepala KUA membuat surat pengumuman nikah setiap minggu
+  - Frontend memanggil endpoint ini untuk mendapatkan data pendaftaran dan kop surat
+  - Frontend menggunakan data tersebut untuk generate HTML surat pengumuman nikah
+  - Surat dapat dicetak atau dikonversi ke PDF di frontend
   - Surat dicetak dan dipasang di papan pengumuman KUA
-  - Surat juga dapat dikirim ke media sosial atau website KUA
 
   ---
 
@@ -1360,62 +1354,7 @@
 
   **Endpoint:** `GET /simnikah/kepala-kua/pengumuman-nikah/list`
 
-  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode mingguan (untuk membuat surat pengumuman nikah).
-
-  **Auth Required:** ✅ Yes
-
-  **Role Required:** `kepala_kua`
-
-  **Query Parameters:**
-  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
-  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
-
-  **Example:**
-  ```
-  GET /simnikah/kepala-kua/pengumuman-nikah/list?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
-  ```
-
-  **Response Success (200):**
-  ```json
-  {
-    "success": true,
-    "message": "Data pendaftaran disetujui berhasil diambil",
-    "data": {
-      "tanggal_awal": "2024-12-16",
-      "tanggal_akhir": "2024-12-22",
-      "periode": "16 Desember 2024 s/d 22 Desember 2024",
-      "total": 5,
-      "registrations": [
-        {
-          "id": 1,
-          "nomor_pendaftaran": "NIKAH-20241215-1234",
-          "tanggal_nikah": "2024-12-18T10:00:00Z",
-          "waktu_nikah": "10:00",
-          "tempat_nikah": "Di KUA",
-          "alamat_akad": "Kantor KUA Kecamatan Banjarmasin Utara",
-          "calon_suami": {
-            "nama_lengkap": "Ahmad bin Abdullah"
-          },
-          "calon_istri": {
-            "nama_lengkap": "Siti binti Muhammad"
-          },
-          "wali_nikah": {
-            "nama_dan_bin": "Muhammad bin Ali",
-            "hubungan_wali": "Ayah Kandung"
-          }
-        }
-      ]
-    }
-  }
-  ```
-
-  ---
-
-  ### 27. Generate Pengumuman Nikah (Kepala KUA)
-
-  **Endpoint:** `GET /simnikah/kepala-kua/pengumuman-nikah/generate`
-
-  **Description:** Generate surat pengumuman nikah dalam format HTML yang dapat dicetak atau dikonversi ke PDF. Surat ini berisi daftar pendaftaran nikah yang telah disetujui untuk periode mingguan.
+  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode mingguan beserta data kop surat. Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
 
   **Auth Required:** ✅ Yes
 
@@ -1440,16 +1379,65 @@
   }
   ```
 
-  **Note:** Jika request body tidak dikirim, akan menggunakan nilai default untuk kop surat.
+  **Note:** 
+  - Jika request body tidak dikirim, akan menggunakan nilai default untuk kop surat
+  - Frontend bertanggung jawab untuk generate HTML surat pengumuman nikah menggunakan data yang dikembalikan
+
+  **Example:**
+  ```
+  GET /simnikah/kepala-kua/pengumuman-nikah/list?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  ```
 
   **Response Success (200):**
-  - Content-Type: `text/html; charset=utf-8`
-  - Body: HTML document yang siap dicetak atau dikonversi ke PDF
+  ```json
+  {
+    "success": true,
+    "message": "Data pendaftaran disetujui berhasil diambil",
+    "data": {
+      "tanggal_awal": "2024-12-16",
+      "tanggal_akhir": "2024-12-22",
+      "periode": "16 Desember 2024 s/d 22 Desember 2024",
+      "total": 5,
+      "kop_surat": {
+        "nama_kua": "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA",
+        "alamat_kua": "PH5Q+F8C, Jl. Wira Karya, Pangeran",
+        "kota": "Kota Banjarmasin",
+        "provinsi": "Kalimantan Selatan",
+        "kode_pos": "70123",
+        "telepon": "-",
+        "email": "-",
+        "website": "",
+        "logo_url": ""
+      },
+      "registrations": [
+        {
+          "id": 1,
+          "nomor_pendaftaran": "NIKAH-20241215-1234",
+          "tanggal_nikah": "2024-12-18T10:00:00Z",
+          "waktu_nikah": "10:00",
+          "tempat_nikah": "Di KUA",
+          "alamat_akad": "Kantor KUA Kecamatan Banjarmasin Utara",
+          "calon_suami": {
+            "nama_lengkap": "Ahmad bin Abdullah"
+          },
+          "calon_istri": {
+            "nama_lengkap": "Siti binti Muhammad"
+          },
+          "wali_nikah": {
+            "nama_dan_bin": "Muhammad bin Ali",
+            "hubungan_wali": "Ayah Kandung"
+          }
+        }
+      ]
+    }
+  }
+  ```
 
   **Use Case:**
-  - Kepala KUA membuat surat pengumuman nikah setiap minggu
+  - Frontend memanggil endpoint ini untuk mendapatkan data pendaftaran dan kop surat
+  - Frontend menggunakan data tersebut untuk generate HTML surat pengumuman nikah
+  - Surat dapat dicetak atau dikonversi ke PDF di frontend
   - Surat dicetak dan dipasang di papan pengumuman KUA
-  - Surat juga dapat dikirim ke media sosial atau website KUA
 
   ---
 
