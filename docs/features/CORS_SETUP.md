@@ -79,10 +79,24 @@ services:
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 ```
 
-### 4. LeapCell Production
-Di LeapCell Dashboard, tambahkan environment variable:
+### 4. Railway Production
+Di Railway Dashboard, tambahkan environment variable:
 - Key: `ALLOWED_ORIGINS`
-- Value: `https://your-frontend-domain.com`
+- Value: `https://kua-ku.vercel.app,https://your-backend-domain.up.railway.app`
+
+**Cara:**
+1. Buka Railway Dashboard → Project kamu
+2. Pilih service backend (API)
+3. Tab **"Variables"**
+4. Click **"New Variable"**
+5. Key: `ALLOWED_ORIGINS`
+6. Value: `https://kua-ku.vercel.app`
+7. Save → Railway akan otomatis redeploy
+
+**Catatan:** Jika ada multiple frontend domains, pisahkan dengan koma:
+```
+https://kua-ku.vercel.app,https://staging.vercel.app,https://your-backend-domain.up.railway.app
+```
 
 ---
 

@@ -1035,7 +1035,7 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 		
 		// Count by location
 		if p.Tempat_nikah == "Di KUA" {
-			registrationsPerDate[tanggalStr]++
+		registrationsPerDate[tanggalStr]++
 			timeSlotsPerDate[tanggalStr][waktu].KUA++
 			
 			if p.Status_pendaftaran == structs.StatusPendaftaranDraft {
@@ -1264,7 +1264,7 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 	// Get today's date for comparison (truncated to start of day)
 	today := now.Truncate(24 * time.Hour)
 	tanggalStartOfDay := tanggal.Truncate(24 * time.Hour)
-	
+
 	for _, slot := range TimeSlots {
 		jumlahTotal := registrationsPerTimeSlot[slot]
 		jumlahDraft := draftPerTimeSlot[slot]           // Kuning - belum pasti

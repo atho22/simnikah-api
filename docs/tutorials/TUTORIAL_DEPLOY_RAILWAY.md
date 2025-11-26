@@ -267,13 +267,23 @@ NEXT_PUBLIC_API_URL=https://simnikah-production-xxxx.up.railway.app
 Setelah frontend di-deploy (misal di Vercel):
 
 1. Kembali ke Railway → Variables
-2. Update `ALLOWED_ORIGINS`:
+2. Tambahkan/Update `ALLOWED_ORIGINS`:
 
 ```bash
-ALLOWED_ORIGINS=https://your-frontend.vercel.app,https://simnikah-production-xxxx.up.railway.app
+ALLOWED_ORIGINS=https://kua-ku.vercel.app,https://simnikah-production-xxxx.up.railway.app
 ```
 
-3. Save → Otomatis redeploy
+**Langkah Detail:**
+1. Railway Dashboard → Pilih project backend
+2. Tab **"Variables"** → Click **"New Variable"** (atau edit yang sudah ada)
+3. Key: `ALLOWED_ORIGINS`
+4. Value: `https://kua-ku.vercel.app,https://simnikah-production-xxxx.up.railway.app`
+5. **Save** → Railway akan otomatis redeploy (tunggu 2-3 menit)
+
+**Catatan:** 
+- Pisahkan multiple domains dengan koma
+- Jangan ada spasi setelah koma
+- Pastikan menggunakan `https://` (bukan `http://`)
 
 ---
 

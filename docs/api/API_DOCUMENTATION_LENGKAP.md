@@ -786,6 +786,10 @@
       "tempat_nikah": "Di KUA",
       "tanggal_nikah": "2024-12-25",
       "waktu_nikah": "09:00"
+    },
+    "wali_nikah": {
+      "nama_dan_bin": "Abdullah bin Muhammad",
+      "hubungan_wali": "Ayah Kandung"
     }
   }
   ```
@@ -810,6 +814,10 @@
       "alamat_nikah": "Jl. Ahmad Yani No. 123",
       "detail_alamat": "Rumah Pengantin Perempuan",
       "kelurahan": "Pangeran"
+    },
+    "wali_nikah": {
+      "nama_dan_bin": "Abdullah bin Muhammad",
+      "hubungan_wali": "Ayah Kandung"
     }
   }
   ```
@@ -909,15 +917,17 @@
 
   **Endpoint:** `GET /simnikah/staff/pengumuman-nikah/list`
 
-  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode mingguan beserta data kop surat. Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
+  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode yang dipilih frontend beserta data kop surat. Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
 
   **Auth Required:** ✅ Yes
 
   **Role Required:** `staff`, `kepala_kua`
 
   **Query Parameters:**
-  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
-  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
+  - `tanggal_awal` (optional): Tanggal awal periode yang dipilih frontend (format: YYYY-MM-DD). Frontend dapat memilih tanggal bebas sesuai kebutuhan (tidak harus mingguan). Default: awal minggu ini (Senin) jika tidak diisi
+  - `tanggal_akhir` (optional): Tanggal akhir periode yang dipilih frontend (format: YYYY-MM-DD). Frontend dapat memilih tanggal bebas sesuai kebutuhan (tidak harus mingguan). Default: akhir minggu ini (Minggu) jika tidak diisi
+  
+  **Note:** Frontend dapat memilih periode tanggal secara bebas sesuai kebutuhan. Contoh: bisa memilih 1 bulan, 2 minggu, atau periode custom lainnya. Tidak terbatas pada periode mingguan.
 
   **Request Body (Optional - untuk custom kop surat):**
   ```json
@@ -938,9 +948,26 @@
   - Jika request body tidak dikirim, akan menggunakan nilai default untuk kop surat
   - Frontend bertanggung jawab untuk generate HTML surat pengumuman nikah menggunakan data yang dikembalikan
 
-  **Example:**
+  **Examples:**
+  
+  **Mingguan (default):**
   ```
   GET /simnikah/staff/pengumuman-nikah/list?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  ```
+  
+  **Bulanan:**
+  ```
+  GET /simnikah/staff/pengumuman-nikah/list?tanggal_awal=2024-12-01&tanggal_akhir=2024-12-31
+  ```
+  
+  **Custom periode:**
+  ```
+  GET /simnikah/staff/pengumuman-nikah/list?tanggal_awal=2024-12-10&tanggal_akhir=2024-12-25
+  ```
+  
+  **Tanpa parameter (menggunakan default - minggu ini):**
+  ```
+  GET /simnikah/staff/pengumuman-nikah/list
   ```
 
   **Response Success (200):**
@@ -1354,15 +1381,17 @@
 
   **Endpoint:** `GET /simnikah/kepala-kua/pengumuman-nikah/list`
 
-  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode mingguan beserta data kop surat. Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
+  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode yang dipilih frontend beserta data kop surat. Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
 
   **Auth Required:** ✅ Yes
 
   **Role Required:** `kepala_kua`
 
   **Query Parameters:**
-  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
-  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
+  - `tanggal_awal` (optional): Tanggal awal periode yang dipilih frontend (format: YYYY-MM-DD). Frontend dapat memilih tanggal bebas sesuai kebutuhan (tidak harus mingguan). Default: awal minggu ini (Senin) jika tidak diisi
+  - `tanggal_akhir` (optional): Tanggal akhir periode yang dipilih frontend (format: YYYY-MM-DD). Frontend dapat memilih tanggal bebas sesuai kebutuhan (tidak harus mingguan). Default: akhir minggu ini (Minggu) jika tidak diisi
+  
+  **Note:** Frontend dapat memilih periode tanggal secara bebas sesuai kebutuhan. Contoh: bisa memilih 1 bulan, 2 minggu, atau periode custom lainnya. Tidak terbatas pada periode mingguan.
 
   **Request Body (Optional - untuk custom kop surat):**
   ```json
@@ -1383,9 +1412,26 @@
   - Jika request body tidak dikirim, akan menggunakan nilai default untuk kop surat
   - Frontend bertanggung jawab untuk generate HTML surat pengumuman nikah menggunakan data yang dikembalikan
 
-  **Example:**
+  **Examples:**
+  
+  **Mingguan (default):**
   ```
   GET /simnikah/kepala-kua/pengumuman-nikah/list?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  ```
+  
+  **Bulanan:**
+  ```
+  GET /simnikah/kepala-kua/pengumuman-nikah/list?tanggal_awal=2024-12-01&tanggal_akhir=2024-12-31
+  ```
+  
+  **Custom periode:**
+  ```
+  GET /simnikah/kepala-kua/pengumuman-nikah/list?tanggal_awal=2024-12-10&tanggal_akhir=2024-12-25
+  ```
+  
+  **Tanpa parameter (menggunakan default - minggu ini):**
+  ```
+  GET /simnikah/kepala-kua/pengumuman-nikah/list
   ```
 
   **Response Success (200):**
