@@ -813,6 +813,37 @@ func (h *InDB) GetUserRegistrationStatus(c *gin.Context) {
 		"created_at":         pendaftaran.Created_at,
 	}
 
+	// Fetch Calon Suami
+	var calonSuami structs.CalonPasangan
+	if err := h.DB.Where("id = ?", pendaftaran.Calon_suami_id).First(&calonSuami).Error; err == nil {
+		registrationData["calon_suami"] = gin.H{
+			"nama_lengkap":        calonSuami.Nama_lengkap,
+			"pendidikan_terakhir": calonSuami.Pendidikan_terakhir,
+			"tanggal_lahir":       calonSuami.Tanggal_lahir,
+		}
+	}
+
+	// Fetch Calon Istri
+	var calonIstri structs.CalonPasangan
+	if err := h.DB.Where("id = ?", pendaftaran.Calon_istri_id).First(&calonIstri).Error; err == nil {
+		registrationData["calon_istri"] = gin.H{
+			"nama_lengkap":        calonIstri.Nama_lengkap,
+			"pendidikan_terakhir": calonIstri.Pendidikan_terakhir,
+			"tanggal_lahir":       calonIstri.Tanggal_lahir,
+		}
+	}
+
+	// Fetch Wali Nikah
+	if pendaftaran.Wali_nikah_id != nil {
+		var waliNikah structs.WaliNikah
+		if err := h.DB.Where("id = ?", *pendaftaran.Wali_nikah_id).First(&waliNikah).Error; err == nil {
+			registrationData["wali_nikah"] = gin.H{
+				"nama_dan_bin":  waliNikah.Nama_dan_bin,
+				"hubungan_wali": waliNikah.Hubungan_wali,
+			}
+		}
+	}
+
 	// Include penghulu info if assigned (for transparency)
 	if pendaftaran.Penghulu_id != nil {
 		var penghulu structs.Penghulu
