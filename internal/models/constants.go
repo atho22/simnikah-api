@@ -1,9 +1,6 @@
 package structs
 
-// ==================== STATUS CONSTANTS ====================
-// Menggunakan constants untuk type safety dan centralized management
 
-// Define constants for CalonPasangan Status_perkawinan
 const (
 	StatusPerkawinanBelumKawin = "Belum Kawin"
 	StatusPerkawinanKawin      = "Kawin"

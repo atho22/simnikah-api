@@ -2,9 +2,7 @@ package structs
 
 import "time"
 
-// SimNikah Models
-// CalonPasangan - Model minimal untuk form sederhana
-// Hanya menyimpan data yang diinput dari form sederhana: nama, pendidikan, umur (via tanggal_lahir)
+
 type CalonPasangan struct {
 	ID                  uint      `gorm:"primaryKey" json:"id"`
 	User_id             string    `gorm:"size:20;not null;unique" json:"id_pengguna"`
@@ -13,8 +11,7 @@ type CalonPasangan struct {
 	Tanggal_lahir       time.Time `gorm:"not null" json:"tanggal_lahir"` // Diperlukan untuk umur, dihitung dari form
 	Jenis_kelamin       string    `gorm:"type:VARCHAR(1);not null" json:"jenis_kelamin"` // L/P (diperlukan untuk identifikasi)
 	Pendidikan_terakhir string    `gorm:"size:50" json:"pendidikan_terakhir"` // Dari form sederhana
-	// Field lain dihapus - tidak digunakan di form sederhana
-	// Jika diperlukan field lain (alamat, tempat_lahir, dll) bisa ditambahkan kembali untuk scalability
+
 	Created_at          time.Time `json:"dibuat_pada"`
 	Updated_at          time.Time `json:"diperbarui_pada"`
 }

@@ -1,0 +1,119 @@
+<mxfile host="app.diagrams.net" modified="2024-12-03T10:32:00.000Z" agent="5.0" etag="usecase-kepala-kua" version="21.0.0" type="device">
+  <diagram name="Use Case - Kepala KUA" id="usecase-kepala-kua">
+    <mxGraphModel dx="900" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title" value="Gambar 3.4 Use Case Kepala KUA" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="180" y="710" width="250" height="30" as="geometry" />
+        </mxCell>
+        
+        <!-- Actor: Kepala KUA -->
+        <mxCell id="actor-kepala" value="Kepala KUA" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="310" width="30" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Use Cases - Vertical Layout -->
+        <mxCell id="uc-1" value="Login" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="40" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-2" value="Lihat Dashboard" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="95" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-3" value="Lihat Statistik Pernikahan" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="150" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-4" value="Lihat Tren Pernikahan" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="205" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-5" value="Analisis Jam Sibuk" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="260" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-6" value="Lihat Daftar Penghulu" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="315" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-7" value="Tugaskan Penghulu" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="370" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-8" value="Lihat Performa Penghulu" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="425" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-9" value="Buat Staff/Penghulu Baru" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="480" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-10" value="Kelola Feedback" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="535" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-11" value="Lihat Pengumuman Nikah" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="590" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="uc-12" value="Kelola Notifikasi" style="ellipse;whiteSpace=wrap;html=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="250" y="645" width="130" height="45" as="geometry" />
+        </mxCell>
+        
+        <!-- Curved Lines from Actor to Use Cases -->
+        <mxCell id="line-1" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-2" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-3" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-4" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-5" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-6" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-7" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-8" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-9" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-10" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-11" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="line-12" style="endArrow=none;html=1;curved=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-kepala" target="uc-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

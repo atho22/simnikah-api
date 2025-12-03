@@ -137,6 +137,43 @@ func (h *InDB) AssignMarriageOfficer(c *gin.Context) {
 		}
 	}
 
+	// Validasi: Cek apakah penghulu sudah ada jadwal di tanggal dan jam yang sama
+	// Satu penghulu hanya bisa menikahkan 1 pasangan per jam
+	tanggalNikah := pendaftaran.Tanggal_nikah
+	waktuNikah := pendaftaran.Waktu_nikah
+	if len(waktuNikah) > 5 {
+		waktuNikah = waktuNikah[:5] // Normalize to HH:MM
+	}
+
+	// Calculate start and end of day
+	startOfDay := time.Date(tanggalNikah.Year(), tanggalNikah.Month(), tanggalNikah.Day(), 0, 0, 0, 0, time.UTC)
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	var existingAssignment structs.PendaftaranNikah
+	err := h.DB.Where("penghulu_id = ? AND tanggal_nikah >= ? AND tanggal_nikah < ? AND waktu_nikah = ? AND id != ? AND status_pendaftaran NOT IN ?",
+		input.PenghuluID, startOfDay, endOfDay, waktuNikah, pendaftaran.ID,
+		[]string{structs.StatusPendaftaranDitolak}).
+		First(&existingAssignment).Error
+
+	if err == nil {
+		// Penghulu sudah ada jadwal di jam yang sama
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Penghulu tidak tersedia",
+			"error": fmt.Sprintf("Penghulu %s sudah memiliki jadwal pernikahan pada tanggal %s pukul %s. Satu penghulu hanya bisa menikahkan 1 pasangan per jam.",
+				penghulu.Nama_lengkap, tanggalNikah.Format("02 Januari 2006"), waktuNikah),
+			"type": "schedule_conflict",
+			"data": gin.H{
+				"penghulu_id":          input.PenghuluID,
+				"penghulu_nama":        penghulu.Nama_lengkap,
+				"tanggal_nikah":        tanggalNikah.Format("2006-01-02"),
+				"waktu_nikah":          waktuNikah,
+				"existing_pendaftaran": existingAssignment.Nomor_pendaftaran,
+			},
+		})
+		return
+	}
+
 	// Update registration with penghulu assignment
 	pendaftaran.Status_pendaftaran = structs.StatusPendaftaranPenghuluDitugaskan
 	pendaftaran.Penghulu_id = &input.PenghuluID
@@ -1325,6 +1362,321 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 			"total":         len(registrations),
 			"kop_surat":     kopSurat,
 			"registrations": registrations,
+		},
+	})
+}
+
+// ==================== PENGHULU SCHEDULE AVAILABILITY ====================
+
+// TimeSlots untuk jadwal pernikahan
+var TimeSlots = []string{
+	"08:00", "09:00", "10:00", "11:00", "12:00",
+	"13:00", "14:00", "15:00", "16:00",
+}
+
+// GetPenghuluScheduleAvailability returns schedule availability for all penghulus on a specific date
+// GET /simnikah/kepala-kua/penghulu-schedule?tanggal=2024-12-25
+func (h *InDB) GetPenghuluScheduleAvailability(c *gin.Context) {
+	tanggalStr := c.Query("tanggal")
+	if tanggalStr == "" {
+		// Default ke hari ini
+		tanggalStr = time.Now().Format("2006-01-02")
+	}
+
+	// Parse tanggal
+	tanggal, err := time.Parse("2006-01-02", tanggalStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format tanggal tidak valid",
+			"error":   "Format harus YYYY-MM-DD",
+		})
+		return
+	}
+
+	// Get all active penghulus
+	var penghulus []structs.Penghulu
+	if err := h.DB.Where("status = ?", structs.PenghuluStatusAktif).Find(&penghulus).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengambil data penghulu",
+		})
+		return
+	}
+
+	// Calculate start and end of day
+	startOfDay := time.Date(tanggal.Year(), tanggal.Month(), tanggal.Day(), 0, 0, 0, 0, time.UTC)
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	// Get all registrations on this date that have penghulu assigned
+	var pendaftarans []structs.PendaftaranNikah
+	err = h.DB.Where("tanggal_nikah >= ? AND tanggal_nikah < ? AND penghulu_id IS NOT NULL AND status_pendaftaran NOT IN ?",
+		startOfDay, endOfDay, []string{structs.StatusPendaftaranDitolak}).
+		Find(&pendaftarans).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengambil data jadwal",
+		})
+		return
+	}
+
+	// Build schedule map: penghulu_id -> waktu -> pendaftaran
+	type ScheduleItem struct {
+		PendaftaranID    uint   `json:"pendaftaran_id"`
+		NomorPendaftaran string `json:"nomor_pendaftaran"`
+		WaktuNikah       string `json:"waktu_nikah"`
+		TempatNikah      string `json:"tempat_nikah"`
+		AlamatAkad       string `json:"alamat_akad"`
+		CalonSuami       string `json:"calon_suami"`
+		CalonIstri       string `json:"calon_istri"`
+		Status           string `json:"status"`
+	}
+
+	penghuluSchedules := make(map[uint][]ScheduleItem)
+	penghuluTodayCount := make(map[uint]int)
+
+	for _, p := range pendaftarans {
+		if p.Penghulu_id == nil {
+			continue
+		}
+
+		penghuluID := *p.Penghulu_id
+
+		// Get calon names
+		var calonSuami, calonIstri structs.CalonPasangan
+		h.DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami)
+		h.DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri)
+
+		// Normalize waktu
+		waktu := p.Waktu_nikah
+		if len(waktu) > 5 {
+			waktu = waktu[:5]
+		}
+
+		schedule := ScheduleItem{
+			PendaftaranID:    p.ID,
+			NomorPendaftaran: p.Nomor_pendaftaran,
+			WaktuNikah:       waktu,
+			TempatNikah:      p.Tempat_nikah,
+			AlamatAkad:       p.Alamat_akad,
+			CalonSuami:       calonSuami.Nama_lengkap,
+			CalonIstri:       calonIstri.Nama_lengkap,
+			Status:           p.Status_pendaftaran,
+		}
+
+		penghuluSchedules[penghuluID] = append(penghuluSchedules[penghuluID], schedule)
+		penghuluTodayCount[penghuluID]++
+	}
+
+	// Build response for each penghulu
+	var penghuluAvailability []gin.H
+	for _, penghulu := range penghulus {
+		schedules := penghuluSchedules[penghulu.ID]
+		todayCount := penghuluTodayCount[penghulu.ID]
+
+		// Build time slots availability
+		scheduledTimes := make(map[string]ScheduleItem)
+		for _, s := range schedules {
+			scheduledTimes[s.WaktuNikah] = s
+		}
+
+		var timeSlotDetails []gin.H
+		availableCount := 0
+		busyCount := 0
+
+		for _, slot := range TimeSlots {
+			if schedule, exists := scheduledTimes[slot]; exists {
+				// Penghulu sudah ada jadwal di jam ini
+				timeSlotDetails = append(timeSlotDetails, gin.H{
+					"waktu":    slot,
+					"tersedia": false,
+					"status":   "Bertugas",
+					"jadwal":   schedule,
+				})
+				busyCount++
+			} else {
+				// Penghulu tersedia di jam ini
+				timeSlotDetails = append(timeSlotDetails, gin.H{
+					"waktu":    slot,
+					"tersedia": true,
+					"status":   "Tersedia",
+					"jadwal":   nil,
+				})
+				availableCount++
+			}
+		}
+
+		penghuluAvailability = append(penghuluAvailability, gin.H{
+			"penghulu": gin.H{
+				"id":           penghulu.ID,
+				"nama_lengkap": penghulu.Nama_lengkap,
+				"nip":          penghulu.NIP,
+				"no_hp":        penghulu.No_hp,
+				"email":        penghulu.Email,
+				"jumlah_nikah": penghulu.Jumlah_nikah,
+				"rating":       penghulu.Rating,
+			},
+			"tanggal":         tanggalStr,
+			"jadwal_hari_ini": todayCount,
+			"slot_tersedia":   availableCount,
+			"slot_terisi":     busyCount,
+			"time_slots":      timeSlotDetails,
+			"jadwal_detail":   schedules,
+		})
+	}
+
+	// Summary
+	totalPenghulu := len(penghulus)
+	totalJadwalHariIni := len(pendaftarans)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Data ketersediaan jadwal penghulu berhasil diambil",
+		"data": gin.H{
+			"tanggal":               tanggalStr,
+			"hari":                  tanggal.Weekday().String(),
+			"tanggal_format":        tanggal.Format("02 Januari 2006"),
+			"total_penghulu":        totalPenghulu,
+			"total_jadwal_hari_ini": totalJadwalHariIni,
+			"time_slots":            TimeSlots,
+			"penghulu_availability": penghuluAvailability,
+		},
+	})
+}
+
+// GetPenghuluScheduleForAssignment returns penghulu availability for a specific date and time
+// Used when assigning penghulu to a registration
+// GET /simnikah/kepala-kua/penghulu-tersedia?tanggal=2024-12-25&waktu=09:00
+func (h *InDB) GetPenghuluScheduleForAssignment(c *gin.Context) {
+	tanggalStr := c.Query("tanggal")
+	waktuStr := c.Query("waktu")
+
+	if tanggalStr == "" || waktuStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Parameter tidak lengkap",
+			"error":   "Parameter tanggal dan waktu diperlukan",
+			"example": "/simnikah/kepala-kua/penghulu-tersedia?tanggal=2024-12-25&waktu=09:00",
+		})
+		return
+	}
+
+	// Parse tanggal
+	tanggal, err := time.Parse("2006-01-02", tanggalStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format tanggal tidak valid",
+			"error":   "Format harus YYYY-MM-DD",
+		})
+		return
+	}
+
+	// Normalize waktu
+	if len(waktuStr) > 5 {
+		waktuStr = waktuStr[:5]
+	}
+
+	// Get all active penghulus
+	var penghulus []structs.Penghulu
+	if err := h.DB.Where("status = ?", structs.PenghuluStatusAktif).Find(&penghulus).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengambil data penghulu",
+		})
+		return
+	}
+
+	// Calculate start and end of day
+	startOfDay := time.Date(tanggal.Year(), tanggal.Month(), tanggal.Day(), 0, 0, 0, 0, time.UTC)
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	// Get registrations on this date and time that have penghulu assigned
+	var busyPenghuluIDs []uint
+	err = h.DB.Model(&structs.PendaftaranNikah{}).
+		Select("penghulu_id").
+		Where("tanggal_nikah >= ? AND tanggal_nikah < ? AND waktu_nikah = ? AND penghulu_id IS NOT NULL AND status_pendaftaran NOT IN ?",
+			startOfDay, endOfDay, waktuStr, []string{structs.StatusPendaftaranDitolak}).
+		Pluck("penghulu_id", &busyPenghuluIDs).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengambil data jadwal",
+		})
+		return
+	}
+
+	// Create map of busy penghulus
+	busyMap := make(map[uint]bool)
+	for _, id := range busyPenghuluIDs {
+		busyMap[id] = true
+	}
+
+	// Get today's schedule count for each penghulu
+	type PenghuluCount struct {
+		PenghuluID uint
+		Count      int64
+	}
+	var penghuluCounts []PenghuluCount
+	h.DB.Model(&structs.PendaftaranNikah{}).
+		Select("penghulu_id, COUNT(*) as count").
+		Where("tanggal_nikah >= ? AND tanggal_nikah < ? AND penghulu_id IS NOT NULL AND status_pendaftaran NOT IN ?",
+			startOfDay, endOfDay, []string{structs.StatusPendaftaranDitolak}).
+		Group("penghulu_id").
+		Scan(&penghuluCounts)
+
+	countMap := make(map[uint]int64)
+	for _, pc := range penghuluCounts {
+		countMap[pc.PenghuluID] = pc.Count
+	}
+
+	// Build response
+	var tersedia []gin.H
+	var tidakTersedia []gin.H
+
+	for _, penghulu := range penghulus {
+		jadwalHariIni := countMap[penghulu.ID]
+		isBusy := busyMap[penghulu.ID]
+
+		penghuluData := gin.H{
+			"id":              penghulu.ID,
+			"nama_lengkap":    penghulu.Nama_lengkap,
+			"nip":             penghulu.NIP,
+			"no_hp":           penghulu.No_hp,
+			"email":           penghulu.Email,
+			"jumlah_nikah":    penghulu.Jumlah_nikah,
+			"rating":          penghulu.Rating,
+			"jadwal_hari_ini": jadwalHariIni,
+		}
+
+		if isBusy {
+			penghuluData["status"] = "Tidak Tersedia"
+			penghuluData["alasan"] = fmt.Sprintf("Sudah ada jadwal pada pukul %s", waktuStr)
+			tidakTersedia = append(tidakTersedia, penghuluData)
+		} else {
+			penghuluData["status"] = "Tersedia"
+			tersedia = append(tersedia, penghuluData)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Data ketersediaan penghulu berhasil diambil",
+		"data": gin.H{
+			"tanggal":                 tanggalStr,
+			"waktu":                   waktuStr,
+			"hari":                    tanggal.Weekday().String(),
+			"tanggal_format":          tanggal.Format("02 Januari 2006"),
+			"total_penghulu":          len(penghulus),
+			"jumlah_tersedia":         len(tersedia),
+			"jumlah_tidak_tersedia":   len(tidakTersedia),
+			"penghulu_tersedia":       tersedia,
+			"penghulu_tidak_tersedia": tidakTersedia,
 		},
 	})
 }

@@ -148,7 +148,6 @@ func main() {
 		simnikahRoutes.GET("/staff", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), staffHandler.ListStaff)
 		simnikahRoutes.PUT("/staff/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), staffHandler.UpdateStaff)
 		simnikahRoutes.POST("/staff/verify-formulir/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("staff"), staffHandler.VerifyRegistrationForm)
-		simnikahRoutes.POST("/staff/verify-berkas/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("staff"), staffHandler.VerifyDocuments)
 		simnikahRoutes.POST("/staff/approve/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("staff"), staffHandler.ApproveRegistration)
 		simnikahRoutes.POST("/staff/pendaftaran", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.CreateRegistrationForUser)
 		simnikahRoutes.PUT("/pendaftaran/:id/update-status", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "penghulu", "kepala_kua"), staffHandler.UpdateRegistrationStatus)
@@ -175,6 +174,8 @@ func main() {
 		simnikahRoutes.POST("/pendaftaran/:id/assign-penghulu", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.AssignMarriageOfficer)
 		simnikahRoutes.GET("/kepala-kua/available-penghulu", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.ListAvailableOfficers)
 		simnikahRoutes.GET("/kepala-kua/statistik-penghulu", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetPenghuluStatistics)
+		simnikahRoutes.GET("/kepala-kua/penghulu-schedule", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetPenghuluScheduleAvailability)
+		simnikahRoutes.GET("/kepala-kua/penghulu-tersedia", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetPenghuluScheduleForAssignment)
 
 		// ==================== FEEDBACK MANAGEMENT (KEPALA KUA) ====================
 		simnikahRoutes.GET("/kepala-kua/feedback", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.ListFeedbackPernikahan)

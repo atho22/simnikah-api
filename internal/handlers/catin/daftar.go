@@ -32,6 +32,64 @@ var TimeSlots = []string{
 	"13:00", "14:00", "15:00", "16:00",
 }
 
+// HariLiburNasional daftar hari libur nasional Indonesia 2024-2025
+// Format: "MM-DD" untuk hari libur tetap, atau "YYYY-MM-DD" untuk hari libur berubah
+var HariLiburNasional = map[string]string{
+	// Hari libur tetap (setiap tahun)
+	"01-01": "Tahun Baru Masehi",
+	"05-01": "Hari Buruh Internasional",
+	"06-01": "Hari Lahir Pancasila",
+	"08-17": "Hari Kemerdekaan RI",
+	"12-25": "Hari Natal",
+
+	// Hari libur 2024 (tanggal berubah)
+	"2024-02-08": "Isra Mi'raj",
+	"2024-03-11": "Hari Raya Nyepi",
+	"2024-03-29": "Wafat Isa Al-Masih",
+	"2024-04-10": "Idul Fitri 1445 H",
+	"2024-04-11": "Idul Fitri 1445 H",
+	"2024-05-09": "Kenaikan Isa Al-Masih",
+	"2024-05-23": "Hari Raya Waisak",
+	"2024-06-17": "Idul Adha 1445 H",
+	"2024-07-07": "Tahun Baru Islam 1446 H",
+	"2024-09-16": "Maulid Nabi Muhammad SAW",
+
+	// Hari libur 2025 (tanggal berubah)
+	"2025-01-27": "Isra Mi'raj",
+	"2025-01-29": "Tahun Baru Imlek",
+	"2025-03-29": "Hari Raya Nyepi",
+	"2025-03-31": "Idul Fitri 1446 H",
+	"2025-04-01": "Idul Fitri 1446 H",
+	"2025-04-18": "Wafat Isa Al-Masih",
+	"2025-05-12": "Hari Raya Waisak",
+	"2025-05-29": "Kenaikan Isa Al-Masih",
+	"2025-06-06": "Idul Adha 1446 H",
+	"2025-06-27": "Tahun Baru Islam 1447 H",
+	"2025-09-05": "Maulid Nabi Muhammad SAW",
+}
+
+// IsHariLibur mengecek apakah tanggal adalah hari libur (Minggu atau hari libur nasional)
+func IsHariLibur(tanggal time.Time) (bool, string) {
+	// Cek hari Minggu
+	if tanggal.Weekday() == time.Sunday {
+		return true, "Hari Minggu"
+	}
+
+	// Cek hari libur nasional dengan format YYYY-MM-DD
+	tanggalFull := tanggal.Format("2006-01-02")
+	if nama, exists := HariLiburNasional[tanggalFull]; exists {
+		return true, nama
+	}
+
+	// Cek hari libur nasional dengan format MM-DD (hari libur tetap)
+	tanggalShort := tanggal.Format("01-02")
+	if nama, exists := HariLiburNasional[tanggalShort]; exists {
+		return true, nama
+	}
+
+	return false, ""
+}
+
 // ==================== UPDATE WEDDING ADDRESS ====================
 
 // UpdateMarriageLocation updates the wedding address for a marriage registration
@@ -195,11 +253,11 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 	tanggalNikah, err := time.Parse("2006-01-02", formSederhana.LokasiNikah.TanggalNikah)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Format tanggal tidak benar",
-			"error":   "Format tanggal harus: Tahun-Bulan-Tanggal (contoh: 2024-12-25 untuk tanggal 25 Desember 2024)",
-			"field":   "tanggal_nikah",
-			"type":    "format",
+			"success":      false,
+			"message":      "Format tanggal tidak benar",
+			"error":        "Format tanggal harus: Tahun-Bulan-Tanggal (contoh: 2024-12-25 untuk tanggal 25 Desember 2024)",
+			"field":        "tanggal_nikah",
+			"type":         "format",
 			"contoh_benar": []string{"2024-12-25", "2024-01-05", "2024-11-20"},
 			"contoh_salah": []string{"25-12-2024", "25/12/2024", "25 Desember 2024"},
 		})
@@ -210,11 +268,11 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 	if tanggalNikah.Before(time.Now().Truncate(24 * time.Hour)) {
 		today := time.Now().Format("02 Januari 2006")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Tanggal tidak boleh sudah lewat",
-			"error":   fmt.Sprintf("Tanggal nikah tidak boleh di masa lalu. Hari ini adalah %s. Silakan pilih tanggal hari ini atau tanggal yang akan datang.", today),
-			"field":   "tanggal_nikah",
-			"type":    "validation",
+			"success":          false,
+			"message":          "Tanggal tidak boleh sudah lewat",
+			"error":            fmt.Sprintf("Tanggal nikah tidak boleh di masa lalu. Hari ini adalah %s. Silakan pilih tanggal hari ini atau tanggal yang akan datang.", today),
+			"field":            "tanggal_nikah",
+			"type":             "validation",
 			"tanggal_hari_ini": today,
 		})
 		return
@@ -224,11 +282,11 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 	_, err = time.Parse("15:04", formSederhana.LokasiNikah.WaktuNikah)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Format jam tidak benar",
-			"error":   "Format jam harus: Jam:Menit dengan 2 angka (contoh: 09:00 untuk jam 9 pagi, 14:30 untuk jam 2 siang)",
-			"field":   "waktu_nikah",
-			"type":    "format",
+			"success":      false,
+			"message":      "Format jam tidak benar",
+			"error":        "Format jam harus: Jam:Menit dengan 2 angka (contoh: 09:00 untuk jam 9 pagi, 14:30 untuk jam 2 siang)",
+			"field":        "waktu_nikah",
+			"type":         "format",
 			"contoh_benar": []string{"08:00", "09:00", "14:30", "16:00"},
 			"contoh_salah": []string{"9:00", "9:0", "2:30 PM", "14.30"},
 			"jam_tersedia": TimeSlots,
@@ -282,11 +340,11 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 
 	if !validHubungan {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Validasi gagal",
-			"error":   "Hubungan wali tidak valid",
-			"field":   "wali_nikah.hubungan_wali",
-			"type":    "enum",
+			"success":        false,
+			"message":        "Validasi gagal",
+			"error":          "Hubungan wali tidak valid",
+			"field":          "wali_nikah.hubungan_wali",
+			"type":           "enum",
 			"hubungan_valid": structs.ValidHubunganWali,
 		})
 		return
@@ -337,53 +395,99 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		return
 	}
 
+	// Cek apakah hari libur
+	isLibur, namaLibur := IsHariLibur(tanggalNikah)
+
 	// Validate schedule based on location
 	const maxTotalWeddings = 3 // Total maksimal pernikahan per jam = 3 penghulu
 
 	if formSederhana.LokasiNikah.TempatNikah == "Di KUA" {
-		// Jika nikah di KUA: tidak boleh ada lebih dari 1 pernikahan di KUA di tanggal dan jam yang sama
+		// Jika hari libur, tidak bisa nikah di KUA
+		if isLibur {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "KUA tutup pada hari libur",
+				"error": fmt.Sprintf("Maaf, KUA tutup pada tanggal %s (%s). Pernikahan di KUA tidak tersedia pada hari libur. Silakan pilih tanggal lain atau pilih nikah di luar KUA.",
+					tanggalNikah.Format("02 Januari 2006"), namaLibur),
+				"field": "tanggal_nikah",
+				"type":  "holiday_restriction",
+				"saran": "Anda masih bisa memilih nikah di luar KUA pada hari libur, atau pilih tanggal lain untuk nikah di KUA.",
+				"data": gin.H{
+					"tanggal_nikah":     tanggalNikah.Format("2006-01-02"),
+					"hari":              tanggalNikah.Weekday().String(),
+					"is_hari_libur":     true,
+					"nama_hari_libur":   namaLibur,
+					"tersedia_luar_kua": true,
+				},
+			})
+			return
+		}
+		// Validasi 1: Total sudah mencapai maksimal 3 (semua penghulu terpakai)
+		// Jika sudah ada 3 nikah di luar KUA, maka KUA juga tidak bisa
+		if countTotalRegistrations >= maxTotalWeddings {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Jadwal sudah penuh",
+				"error": fmt.Sprintf("Maaf, jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Sudah ada %d pernikahan (semua penghulu sudah bertugas). Maksimal hanya 3 pernikahan per jam. Silakan pilih tanggal atau jam lain yang masih tersedia.",
+					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized, countTotalRegistrations),
+				"field": "waktu_nikah",
+				"type":  "schedule_conflict",
+				"saran": "Coba pilih jam lain pada tanggal yang sama, atau pilih tanggal lain. Gunakan fitur kalender untuk melihat jadwal yang tersedia.",
+				"data": gin.H{
+					"tanggal_nikah":        tanggalNikah.Format("2006-01-02"),
+					"waktu_nikah":          waktuNikahNormalized,
+					"tempat_nikah":         formSederhana.LokasiNikah.TempatNikah,
+					"total_pernikahan":     countTotalRegistrations,
+					"batas_maksimal_total": maxTotalWeddings,
+				},
+			})
+			return
+		}
+
+		// Validasi 2: Jika nikah di KUA, tidak boleh ada lebih dari 1 pernikahan di KUA di jam yang sama
 		if countKUA >= 1 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "Jadwal di KUA sudah terisi",
-				"error":   fmt.Sprintf("Maaf, jadwal pernikahan di KUA pada tanggal %s pukul %s sudah terisi oleh pendaftar lain. Di KUA hanya bisa 1 pernikahan per jam. Silakan pilih tanggal atau jam lain yang masih tersedia.", 
+				"error": fmt.Sprintf("Maaf, jadwal pernikahan di KUA pada tanggal %s pukul %s sudah terisi oleh pendaftar lain. Di KUA hanya bisa 1 pernikahan per jam. Silakan pilih tanggal atau jam lain, atau pilih nikah di luar KUA.",
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
-				"field":   "waktu_nikah",
-				"type":    "schedule_conflict",
-				"saran":   "Coba pilih jam lain pada tanggal yang sama, atau pilih tanggal lain. Gunakan fitur kalender untuk melihat jadwal yang tersedia.",
+				"field": "waktu_nikah",
+				"type":  "schedule_conflict",
+				"saran": "Anda masih bisa memilih nikah di luar KUA pada jam yang sama, atau pilih jam/tanggal lain untuk nikah di KUA.",
 				"data": gin.H{
-					"tanggal_nikah":    tanggalNikah.Format("2006-01-02"),
-					"waktu_nikah":       waktuNikahNormalized,
-					"tempat_nikah":      formSederhana.LokasiNikah.TempatNikah,
-					"jumlah_terisi_kua": countKUA,
-					"batas_maksimal_kua": 1,
+					"tanggal_nikah":          tanggalNikah.Format("2006-01-02"),
+					"waktu_nikah":            waktuNikahNormalized,
+					"tempat_nikah":           formSederhana.LokasiNikah.TempatNikah,
+					"jumlah_terisi_kua":      countKUA,
+					"batas_maksimal_kua":     1,
+					"slot_luar_kua_tersedia": maxTotalWeddings - countTotalRegistrations,
 				},
 			})
 			return
 		}
 	} else {
-		// Jika nikah di luar KUA: 
+		// Jika nikah di luar KUA:
 		// Total maksimal pernikahan per jam = 3 penghulu
 		// - Jika sudah ada 1 di KUA, maka slot luar KUA = 2 (total 3)
 		// - Jika belum ada di KUA, maka slot luar KUA = 3 (total 3)
-		
+
 		// Hitung jumlah pernikahan di luar KUA di jam yang sama
 		countLuarKUA := countTotalRegistrations - countKUA
-		
+
 		// Hitung slot tersedia untuk luar KUA
 		slotTersediaLuarKUA := maxTotalWeddings - countTotalRegistrations
-		
+
 		// Validasi 1: Total sudah mencapai maksimal 3
 		if countTotalRegistrations >= maxTotalWeddings {
 			var errorMsg string
 			if countKUA >= 1 {
-				errorMsg = fmt.Sprintf("Maaf, jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Sudah ada 3 pernikahan (1 di KUA dan 2 di luar KUA). Maksimal hanya 3 pernikahan per jam. Silakan pilih tanggal atau jam lain yang masih tersedia.", 
+				errorMsg = fmt.Sprintf("Maaf, jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Sudah ada 3 pernikahan (1 di KUA dan 2 di luar KUA). Maksimal hanya 3 pernikahan per jam. Silakan pilih tanggal atau jam lain yang masih tersedia.",
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized)
 			} else {
-				errorMsg = fmt.Sprintf("Maaf, jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Sudah ada 3 pernikahan di luar KUA. Maksimal hanya 3 pernikahan per jam. Silakan pilih tanggal atau jam lain yang masih tersedia.", 
+				errorMsg = fmt.Sprintf("Maaf, jadwal pernikahan pada tanggal %s pukul %s sudah penuh. Sudah ada 3 pernikahan di luar KUA. Maksimal hanya 3 pernikahan per jam. Silakan pilih tanggal atau jam lain yang masih tersedia.",
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized)
 			}
-			
+
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "Jadwal sudah penuh",
@@ -393,37 +497,37 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 				"saran":   "Coba pilih jam lain pada tanggal yang sama, atau pilih tanggal lain. Gunakan fitur kalender untuk melihat jadwal yang tersedia.",
 				"data": gin.H{
 					"tanggal_nikah":          tanggalNikah.Format("2006-01-02"),
-					"waktu_nikah":             waktuNikahNormalized,
-					"tempat_nikah":            formSederhana.LokasiNikah.TempatNikah,
-					"total_pernikahan":        countTotalRegistrations,
-					"pernikahan_di_kua":       countKUA,
-					"pernikahan_di_luar_kua":  countLuarKUA,
-					"batas_maksimal_total":    maxTotalWeddings,
-					"slot_tersedia_luar_kua":  0,
+					"waktu_nikah":            waktuNikahNormalized,
+					"tempat_nikah":           formSederhana.LokasiNikah.TempatNikah,
+					"total_pernikahan":       countTotalRegistrations,
+					"pernikahan_di_kua":      countKUA,
+					"pernikahan_di_luar_kua": countLuarKUA,
+					"batas_maksimal_total":   maxTotalWeddings,
+					"slot_tersedia_luar_kua": 0,
 				},
 			})
 			return
 		}
-		
+
 		// Validasi 2: Jika sudah ada 1 di KUA, maka slot luar KUA maksimal 2
 		if countKUA >= 1 && countLuarKUA >= 2 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "Jadwal di luar KUA sudah penuh",
-				"error":   fmt.Sprintf("Maaf, jadwal pernikahan di luar KUA pada tanggal %s pukul %s sudah penuh. Sudah ada 1 pernikahan di KUA dan 2 di luar KUA (total maksimal 3 pernikahan per jam). Silakan pilih tanggal atau jam lain yang masih tersedia.", 
+				"error": fmt.Sprintf("Maaf, jadwal pernikahan di luar KUA pada tanggal %s pukul %s sudah penuh. Sudah ada 1 pernikahan di KUA dan 2 di luar KUA (total maksimal 3 pernikahan per jam). Silakan pilih tanggal atau jam lain yang masih tersedia.",
 					tanggalNikah.Format("02 Januari 2006"), waktuNikahNormalized),
-				"field":   "waktu_nikah",
-				"type":    "schedule_conflict",
-				"saran":   "Coba pilih jam lain pada tanggal yang sama, atau pilih tanggal lain. Gunakan fitur kalender untuk melihat jadwal yang tersedia.",
+				"field": "waktu_nikah",
+				"type":  "schedule_conflict",
+				"saran": "Coba pilih jam lain pada tanggal yang sama, atau pilih tanggal lain. Gunakan fitur kalender untuk melihat jadwal yang tersedia.",
 				"data": gin.H{
 					"tanggal_nikah":          tanggalNikah.Format("2006-01-02"),
-					"waktu_nikah":             waktuNikahNormalized,
-					"tempat_nikah":            formSederhana.LokasiNikah.TempatNikah,
-					"total_pernikahan":        countTotalRegistrations,
-					"pernikahan_di_kua":       countKUA,
-					"pernikahan_di_luar_kua":  countLuarKUA,
-					"batas_maksimal_total":    maxTotalWeddings,
-					"slot_tersedia_luar_kua":  slotTersediaLuarKUA,
+					"waktu_nikah":            waktuNikahNormalized,
+					"tempat_nikah":           formSederhana.LokasiNikah.TempatNikah,
+					"total_pernikahan":       countTotalRegistrations,
+					"pernikahan_di_kua":      countKUA,
+					"pernikahan_di_luar_kua": countLuarKUA,
+					"batas_maksimal_total":   maxTotalWeddings,
+					"slot_tersedia_luar_kua": slotTersediaLuarKUA,
 				},
 			})
 			return
@@ -652,8 +756,8 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 				"umur":           formSederhana.CalonPerempuan.Umur,
 			},
 			"wali_nikah": gin.H{
-				"nama_dan_bin":   waliNikah.Nama_dan_bin,
-				"hubungan_wali":  waliNikah.Hubungan_wali,
+				"nama_dan_bin":  waliNikah.Nama_dan_bin,
+				"hubungan_wali": waliNikah.Hubungan_wali,
 			},
 			"catatan": "Data minimal telah disimpan. Untuk melengkapi data, silakan datang ke kantor KUA atau lengkapi melalui website SIMNIKAH.",
 		},
@@ -916,13 +1020,13 @@ func (h *InDB) ListRegistrations(c *gin.Context) {
 			"filters": gin.H{
 				"status":     status,
 				"date_from":  dateFrom,
-			"date_to":    dateTo,
-			"location":   location,
-			"search":     search,
-			"sort_by":    sortBy,
-			"sort_order": sortOrder,
+				"date_to":    dateTo,
+				"location":   location,
+				"search":     search,
+				"sort_by":    sortBy,
+				"sort_order": sortOrder,
+			},
 		},
-	},
 	})
 }
 
@@ -964,7 +1068,7 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Allow viewing past months in current year, but not past years
 	if tahunInt < now.Year() {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -974,7 +1078,7 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// If viewing current year, allow past months for transparency
 	// If viewing future year, that's also allowed
 
@@ -1000,31 +1104,31 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 	}
 
 	// Count registrations per date, separate Draft and Disetujui, and by location
-	registrationsPerDate := make(map[string]int)        // Total (Draft + Disetujui)
-	draftPerDate := make(map[string]int)                 // Draft only (kuning - belum pasti)
-	disetujuiPerDate := make(map[string]int)             // Disetujui only (hijau - sudah pasti)
-	
+	registrationsPerDate := make(map[string]int) // Total (Draft + Disetujui)
+	draftPerDate := make(map[string]int)         // Draft only (kuning - belum pasti)
+	disetujuiPerDate := make(map[string]int)     // Disetujui only (hijau - sudah pasti)
+
 	// Count per date and time slot, separate by location
 	// Format: tanggalStr -> waktu -> {kua: count, luar_kua: count}
 	type TimeSlotCount struct {
-		KUA     int // Draft + Disetujui di KUA
-		LuarKUA int // Draft + Disetujui di luar KUA
-		DraftKUA int // Draft di KUA
-		DisetujuiKUA int // Disetujui di KUA
-		DraftLuarKUA int // Draft di luar KUA
+		KUA              int // Draft + Disetujui di KUA
+		LuarKUA          int // Draft + Disetujui di luar KUA
+		DraftKUA         int // Draft di KUA
+		DisetujuiKUA     int // Disetujui di KUA
+		DraftLuarKUA     int // Draft di luar KUA
 		DisetujuiLuarKUA int // Disetujui di luar KUA
 	}
 	timeSlotsPerDate := make(map[string]map[string]*TimeSlotCount) // tanggal -> waktu -> count
-	
+
 	for _, p := range pendaftaran {
 		tanggalStr := p.Tanggal_nikah.Format("2006-01-02")
-		
+
 		// Normalize waktu format
 		waktu := p.Waktu_nikah
 		if len(waktu) > 5 {
 			waktu = waktu[:5] // Take only HH:MM part
 		}
-		
+
 		// Initialize map if needed
 		if timeSlotsPerDate[tanggalStr] == nil {
 			timeSlotsPerDate[tanggalStr] = make(map[string]*TimeSlotCount)
@@ -1032,12 +1136,12 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 		if timeSlotsPerDate[tanggalStr][waktu] == nil {
 			timeSlotsPerDate[tanggalStr][waktu] = &TimeSlotCount{}
 		}
-		
+
 		// Count by location
 		if p.Tempat_nikah == "Di KUA" {
-		registrationsPerDate[tanggalStr]++
+			registrationsPerDate[tanggalStr]++
 			timeSlotsPerDate[tanggalStr][waktu].KUA++
-			
+
 			if p.Status_pendaftaran == structs.StatusPendaftaranDraft {
 				draftPerDate[tanggalStr]++
 				timeSlotsPerDate[tanggalStr][waktu].DraftKUA++
@@ -1048,7 +1152,7 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 		} else {
 			// Di luar KUA
 			timeSlotsPerDate[tanggalStr][waktu].LuarKUA++
-			
+
 			if p.Status_pendaftaran == structs.StatusPendaftaranDraft {
 				timeSlotsPerDate[tanggalStr][waktu].DraftLuarKUA++
 			} else if p.Status_pendaftaran == structs.StatusPendaftaranDisetujui {
@@ -1064,23 +1168,39 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 		tanggalStr := tanggalTime.Format("2006-01-02")
 
 		jumlahNikah := registrationsPerDate[tanggalStr]
-		jumlahDraft := draftPerDate[tanggalStr]           // Kuning - belum pasti
-		jumlahDisetujui := disetujuiPerDate[tanggalStr]   // Hijau - sudah pasti
-		
+		jumlahDraft := draftPerDate[tanggalStr]         // Kuning - belum pasti
+		jumlahDisetujui := disetujuiPerDate[tanggalStr] // Hijau - sudah pasti
+
 		// Sisa kuota dihitung berdasarkan total (Draft + Disetujui)
 		// Draft juga dihitung dalam kuota meskipun belum pasti
 		totalNikah := jumlahDraft + jumlahDisetujui
 		sisaKuota := MaxWeddingsPerDay - totalNikah
 
+		// Cek apakah hari libur
+		isLibur, namaLibur := IsHariLibur(tanggalTime)
+
 		// Determine status
 		var status string
 		var tersedia bool
+		var tersediaKUAHariIni bool = true
+		var tersediaLuarKUAHariIni bool = true
+
 		if tanggalTime.Before(now.Truncate(24 * time.Hour)) {
 			status = "Terlewat"
 			tersedia = false
+			tersediaKUAHariIni = false
+			tersediaLuarKUAHariIni = false
+		} else if isLibur {
+			// Hari libur: KUA tutup, tapi luar KUA tetap tersedia
+			status = "Hari Libur (Luar KUA Tersedia)"
+			tersedia = true               // Masih tersedia untuk luar KUA
+			tersediaKUAHariIni = false    // KUA tutup
+			tersediaLuarKUAHariIni = true // Luar KUA tetap buka
 		} else if totalNikah >= MaxWeddingsPerDay {
 			status = "Penuh"
 			tersedia = false
+			tersediaKUAHariIni = false
+			tersediaLuarKUAHariIni = false
 		} else {
 			status = "Tersedia"
 			tersedia = true
@@ -1089,18 +1209,18 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 		// Build time slots availability for this date
 		timeSlotsData := []map[string]interface{}{}
 		dateTimeSlots := timeSlotsPerDate[tanggalStr]
-		
+
 		// Check each time slot
 		for _, slot := range TimeSlots {
 			var slotData *TimeSlotCount
 			if dateTimeSlots != nil {
 				slotData = dateTimeSlots[slot]
 			}
-			
+
 			if slotData == nil {
 				slotData = &TimeSlotCount{}
 			}
-			
+
 			// Determine availability
 			// KUA: maksimal 1 per jam (Draft + Disetujui dihitung)
 			// Luar KUA: maksimal 3 total per jam (Draft + Disetujui dihitung)
@@ -1108,62 +1228,78 @@ func (h *InDB) GetCalendarAvailability(c *gin.Context) {
 			// - Jika belum ada di KUA, maka slot luar KUA = 3 (total 3)
 			const maxTotalPerHour = 3
 			const maxKUAPerHour = 1
-			
-			// Total di KUA (Draft + Disetujui)
-			totalKUA := slotData.KUA
-			tersediaKUA := totalKUA < maxKUAPerHour && !tanggalTime.Before(now.Truncate(24 * time.Hour))
-			
-			// Logika untuk luar KUA sesuai dengan CreateRegistration
+
 			// Total semua (Draft + Disetujui) di KUA dan luar KUA
 			totalAll := slotData.KUA + slotData.LuarKUA
-			var maxLuarKUAPerHour int
-			if totalKUA >= 1 {
-				// Sudah ada 1 di KUA, maka slot luar KUA maksimal 2
-				maxLuarKUAPerHour = 2
-			} else {
-				// Belum ada di KUA, maka slot luar KUA maksimal 3
-				maxLuarKUAPerHour = 3
+			totalKUA := slotData.KUA
+
+			// KUA tidak tersedia jika:
+			// 1. Sudah ada 1 nikah di KUA (slot KUA penuh)
+			// 2. Total sudah 3 (semua penghulu terpakai, termasuk jika 3 di luar KUA)
+			// 3. Tanggal sudah lewat
+			// 4. Hari libur
+			tersediaKUA := totalKUA < maxKUAPerHour &&
+				totalAll < maxTotalPerHour &&
+				!tanggalTime.Before(now.Truncate(24*time.Hour)) &&
+				tersediaKUAHariIni
+
+			// Logika untuk luar KUA
+			// Luar KUA tidak tersedia jika total sudah 3 (semua penghulu terpakai)
+			tersediaLuarKUA := totalAll < maxTotalPerHour &&
+				!tanggalTime.Before(now.Truncate(24*time.Hour)) &&
+				tersediaLuarKUAHariIni
+
+			// Hitung slot tersisa
+			slotKUATersisa := 0
+			if tersediaKUA {
+				slotKUATersisa = 1
 			}
-			
-			// Total di luar KUA (Draft + Disetujui)
-			totalLuarKUA := slotData.LuarKUA
-			tersediaLuarKUA := totalAll < maxTotalPerHour && 
-				totalLuarKUA < maxLuarKUAPerHour && 
-				!tanggalTime.Before(now.Truncate(24 * time.Hour))
-			
+			slotLuarKUATersisa := maxTotalPerHour - totalAll
+			if slotLuarKUATersisa < 0 {
+				slotLuarKUATersisa = 0
+			}
+
 			timeSlotsData = append(timeSlotsData, map[string]interface{}{
 				"waktu": slot,
 				"kua": gin.H{
 					"tersedia":         tersediaKUA,
-					"terbooking":       totalKUA >= maxKUAPerHour,
+					"terbooking":       totalKUA >= maxKUAPerHour || totalAll >= maxTotalPerHour,
 					"jumlah_total":     slotData.KUA,
 					"jumlah_draft":     slotData.DraftKUA,
 					"jumlah_disetujui": slotData.DisetujuiKUA,
+					"slot_tersisa":     slotKUATersisa,
 				},
 				"luar_kua": gin.H{
 					"tersedia":         tersediaLuarKUA,
-					"terbooking":       totalAll >= maxTotalPerHour || totalLuarKUA >= maxLuarKUAPerHour,
+					"terbooking":       totalAll >= maxTotalPerHour,
 					"jumlah_total":     slotData.LuarKUA,
 					"jumlah_draft":     slotData.DraftLuarKUA,
 					"jumlah_disetujui": slotData.DisetujuiLuarKUA,
+					"slot_tersisa":     slotLuarKUATersisa,
 				},
+				"total_pernikahan": totalAll,
+				"slot_tersisa":     maxTotalPerHour - totalAll,
 			})
 		}
 
 		calendar = append(calendar, map[string]interface{}{
-			"tanggal":          tanggal,
-			"tanggal_str":      tanggalStr,
-			"hari":             tanggalTime.Weekday().String(),
+			"tanggal":           tanggal,
+			"tanggal_str":       tanggalStr,
+			"hari":              tanggalTime.Weekday().String(),
 			"status":            status,
-			"tersedia":         tersedia,
-			"jumlah_nikah":     jumlahNikah,              // Total (Draft + Disetujui) di KUA
-			"jumlah_draft":      jumlahDraft,              // Kuning - belum pasti (di KUA)
-			"jumlah_disetujui":  jumlahDisetujui,          // Hijau - sudah pasti (di KUA)
-			"sisa_kuota":       sisaKuota,                 // Berdasarkan yang sudah pasti (di KUA)
-			"kapasitas":        MaxWeddingsPerDay,
-			"is_today":         tanggalStr == now.Format("2006-01-02"),
-			"is_past":          tanggalTime.Before(now.Truncate(24 * time.Hour)),
-			"time_slots":       timeSlotsData,             // Detail jam-jam tersedia
+			"tersedia":          tersedia,
+			"tersedia_kua":      tersediaKUAHariIni,
+			"tersedia_luar_kua": tersediaLuarKUAHariIni,
+			"is_hari_libur":     isLibur,
+			"nama_hari_libur":   namaLibur,
+			"jumlah_nikah":      jumlahNikah,     // Total (Draft + Disetujui) di KUA
+			"jumlah_draft":      jumlahDraft,     // Kuning - belum pasti (di KUA)
+			"jumlah_disetujui":  jumlahDisetujui, // Hijau - sudah pasti (di KUA)
+			"sisa_kuota":        sisaKuota,       // Berdasarkan yang sudah pasti (di KUA)
+			"kapasitas":         MaxWeddingsPerDay,
+			"is_today":          tanggalStr == now.Format("2006-01-02"),
+			"is_past":           tanggalTime.Before(now.Truncate(24 * time.Hour)),
+			"time_slots":        timeSlotsData, // Detail jam-jam tersedia
 		})
 	}
 
@@ -1216,6 +1352,9 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 		return
 	}
 
+	// Cek apakah hari libur
+	isLibur, namaLibur := IsHariLibur(tanggal)
+
 	// Query registrations on this date (only for KUA weddings, excluding rejected)
 	// Include Draft (kuning - belum pasti) dan Disetujui (hijau - sudah pasti)
 	// Calculate start and end of day
@@ -1237,10 +1376,10 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 	}
 
 	// Count registrations per time slot, separate Draft and Disetujui
-	registrationsPerTimeSlot := make(map[string]int)    // Total (Draft + Disetujui)
-	draftPerTimeSlot := make(map[string]int)            // Draft only (kuning - belum pasti)
-	disetujuiPerTimeSlot := make(map[string]int)        // Disetujui only (hijau - sudah pasti)
-	
+	registrationsPerTimeSlot := make(map[string]int) // Total (Draft + Disetujui)
+	draftPerTimeSlot := make(map[string]int)         // Draft only (kuning - belum pasti)
+	disetujuiPerTimeSlot := make(map[string]int)     // Disetujui only (hijau - sudah pasti)
+
 	for _, p := range pendaftaran {
 		// Normalize time format (ensure HH:MM format)
 		waktu := p.Waktu_nikah
@@ -1248,7 +1387,7 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 			waktu = waktu[:5] // Take only HH:MM part
 		}
 		registrationsPerTimeSlot[waktu]++
-		
+
 		if p.Status_pendaftaran == structs.StatusPendaftaranDraft {
 			draftPerTimeSlot[waktu]++
 		} else if p.Status_pendaftaran == structs.StatusPendaftaranDisetujui {
@@ -1258,7 +1397,7 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 
 	// Build available time slots
 	availableSlots := []map[string]interface{}{}
-	totalBooked := 0      // Hanya yang sudah pasti (Disetujui)
+	totalBooked := 0 // Hanya yang sudah pasti (Disetujui)
 	totalAvailable := 0
 
 	// Get today's date for comparison (truncated to start of day)
@@ -1267,9 +1406,9 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 
 	for _, slot := range TimeSlots {
 		jumlahTotal := registrationsPerTimeSlot[slot]
-		jumlahDraft := draftPerTimeSlot[slot]           // Kuning - belum pasti
-		jumlahDisetujui := disetujuiPerTimeSlot[slot]    // Hijau - sudah pasti
-		
+		jumlahDraft := draftPerTimeSlot[slot]         // Kuning - belum pasti
+		jumlahDisetujui := disetujuiPerTimeSlot[slot] // Hijau - sudah pasti
+
 		// Slot dianggap terbooking jika ada Draft atau Disetujui (Draft juga dihitung dalam kuota)
 		isBooked := jumlahTotal > 0
 		// Use time comparison instead of string comparison for accuracy
@@ -1285,9 +1424,9 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 			"waktu":            slot,
 			"tersedia":         isAvailable,
 			"terbooking":       isBooked,
-			"jumlah_nikah":      jumlahTotal,              // Total (Draft + Disetujui)
-			"jumlah_draft":      jumlahDraft,              // Kuning - belum pasti
-			"jumlah_disetujui":  jumlahDisetujui,          // Hijau - sudah pasti
+			"jumlah_nikah":     jumlahTotal,     // Total (Draft + Disetujui)
+			"jumlah_draft":     jumlahDraft,     // Kuning - belum pasti
+			"jumlah_disetujui": jumlahDisetujui, // Hijau - sudah pasti
 		})
 	}
 
@@ -1296,8 +1435,18 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 	sisaKuota := totalCapacity - totalBooked
 
 	var status string
-	if totalBooked >= totalCapacity {
+	var tersediaKUA bool = true
+	var tersediaLuarKUA bool = true
+
+	if isLibur {
+		// Hari libur: KUA tutup, luar KUA tetap tersedia
+		status = "Hari Libur (Luar KUA Tersedia)"
+		tersediaKUA = false
+		tersediaLuarKUA = true
+	} else if totalBooked >= totalCapacity {
 		status = "Penuh"
+		tersediaKUA = false
+		tersediaLuarKUA = false
 	} else if totalBooked > 0 {
 		status = "Sebagian Tersedia"
 	} else {
@@ -1308,14 +1457,18 @@ func (h *InDB) GetAvailableTimeSlots(c *gin.Context) {
 		"success": true,
 		"message": "Ketersediaan jam berhasil diambil",
 		"data": gin.H{
-			"tanggal":      tanggalStr,
-			"hari":         tanggal.Weekday().String(),
-			"status":       status,
+			"tanggal":           tanggalStr,
+			"hari":              tanggal.Weekday().String(),
+			"status":            status,
+			"is_hari_libur":     isLibur,
+			"nama_hari_libur":   namaLibur,
+			"tersedia_kua":      tersediaKUA,
+			"tersedia_luar_kua": tersediaLuarKUA,
 			"summary": gin.H{
-				"total_slot":     totalCapacity,
-				"terbooking":     totalBooked,
-				"tersedia":       totalAvailable,
-				"sisa_kuota":     sisaKuota,
+				"total_slot": totalCapacity,
+				"terbooking": totalBooked,
+				"tersedia":   totalAvailable,
+				"sisa_kuota": sisaKuota,
 			},
 			"time_slots": availableSlots,
 			"registrations_today": gin.H{
@@ -1358,9 +1511,9 @@ func (h *InDB) GetWeddingsByDate(c *gin.Context) {
 	// Query registrations on this date with join to get calon suami, istri, and penghulu names
 	type WeddingWithNames struct {
 		structs.PendaftaranNikah
-		CalonSuamiNama  string `gorm:"column:calon_suami_nama"`
-		CalonIstriNama  string `gorm:"column:calon_istri_nama"`
-		PenghuluNama    string `gorm:"column:penghulu_nama"`
+		CalonSuamiNama string `gorm:"column:calon_suami_nama"`
+		CalonIstriNama string `gorm:"column:calon_istri_nama"`
+		PenghuluNama   string `gorm:"column:penghulu_nama"`
 	}
 
 	var results []WeddingWithNames
@@ -1433,9 +1586,9 @@ func (h *InDB) GetWeddingsByDate(c *gin.Context) {
 			"hari":           tanggal.Weekday().String(),
 			"tanggal_format": tanggal.Format("02 Januari 2006"),
 			"summary": gin.H{
-				"total_nikah":      len(weddings),
-				"nikah_di_kua":     nikahDiKUA,
-				"nikah_di_luar":    nikahDiLuar,
+				"total_nikah":   len(weddings),
+				"nikah_di_kua":  nikahDiKUA,
+				"nikah_di_luar": nikahDiLuar,
 			},
 			"pernikahan": weddings,
 		},
@@ -1570,13 +1723,13 @@ func (h *InDB) CreateFeedbackPernikahan(c *gin.Context) {
 		"success": true,
 		"message": "Feedback berhasil dikirim",
 		"data": gin.H{
-			"id":              feedback.ID,
-			"pendaftaran_id":  feedback.Pendaftaran_id,
-			"jenis_feedback":  feedback.Jenis_feedback,
-			"rating":          feedback.Rating,
-			"judul":           feedback.Judul,
-			"status_baca":     feedback.Status_baca,
-			"created_at":      feedback.Created_at,
+			"id":             feedback.ID,
+			"pendaftaran_id": feedback.Pendaftaran_id,
+			"jenis_feedback": feedback.Jenis_feedback,
+			"rating":         feedback.Rating,
+			"judul":          feedback.Judul,
+			"status_baca":    feedback.Status_baca,
+			"created_at":     feedback.Created_at,
 		},
 	})
 }
