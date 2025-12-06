@@ -127,6 +127,7 @@ func main() {
 	r.POST("/register", middleware.StrictRateLimiter(), authHandler.Register)
 	r.POST("/login", middleware.StrictRateLimiter(), authHandler.Login)
 	r.GET("/profile", middleware.AuthMiddleware(), authHandler.GetProfile)
+	r.POST("/upload-photo", middleware.AuthMiddleware(), authHandler.UploadProfilePhoto)
 
 	// SimNikah Routes
 	simnikahRoutes := r.Group("/simnikah")

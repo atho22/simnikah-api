@@ -2,11 +2,13 @@ package auth
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
 	structs "simnikah/internal/models"
 	"simnikah/pkg/crypto"
+	"simnikah/pkg/storage"
 	"simnikah/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -259,12 +261,121 @@ func (h *InDB) GetProfile(c *gin.Context) {
 		"success": true,
 		"message": "Profile berhasil diambil",
 		"data": gin.H{
-			"user_id":  user.User_id,
-			"username": user.Username,
-			"email":    user.Email,
-			"role":     user.Role,
-			"nama":     user.Nama,
-			"status":   user.Status,
+			"user_id":       user.User_id,
+			"username":      user.Username,
+			"email":         user.Email,
+			"role":          user.Role,
+			"nama":          user.Nama,
+			"status":        user.Status,
+			"profile_photo": user.Profile_photo,
+		},
+	})
+}
+
+// ==================== UPLOAD PROFILE PHOTO ====================
+
+// UploadProfilePhoto handles profile photo upload
+func (h *InDB) UploadProfilePhoto(c *gin.Context) {
+	// Get user_id from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized",
+			"error":   "User ID tidak ditemukan",
+		})
+		return
+	}
+
+	// Get file from request
+	file, err := c.FormFile("photo")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "File tidak ditemukan",
+			"error":   "Pastikan field 'photo' ada dalam form",
+		})
+		return
+	}
+
+	// Validate file size (max 5MB)
+	const maxFileSize = 5 * 1024 * 1024 // 5MB
+	if file.Size > maxFileSize {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Ukuran file terlalu besar",
+			"error":   "Maksimal 5MB",
+		})
+		return
+	}
+
+	// Validate file type
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/jpg":  true,
+		"image/webp": true,
+	}
+	if !allowedTypes[file.Header.Get("Content-Type")] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Tipe file tidak didukung",
+			"error":   "Gunakan JPG, PNG, atau WebP",
+		})
+		return
+	}
+
+	// Open file
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Gagal membaca file",
+			"error":   err.Error(),
+		})
+		return
+	}
+	defer src.Close()
+
+	// Upload to ImgBB
+	photoURL, err := storage.UploadFileFromMultipart(src, file.Filename)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal upload foto",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Update user profile photo in database
+	user := structs.Users{}
+	if err := h.DB.Where("user_id = ?", userID.(string)).First(&user).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "User tidak ditemukan",
+			"error":   "User dengan ID tersebut tidak ditemukan",
+		})
+		return
+	}
+
+	// Save new photo URL
+	if err := h.DB.Model(&user).Update("profile_photo", photoURL).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal menyimpan foto ke database",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Foto profil berhasil diupload",
+		"data": gin.H{
+			"profile_photo": photoURL,
+			"user_id":       user.User_id,
+			"username":      user.Username,
 		},
 	})
 }

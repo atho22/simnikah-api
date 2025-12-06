@@ -78,16 +78,17 @@ type PendaftaranNikah struct {
 
 // Users untuk user authentication dan role management
 type Users struct {
-	ID         uint      `gorm:"primaryKey" json:"id"`
-	User_id    string    `gorm:"size:20;not null;unique" json:"id_pengguna"`
-	Username   string    `gorm:"size:50;not null;unique" json:"nama_pengguna"`
-	Email      string    `gorm:"size:100;not null;unique" json:"email"`
-	Password   string    `gorm:"size:255;not null" json:"kata_sandi"`            // hashed with bcrypt
-	Role       string    `gorm:"size:20;not null" json:"peran"`                  // user_biasa, penghulu, staff, kepala_kua
-	Status     string    `gorm:"size:20;not null;default:'Aktif'" json:"status"` // Use constants from constants.go
-	Nama       string    `gorm:"size:100;not null" json:"nama"`                  // Nama lengkap user
-	Created_at time.Time `gorm:"autoCreateTime" json:"dibuat_pada"`
-	Updated_at time.Time `gorm:"autoUpdateTime" json:"diperbarui_pada"`
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	User_id         string    `gorm:"size:20;not null;unique" json:"id_pengguna"`
+	Username        string    `gorm:"size:50;not null;unique" json:"nama_pengguna"`
+	Email           string    `gorm:"size:100;not null;unique" json:"email"`
+	Password        string    `gorm:"size:255;not null" json:"kata_sandi"`            // hashed with bcrypt
+	Role            string    `gorm:"size:20;not null" json:"peran"`                  // user_biasa, penghulu, staff, kepala_kua
+	Status          string    `gorm:"size:20;not null;default:'Aktif'" json:"status"` // Use constants from constants.go
+	Nama            string    `gorm:"size:100;not null" json:"nama"`                  // Nama lengkap user
+	Profile_photo   string    `gorm:"size:500" json:"foto_profil"`                    // URL foto profil dari ImgBB
+	Created_at      time.Time `gorm:"autoCreateTime" json:"dibuat_pada"`
+	Updated_at      time.Time `gorm:"autoUpdateTime" json:"diperbarui_pada"`
 }
 
 
