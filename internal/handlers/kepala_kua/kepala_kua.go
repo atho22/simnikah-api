@@ -1642,9 +1642,10 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 		penghuluStr := "-"
 		if p.Penghulu_id != nil {
 			var penghulu structs.Penghulu
-			h.DB.Where("id = ?", *p.Penghulu_id).First(&penghulu)
-			if penghulu.ID != 0 {
-				penghuluStr = penghulu.Nama_lengkap
+			if err := h.DB.Where("id = ?", *p.Penghulu_id).First(&penghulu).Error; err == nil {
+				if penghulu.ID != 0 && penghulu.Nama_lengkap != "" {
+					penghuluStr = penghulu.Nama_lengkap
+				}
 			}
 		}
 
