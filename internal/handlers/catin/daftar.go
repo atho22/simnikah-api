@@ -1061,6 +1061,183 @@ func (h *InDB) ListRegistrations(c *gin.Context) {
 	})
 }
 
+// GetRegistrationDetail gets detailed information of a specific registration by ID
+// GET /simnikah/pendaftaran/:id
+func (h *InDB) GetRegistrationDetail(c *gin.Context) {
+	registrationID := c.Param("id")
+
+	// Get user_id and role from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized",
+			"error":   "User ID tidak ditemukan",
+			"type":    "authentication",
+		})
+		return
+	}
+
+	userRole, roleExists := c.Get("role")
+	if !roleExists {
+		// Try to get from user data
+		var user structs.Users
+		if err := h.DB.Where("user_id = ?", userID.(string)).First(&user).Error; err == nil {
+			userRole = user.Role
+		} else {
+			userRole = ""
+		}
+	}
+
+	// Get registration
+	var pendaftaran structs.PendaftaranNikah
+	if err := h.DB.Where("id = ?", registrationID).First(&pendaftaran).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"message": "Pendaftaran tidak ditemukan",
+				"error":   "Pendaftaran dengan ID tersebut tidak ditemukan",
+				"type":    "not_found",
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Database error",
+				"error":   "Gagal mengambil data pendaftaran",
+				"type":    "database",
+			})
+		}
+		return
+	}
+
+	// Authorization check: user_biasa hanya bisa lihat pendaftaran miliknya sendiri
+	if userRole == "user_biasa" {
+		if pendaftaran.Pendaftar_id != userID.(string) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "Akses ditolak",
+				"error":   "Anda tidak memiliki akses untuk melihat pendaftaran ini",
+				"type":    "authorization",
+			})
+			return
+		}
+	}
+	// Staff, penghulu, dan kepala_kua bisa melihat semua pendaftaran
+
+	// Build detailed registration response
+	registrationData := gin.H{
+		"id":                 pendaftaran.ID,
+		"nomor_pendaftaran":  pendaftaran.Nomor_pendaftaran,
+		"pendaftar_id":       pendaftaran.Pendaftar_id,
+		"status_pendaftaran": pendaftaran.Status_pendaftaran,
+		"tanggal_pendaftaran": pendaftaran.Tanggal_pendaftaran,
+		"tanggal_nikah":      pendaftaran.Tanggal_nikah,
+		"waktu_nikah":        pendaftaran.Waktu_nikah,
+		"tempat_nikah":       pendaftaran.Tempat_nikah,
+		"alamat_akad":        pendaftaran.Alamat_akad,
+		"latitude":           pendaftaran.Latitude,
+		"longitude":          pendaftaran.Longitude,
+		"catatan":            pendaftaran.Catatan,
+		"disetujui_oleh":     pendaftaran.Disetujui_oleh,
+		"disetujui_pada":     pendaftaran.Disetujui_pada,
+		"created_at":         pendaftaran.Created_at,
+		"updated_at":         pendaftaran.Updated_at,
+	}
+
+	// Fetch Calon Suami (full details)
+	var calonSuami structs.CalonPasangan
+	if err := h.DB.Where("id = ?", pendaftaran.Calon_suami_id).First(&calonSuami).Error; err == nil {
+		registrationData["calon_suami"] = gin.H{
+			"id":                 calonSuami.ID,
+			"user_id":            calonSuami.User_id,
+			"nik":                calonSuami.NIK,
+			"nama_lengkap":       calonSuami.Nama_lengkap,
+			"tanggal_lahir":      calonSuami.Tanggal_lahir,
+			"jenis_kelamin":      calonSuami.Jenis_kelamin,
+			"pendidikan_terakhir": calonSuami.Pendidikan_terakhir,
+			"created_at":         calonSuami.Created_at,
+			"updated_at":         calonSuami.Updated_at,
+		}
+	}
+
+	// Fetch Calon Istri (full details)
+	var calonIstri structs.CalonPasangan
+	if err := h.DB.Where("id = ?", pendaftaran.Calon_istri_id).First(&calonIstri).Error; err == nil {
+		registrationData["calon_istri"] = gin.H{
+			"id":                 calonIstri.ID,
+			"user_id":            calonIstri.User_id,
+			"nik":                calonIstri.NIK,
+			"nama_lengkap":       calonIstri.Nama_lengkap,
+			"tanggal_lahir":      calonIstri.Tanggal_lahir,
+			"jenis_kelamin":      calonIstri.Jenis_kelamin,
+			"pendidikan_terakhir": calonIstri.Pendidikan_terakhir,
+			"created_at":         calonIstri.Created_at,
+			"updated_at":         calonIstri.Updated_at,
+		}
+	}
+
+	// Fetch Wali Nikah
+	if pendaftaran.Wali_nikah_id != nil {
+		var waliNikah structs.WaliNikah
+		if err := h.DB.Where("id = ?", *pendaftaran.Wali_nikah_id).First(&waliNikah).Error; err == nil {
+			registrationData["wali_nikah"] = gin.H{
+				"id":             waliNikah.ID,
+				"nama_dan_bin":   waliNikah.Nama_dan_bin,
+				"hubungan_wali":  waliNikah.Hubungan_wali,
+				"created_at":     waliNikah.Created_at,
+				"updated_at":     waliNikah.Updated_at,
+			}
+		}
+	}
+
+	// Fetch Penghulu info if assigned
+	if pendaftaran.Penghulu_id != nil {
+		var penghulu structs.Penghulu
+		if err := h.DB.Where("id = ?", *pendaftaran.Penghulu_id).First(&penghulu).Error; err == nil {
+			registrationData["penghulu"] = gin.H{
+				"id":                penghulu.ID,
+				"user_id":           penghulu.User_id,
+				"nip":               penghulu.NIP,
+				"nama_lengkap":      penghulu.Nama_lengkap,
+				"no_hp":             penghulu.No_hp,
+				"email":             penghulu.Email,
+				"alamat":            penghulu.Alamat,
+				"status":            penghulu.Status,
+				"ditugaskan_oleh":    pendaftaran.Penghulu_assigned_by,
+				"ditugaskan_pada":    pendaftaran.Penghulu_assigned_at,
+				"created_at":         penghulu.Created_at,
+				"updated_at":         penghulu.Updated_at,
+			}
+		}
+	}
+
+	// Add location URLs if coordinates exist
+	if pendaftaran.Latitude != nil && pendaftaran.Longitude != nil {
+		lat := *pendaftaran.Latitude
+		lon := *pendaftaran.Longitude
+		registrationData["location"] = gin.H{
+			"latitude":                  lat,
+			"longitude":                 lon,
+			"has_coordinates":           true,
+			"google_maps_url":           fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%f,%f", lat, lon),
+			"google_maps_directions_url": fmt.Sprintf("https://www.google.com/maps/dir/?api=1&destination=%f,%f", lat, lon),
+			"waze_url":                  fmt.Sprintf("https://www.waze.com/ul?ll=%f,%f&navigate=yes", lat, lon),
+			"osm_url":                   fmt.Sprintf("https://www.openstreetmap.org/?mlat=%f&mlon=%f&zoom=16", lat, lon),
+		}
+	} else {
+		registrationData["location"] = gin.H{
+			"has_coordinates": false,
+		}
+	}
+
+	// Response
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Detail pendaftaran berhasil diambil",
+		"data":    registrationData,
+	})
+}
+
 // ==================== CALENDAR AVAILABILITY ====================
 
 // GetCalendarAvailability returns available and unavailable dates for a specific month

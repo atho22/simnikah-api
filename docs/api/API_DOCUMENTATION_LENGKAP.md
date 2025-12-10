@@ -384,6 +384,132 @@
 
   ---
 
+  ### 5.5. Get Detail Pendaftaran by ID
+
+  **Endpoint:** `GET /simnikah/pendaftaran/:id`
+
+  **Description:** Mendapatkan detail lengkap pendaftaran nikah berdasarkan ID. Endpoint ini berguna untuk halaman detail pendaftaran di frontend.
+
+  **Auth Required:** ✅ Yes
+
+  **Role Access:**
+  - `user_biasa`: Hanya bisa melihat pendaftaran miliknya sendiri
+  - `staff`, `penghulu`, `kepala_kua`: Bisa melihat semua pendaftaran
+
+  **URL Parameters:**
+  - `id` (required): ID pendaftaran (integer)
+
+  **Example:**
+  ```
+  GET /simnikah/pendaftaran/1
+  ```
+
+  **Response Success (200):**
+  ```json
+  {
+    "success": true,
+    "message": "Detail pendaftaran berhasil diambil",
+    "data": {
+      "id": 1,
+      "nomor_pendaftaran": "NIKAH-20241215-1234",
+      "pendaftar_id": "USR1704067200",
+      "status_pendaftaran": "Penghulu Ditugaskan",
+      "tanggal_pendaftaran": "2024-01-01T10:00:00Z",
+      "tanggal_nikah": "2024-12-15T00:00:00Z",
+      "waktu_nikah": "10:00",
+      "tempat_nikah": "Di Luar KUA",
+      "alamat_akad": "Jl. Ahmad Yani No. 123, Banjarmasin",
+      "latitude": -3.291304,
+      "longitude": 114.588147,
+      "catatan": "Catatan tambahan",
+      "disetujui_oleh": "USR1704067201",
+      "disetujui_pada": "2024-01-02T10:00:00Z",
+      "created_at": "2024-01-01T10:00:00Z",
+      "updated_at": "2024-01-02T10:00:00Z",
+      "calon_suami": {
+        "id": 1,
+        "user_id": "CP1704067200",
+        "nik": "6301010101010001",
+        "nama_lengkap": "Ahmad Wijaya bin Abdullah",
+        "tanggal_lahir": "1999-01-01T00:00:00Z",
+        "jenis_kelamin": "L",
+        "pendidikan_terakhir": "S1",
+        "created_at": "2024-01-01T10:00:00Z",
+        "updated_at": "2024-01-01T10:00:00Z"
+      },
+      "calon_istri": {
+        "id": 2,
+        "user_id": "CP1704067201",
+        "nik": "6301010101010002",
+        "nama_lengkap": "Siti Nurhaliza binti Muhammad",
+        "tanggal_lahir": "2001-01-01T00:00:00Z",
+        "jenis_kelamin": "P",
+        "pendidikan_terakhir": "S1",
+        "created_at": "2024-01-01T10:00:00Z",
+        "updated_at": "2024-01-01T10:00:00Z"
+      },
+      "wali_nikah": {
+        "id": 1,
+        "nama_dan_bin": "Abdullah bin Muhammad",
+        "hubungan_wali": "Ayah Kandung",
+        "created_at": "2024-01-01T10:00:00Z",
+        "updated_at": "2024-01-01T10:00:00Z"
+      },
+      "penghulu": {
+        "id": 1,
+        "user_id": "PEN1704067202",
+        "nip": "198001012003121001",
+        "nama_lengkap": "H. Muhammad Amin",
+        "no_hp": "081234567890",
+        "email": "amin@kua.go.id",
+        "alamat": "Jl. Penghulu No. 123, Banjarmasin",
+        "status": "Aktif",
+        "ditugaskan_oleh": "USR1704067203",
+        "ditugaskan_pada": "2024-12-10T10:00:00Z",
+        "created_at": "2024-01-01T10:00:00Z",
+        "updated_at": "2024-01-01T10:00:00Z"
+      },
+      "location": {
+        "latitude": -3.291304,
+        "longitude": 114.588147,
+        "has_coordinates": true,
+        "google_maps_url": "https://www.google.com/maps/search/?api=1&query=-3.291304,114.588147",
+        "google_maps_directions_url": "https://www.google.com/maps/dir/?api=1&destination=-3.291304,114.588147",
+        "waze_url": "https://www.waze.com/ul?ll=-3.291304,114.588147&navigate=yes",
+        "osm_url": "https://www.openstreetmap.org/?mlat=-3.291304&mlon=114.588147&zoom=16"
+      }
+    }
+  }
+  ```
+
+  **Response Error (404):**
+  ```json
+  {
+    "success": false,
+    "message": "Pendaftaran tidak ditemukan",
+    "error": "Pendaftaran dengan ID tersebut tidak ditemukan",
+    "type": "not_found"
+  }
+  ```
+
+  **Response Error (403) - Akses ditolak (user_biasa mencoba akses pendaftaran orang lain):**
+  ```json
+  {
+    "success": false,
+    "message": "Akses ditolak",
+    "error": "Anda tidak memiliki akses untuk melihat pendaftaran ini",
+    "type": "authorization"
+  }
+  ```
+
+  **Use Cases:**
+  - Halaman detail pendaftaran untuk staff/penghulu/kepala KUA
+  - Verifikasi detail sebelum approve
+  - Menampilkan informasi lengkap untuk penghulu sebelum melaksanakan nikah
+  - User biasa melihat detail pendaftaran miliknya sendiri
+
+  ---
+
   ### 6. List All Registrations
 
   **Endpoint:** `GET /simnikah/pendaftaran`

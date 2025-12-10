@@ -105,6 +105,7 @@ These files exist in the `/docs` folder:
 - **[/docs/API_REQUEST_BODY_DOCUMENTATION.md](/docs/API_REQUEST_BODY_DOCUMENTATION.md)** - Request/response formats
 
 ### Frontend Documentation
+- **[/docs/FRONTEND_DOCUMENTATION_LENGKAP.md](/docs/FRONTEND_DOCUMENTATION_LENGKAP.md)** - 📘 **Dokumentasi Frontend Lengkap (PALING LENGKAP)** - Setup, API client, semua endpoints, contoh code, best practices
 - **[/docs/FRONTEND_IMPLEMENTATION_GUIDE.md](/docs/FRONTEND_IMPLEMENTATION_GUIDE.md)** - Complete frontend guide
 - **[/docs/FRONTEND_DOCUMENTATION.md](/docs/FRONTEND_DOCUMENTATION.md)** - Frontend docs
 - **[/docs/FRONTEND_PRD.md](/docs/FRONTEND_PRD.md)** - Frontend requirements
@@ -159,6 +160,7 @@ These files exist in the `/docs` folder:
 → Configure database & ImgBB API key
 
 **Build the frontend**
+→ [/docs/FRONTEND_DOCUMENTATION_LENGKAP.md](/docs/FRONTEND_DOCUMENTATION_LENGKAP.md) ⭐ **START HERE**
 → [/docs/FRONTEND_IMPLEMENTATION_GUIDE.md](/docs/FRONTEND_IMPLEMENTATION_GUIDE.md)
 → Understand the flow per role
 → Check API endpoints needed

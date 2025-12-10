@@ -134,6 +134,7 @@ func main() {
 	{
 		// ==================== CATIN ROUTES ====================
 		simnikahRoutes.POST("/pendaftaran", middleware.AuthMiddleware(), catinHandler.CreateRegistration)
+		simnikahRoutes.GET("/pendaftaran/:id", middleware.AuthMiddleware(), catinHandler.GetRegistrationDetail)
 		simnikahRoutes.GET("/pendaftaran/status", middleware.AuthMiddleware(), catinHandler.GetUserRegistrationStatus)
 		simnikahRoutes.GET("/pendaftaran", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), catinHandler.ListRegistrations)
 
