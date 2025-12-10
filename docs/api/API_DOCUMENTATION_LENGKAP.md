@@ -1208,6 +1208,266 @@
 
   ---
 
+  ### 15.5. Generate Pengumuman Nikah HTML (Staff)
+
+  **Endpoint:** `GET /simnikah/staff/pengumuman-nikah/generate`  
+  **Endpoint:** `POST /simnikah/staff/pengumuman-nikah/generate`
+
+  **Description:** Generate surat pengumuman nikah dalam format HTML yang siap dicetak atau dikonversi ke PDF. Endpoint ini mengembalikan HTML document lengkap dengan kop surat, tabel data pendaftaran, dan format surat resmi.
+
+  **Auth Required:** ✅ Yes
+
+  **Role Required:** `staff`, `kepala_kua`
+
+  **Query Parameters:**
+  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
+  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
+
+  **Request Body (Optional - untuk custom kop surat):**
+  ```json
+  {
+    "tanggal_awal": "2024-12-16",
+    "tanggal_akhir": "2024-12-22",
+    "nama_kua": "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA",
+    "alamat_kua": "PH5Q+F8C, Jl. Wira Karya, Pangeran",
+    "kota": "Kota Banjarmasin",
+    "provinsi": "Kalimantan Selatan",
+    "kode_pos": "70123",
+    "telepon": "0511-1234567",
+    "email": "kua.banjarmasinutara@kemenag.go.id",
+    "website": "https://kua.banjarmasinutara.go.id",
+    "logo_url": "https://example.com/logo-kua.png"
+  }
+  ```
+
+  **Request Body Fields:**
+
+  | Field | Type | Required | Default | Deskripsi |
+  |-------|------|----------|---------|-----------|
+  | `tanggal_awal` | string (YYYY-MM-DD) | ❌ No | Awal minggu ini | Tanggal awal periode (fallback jika query param tidak ada) |
+  | `tanggal_akhir` | string (YYYY-MM-DD) | ❌ No | Akhir minggu ini | Tanggal akhir periode (fallback jika query param tidak ada) |
+  | `nama_kua` | string | ❌ No | "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA" | Nama KUA |
+  | `alamat_kua` | string | ❌ No | "PH5Q+F8C, Jl. Wira Karya, Pangeran" | Alamat KUA |
+  | `kota` | string | ❌ No | "Kota Banjarmasin" | Kota |
+  | `provinsi` | string | ❌ No | "Kalimantan Selatan" | Provinsi |
+  | `kode_pos` | string | ❌ No | "70123" | Kode pos |
+  | `telepon` | string | ❌ No | "-" | Nomor telepon |
+  | `email` | string | ❌ No | "-" | Email |
+  | `website` | string | ❌ No | "" | Website (opsional) |
+  | `logo_url` | string | ❌ No | "" | URL logo KUA (opsional, harus accessible) |
+
+  **Note:** 
+  - Query parameters memiliki prioritas lebih tinggi daripada request body
+  - Jika query parameters tidak ada, akan membaca dari request body
+  - Jika keduanya tidak ada, akan menggunakan default (minggu ini)
+  - Logo URL harus accessible (public URL) dan disarankan menggunakan HTTPS
+  - Semua field kop surat bersifat opsional, akan menggunakan default jika tidak diisi
+
+  **Examples:**
+
+  **1. Generate dengan default kop surat (GET):**
+  ```
+  GET /simnikah/staff/pengumuman-nikah/generate?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  Authorization: Bearer YOUR_TOKEN
+  ```
+
+  **2. Generate dengan custom kop surat (POST):**
+  ```
+  POST /simnikah/staff/pengumuman-nikah/generate?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  Authorization: Bearer YOUR_TOKEN
+  Content-Type: application/json
+
+  {
+    "nama_kua": "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA",
+    "alamat_kua": "Jl. Contoh No. 123",
+    "kota": "Kota Banjarmasin",
+    "provinsi": "Kalimantan Selatan",
+    "kode_pos": "70123",
+    "telepon": "0511-1234567",
+    "email": "kua@example.com",
+    "website": "https://kua.example.com",
+    "logo_url": "https://example.com/logo.png"
+  }
+  ```
+
+  **Response Success (200):**
+
+  **Content-Type:** `text/html; charset=utf-8`
+
+  Response berupa **HTML document lengkap** yang siap dicetak atau dikonversi ke PDF.
+
+  **Response Headers:**
+  ```
+  Content-Type: text/html; charset=utf-8
+  Content-Length: <ukuran file>
+  ```
+
+  **Response Body:** HTML document lengkap dengan struktur:
+
+  1. **Kop Surat KUA:**
+     - Logo (jika `logo_url` disediakan)
+     - Nama KUA
+     - Alamat lengkap
+     - Kontak (telepon, email, website)
+
+  2. **Judul:** "PENGUMUMAN PERNIKAHAN"
+
+  3. **Periode:** Format "DD Bulan YYYY s/d DD Bulan YYYY"
+
+  4. **Paragraf Pembuka:** Penjelasan tentang pengumuman
+
+  5. **Tabel Data Pendaftaran** dengan kolom:
+     - No
+     - Nomor Pendaftaran
+     - Tanggal Nikah
+     - Waktu
+     - Tempat
+     - Alamat Akad
+     - Calon Suami
+     - Calon Istri
+     - Wali Nikah
+
+  6. **Paragraf Penutup:** Penjelasan tentang keberatan
+
+  7. **Tanda Tangan:** Kepala KUA dengan tempat dan tanggal
+
+  8. **Footer:** Tanggal cetak
+
+  **Catatan Penting:**
+  - HTML sudah include CSS untuk print optimization (`@media print`)
+  - Format A4 dengan margin yang sesuai
+  - Font: Times New Roman (serif)
+  - Tabel dengan border untuk kejelasan
+  - Siap untuk dicetak langsung atau dikonversi ke PDF
+  - **Status yang ditampilkan:** Semua status kecuali "Ditolak" (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai)
+
+  **Response Error:**
+
+  **400 Bad Request:**
+  ```json
+  {
+    "success": false,
+    "message": "Format tanggal tidak valid",
+    "error": "Format tanggal_awal harus YYYY-MM-DD"
+  }
+  ```
+
+  **401 Unauthorized:**
+  ```json
+  {
+    "success": false,
+    "message": "Unauthorized",
+    "error": "Token tidak valid atau tidak ada"
+  }
+  ```
+
+  **403 Forbidden:**
+  ```json
+  {
+    "success": false,
+    "message": "Forbidden",
+    "error": "Role tidak memiliki akses"
+  }
+  ```
+
+  **500 Internal Server Error:**
+  ```json
+  {
+    "success": false,
+    "message": "Database error",
+    "error": "Gagal mengambil data pendaftaran"
+  }
+  ```
+
+  **Contoh Implementasi Frontend (JavaScript/React):**
+
+  ```javascript
+  // Menggunakan Axios
+  import axios from 'axios';
+
+  const generatePengumumanHTML = async (tanggalAwal, tanggalAkhir, kopSurat = null) => {
+    const token = localStorage.getItem('token');
+    
+    const config = {
+      method: kopSurat ? 'post' : 'get',
+      url: `${API_BASE_URL}/staff/pengumuman-nikah/generate`,
+      params: {
+        tanggal_awal: tanggalAwal,
+        tanggal_akhir: tanggalAkhir
+      },
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      responseType: 'text' // PENTING: untuk mendapatkan HTML sebagai string
+    };
+
+    if (kopSurat) {
+      config.data = {
+        tanggal_awal: tanggalAwal,
+        tanggal_akhir: tanggalAkhir,
+        ...kopSurat
+      };
+    }
+
+    try {
+      const response = await axios(config);
+      return response.data; // HTML string
+    } catch (error) {
+      console.error('Error generating pengumuman:', error);
+      throw error;
+    }
+  };
+
+  // Menggunakan response HTML
+  const handlePrint = async () => {
+    try {
+      const html = await generatePengumumanHTML('2024-12-16', '2024-12-22');
+      
+      // Buka di window baru untuk print
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.print();
+      
+      // Atau tampilkan di iframe
+      // const iframe = document.createElement('iframe');
+      // document.body.appendChild(iframe);
+      // iframe.contentDocument.write(html);
+      // iframe.contentDocument.close();
+      // iframe.contentWindow.print();
+    } catch (error) {
+      alert('Gagal generate pengumuman');
+    }
+  };
+
+  // Atau konversi ke PDF menggunakan library seperti jsPDF atau html2pdf
+  import html2pdf from 'html2pdf.js';
+
+  const handleExportPDF = async () => {
+    try {
+      const html = await generatePengumumanHTML('2024-12-16', '2024-12-22');
+      
+      const element = document.createElement('div');
+      element.innerHTML = html;
+      
+      const opt = {
+        margin: 1,
+        filename: 'pengumuman-nikah.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      
+      await html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      alert('Gagal export PDF');
+    }
+  };
+  ```
+
+  ---
+
   ## 👨‍⚖️ Penghulu Endpoints
 
   ### 17. List Marriage Officers
@@ -1624,6 +1884,116 @@
   - Frontend dapat menampilkan badge status untuk setiap pendaftaran (Draft = kuning, Disetujui = hijau, dll)
   - Surat dapat dicetak atau dikonversi ke PDF di frontend
   - Surat dicetak dan dipasang di papan pengumuman KUA
+
+  ---
+
+  ### 26.5. Generate Pengumuman Nikah HTML (Kepala KUA)
+
+  **Endpoint:** `GET /simnikah/kepala-kua/pengumuman-nikah/generate`  
+  **Endpoint:** `POST /simnikah/kepala-kua/pengumuman-nikah/generate`
+
+  **Description:** Generate surat pengumuman nikah dalam format HTML yang siap dicetak atau dikonversi ke PDF. Endpoint ini mengembalikan HTML document lengkap dengan kop surat, tabel data pendaftaran, dan format surat resmi.
+
+  **Auth Required:** ✅ Yes
+
+  **Role Required:** `kepala_kua`
+
+  **Query Parameters:**
+  - `tanggal_awal` (optional): Tanggal awal periode (format: YYYY-MM-DD). Default: awal minggu ini (Senin)
+  - `tanggal_akhir` (optional): Tanggal akhir periode (format: YYYY-MM-DD). Default: akhir minggu ini (Minggu)
+
+  **Request Body (Optional - untuk custom kop surat):**
+  ```json
+  {
+    "tanggal_awal": "2024-12-16",
+    "tanggal_akhir": "2024-12-22",
+    "nama_kua": "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA",
+    "alamat_kua": "PH5Q+F8C, Jl. Wira Karya, Pangeran",
+    "kota": "Kota Banjarmasin",
+    "provinsi": "Kalimantan Selatan",
+    "kode_pos": "70123",
+    "telepon": "0511-1234567",
+    "email": "kua.banjarmasinutara@kemenag.go.id",
+    "website": "https://kua.banjarmasinutara.go.id",
+    "logo_url": "https://example.com/logo-kua.png"
+  }
+  ```
+
+  **Request Body Fields:**
+
+  | Field | Type | Required | Default | Deskripsi |
+  |-------|------|----------|---------|-----------|
+  | `tanggal_awal` | string (YYYY-MM-DD) | ❌ No | Awal minggu ini | Tanggal awal periode (fallback jika query param tidak ada) |
+  | `tanggal_akhir` | string (YYYY-MM-DD) | ❌ No | Akhir minggu ini | Tanggal akhir periode (fallback jika query param tidak ada) |
+  | `nama_kua` | string | ❌ No | "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA" | Nama KUA |
+  | `alamat_kua` | string | ❌ No | "PH5Q+F8C, Jl. Wira Karya, Pangeran" | Alamat KUA |
+  | `kota` | string | ❌ No | "Kota Banjarmasin" | Kota |
+  | `provinsi` | string | ❌ No | "Kalimantan Selatan" | Provinsi |
+  | `kode_pos` | string | ❌ No | "70123" | Kode pos |
+  | `telepon` | string | ❌ No | "-" | Nomor telepon |
+  | `email` | string | ❌ No | "-" | Email |
+  | `website` | string | ❌ No | "" | Website (opsional) |
+  | `logo_url` | string | ❌ No | "" | URL logo KUA (opsional, harus accessible) |
+
+  **Note:** 
+  - Query parameters memiliki prioritas lebih tinggi daripada request body
+  - Jika query parameters tidak ada, akan membaca dari request body
+  - Jika keduanya tidak ada, akan menggunakan default (minggu ini)
+  - Logo URL harus accessible (public URL) dan disarankan menggunakan HTTPS
+  - Semua field kop surat bersifat opsional, akan menggunakan default jika tidak diisi
+
+  **Examples:**
+
+  **1. Generate dengan default kop surat (GET):**
+  ```
+  GET /simnikah/kepala-kua/pengumuman-nikah/generate?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  Authorization: Bearer YOUR_TOKEN
+  ```
+
+  **2. Generate dengan custom kop surat (POST):**
+  ```
+  POST /simnikah/kepala-kua/pengumuman-nikah/generate?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22
+  Authorization: Bearer YOUR_TOKEN
+  Content-Type: application/json
+
+  {
+    "nama_kua": "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA",
+    "alamat_kua": "Jl. Contoh No. 123",
+    "kota": "Kota Banjarmasin",
+    "provinsi": "Kalimantan Selatan",
+    "kode_pos": "70123",
+    "telepon": "0511-1234567",
+    "email": "kua@example.com",
+    "website": "https://kua.example.com",
+    "logo_url": "https://example.com/logo.png"
+  }
+  ```
+
+  **Response Success (200):**
+
+  **Content-Type:** `text/html; charset=utf-8`
+
+  Response berupa **HTML document lengkap** yang siap dicetak atau dikonversi ke PDF.
+
+  **Response Headers:**
+  ```
+  Content-Type: text/html; charset=utf-8
+  Content-Length: <ukuran file>
+  ```
+
+  **Response Body:** HTML document lengkap dengan struktur yang sama seperti endpoint Staff (lihat dokumentasi endpoint 15.5).
+
+  **Catatan Penting:**
+  - HTML sudah include CSS untuk print optimization (`@media print`)
+  - Format A4 dengan margin yang sesuai
+  - Font: Times New Roman (serif)
+  - Tabel dengan border untuk kejelasan
+  - Siap untuk dicetak langsung atau dikonversi ke PDF
+  - **Status yang ditampilkan:** Semua status kecuali "Ditolak" (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai)
+
+  **Response Error:** Sama seperti endpoint Staff (lihat dokumentasi endpoint 15.5).
+
+  **Contoh Implementasi Frontend:** Sama seperti endpoint Staff (lihat dokumentasi endpoint 15.5).
 
   ---
 

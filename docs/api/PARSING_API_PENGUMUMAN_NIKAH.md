@@ -166,8 +166,13 @@ Authorization: Bearer YOUR_TOKEN
 
 ```
 GET /simnikah/staff/pengumuman-nikah/generate
+POST /simnikah/staff/pengumuman-nikah/generate
 GET /simnikah/kepala-kua/pengumuman-nikah/generate
+POST /simnikah/kepala-kua/pengumuman-nikah/generate
 ```
+
+**Deskripsi:**  
+Endpoint ini mengembalikan **HTML document lengkap** yang siap dicetak atau dikonversi ke PDF. Backend akan generate HTML dengan format surat resmi termasuk kop surat, tabel data pendaftaran, dan tanda tangan.
 
 ### Query Parameters
 
@@ -176,12 +181,19 @@ GET /simnikah/kepala-kua/pengumuman-nikah/generate
 | `tanggal_awal` | string (YYYY-MM-DD) | ❌ No | Awal minggu ini (Senin) | Tanggal awal periode |
 | `tanggal_akhir` | string (YYYY-MM-DD) | ❌ No | Akhir minggu ini (Minggu) | Tanggal akhir periode |
 
+**Catatan:** 
+- Query parameters memiliki prioritas lebih tinggi daripada request body
+- Jika query parameters tidak ada, akan membaca dari request body
+- Jika keduanya tidak ada, akan menggunakan default (minggu ini)
+
 ### Request Body (Optional - untuk custom kop surat)
 
-Jika ingin mengkustomisasi kop surat, kirim JSON body dengan method `GET` (atau gunakan `POST` jika lebih sesuai):
+Jika ingin mengkustomisasi kop surat, kirim JSON body dengan method `POST`:
 
 ```json
 {
+  "tanggal_awal": "2024-12-16",
+  "tanggal_akhir": "2024-12-22",
   "nama_kua": "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA",
   "alamat_kua": "PH5Q+F8C, Jl. Wira Karya, Pangeran",
   "kota": "Kota Banjarmasin",
@@ -194,7 +206,26 @@ Jika ingin mengkustomisasi kop surat, kirim JSON body dengan method `GET` (atau 
 }
 ```
 
-**Note:** Jika request body tidak dikirim, akan menggunakan nilai default.
+**Request Body Fields:**
+
+| Field | Type | Required | Default | Deskripsi |
+|-------|------|----------|---------|-----------|
+| `tanggal_awal` | string (YYYY-MM-DD) | ❌ No | Awal minggu ini | Tanggal awal periode (fallback jika query param tidak ada) |
+| `tanggal_akhir` | string (YYYY-MM-DD) | ❌ No | Akhir minggu ini | Tanggal akhir periode (fallback jika query param tidak ada) |
+| `nama_kua` | string | ❌ No | "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA" | Nama KUA |
+| `alamat_kua` | string | ❌ No | "PH5Q+F8C, Jl. Wira Karya, Pangeran" | Alamat KUA |
+| `kota` | string | ❌ No | "Kota Banjarmasin" | Kota |
+| `provinsi` | string | ❌ No | "Kalimantan Selatan" | Provinsi |
+| `kode_pos` | string | ❌ No | "70123" | Kode pos |
+| `telepon` | string | ❌ No | "-" | Nomor telepon |
+| `email` | string | ❌ No | "-" | Email |
+| `website` | string | ❌ No | "" | Website (opsional) |
+| `logo_url` | string | ❌ No | "" | URL logo KUA (opsional, harus accessible) |
+
+**Note:** 
+- Jika request body tidak dikirim, akan menggunakan nilai default untuk kop surat
+- Logo URL harus accessible (public URL) dan disarankan menggunakan HTTPS
+- Semua field kop surat bersifat opsional, akan menggunakan default jika tidak diisi
 
 ### Request Example
 
@@ -229,23 +260,225 @@ Content-Type: application/json
 
 **Content-Type:** `text/html; charset=utf-8`
 
-Response berupa HTML document yang siap dicetak atau dikonversi ke PDF.
+Response berupa **HTML document lengkap** yang siap dicetak atau dikonversi ke PDF.
 
 **Response Headers:**
 ```
 Content-Type: text/html; charset=utf-8
-Content-Length: 12345
+Content-Length: <ukuran file>
 ```
 
-**Response Body:** HTML document lengkap dengan:
-- Kop surat KUA (dengan logo jika disediakan)
-- Nomor surat
-- Judul "PENGUMUMAN PERNIKAHAN"
-- Periode
-- Paragraf pembuka
-- Tabel data pendaftaran
-- Paragraf penutup
-- Tanda tangan Kepala KUA
+**Response Body:** HTML document lengkap dengan struktur:
+
+1. **Kop Surat KUA:**
+   - Logo (jika `logo_url` disediakan)
+   - Nama KUA
+   - Alamat lengkap
+   - Kontak (telepon, email, website)
+
+2. **Judul:** "PENGUMUMAN PERNIKAHAN"
+
+3. **Periode:** Format "DD Bulan YYYY s/d DD Bulan YYYY"
+
+4. **Paragraf Pembuka:** Penjelasan tentang pengumuman
+
+5. **Tabel Data Pendaftaran** dengan kolom:
+   - No
+   - Nomor Pendaftaran
+   - Tanggal Nikah
+   - Waktu
+   - Tempat
+   - Alamat Akad
+   - Calon Suami
+   - Calon Istri
+   - Wali Nikah
+
+6. **Paragraf Penutup:** Penjelasan tentang keberatan
+
+7. **Tanda Tangan:** Kepala KUA dengan tempat dan tanggal
+
+8. **Footer:** Tanggal cetak
+
+**Catatan Penting:**
+- HTML sudah include CSS untuk print optimization (`@media print`)
+- Format A4 dengan margin yang sesuai
+- Font: Times New Roman (serif)
+- Tabel dengan border untuk kejelasan
+- Siap untuk dicetak langsung atau dikonversi ke PDF
+
+### Response Error
+
+#### 400 Bad Request
+```json
+{
+  "success": false,
+  "message": "Format tanggal tidak valid",
+  "error": "Format tanggal_awal harus YYYY-MM-DD"
+}
+```
+
+#### 401 Unauthorized
+```json
+{
+  "success": false,
+  "message": "Unauthorized",
+  "error": "Token tidak valid atau tidak ada"
+}
+```
+
+#### 403 Forbidden
+```json
+{
+  "success": false,
+  "message": "Forbidden",
+  "error": "Role tidak memiliki akses"
+}
+```
+
+#### 500 Internal Server Error
+```json
+{
+  "success": false,
+  "message": "Database error",
+  "error": "Gagal mengambil data pendaftaran"
+}
+```
+
+---
+
+## 🚀 Quick Start untuk Frontend Developer
+
+### Langkah 1: Setup API Client
+
+```javascript
+// api/pengumuman.js
+import axios from 'axios';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-api-domain.com/simnikah';
+
+export const generatePengumumanHTML = async (tanggalAwal, tanggalAkhir, kopSurat = null) => {
+  const token = localStorage.getItem('token');
+  
+  const config = {
+    method: kopSurat ? 'post' : 'get',
+    url: `${API_BASE_URL}/staff/pengumuman-nikah/generate`,
+    params: {
+      tanggal_awal: tanggalAwal,
+      tanggal_akhir: tanggalAkhir
+    },
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    responseType: 'text' // PENTING: untuk mendapatkan HTML sebagai string
+  };
+
+  if (kopSurat) {
+    config.data = {
+      tanggal_awal: tanggalAwal,
+      tanggal_akhir: tanggalAkhir,
+      ...kopSurat
+    };
+  }
+
+  try {
+    const response = await axios(config);
+    return response.data; // HTML string
+  } catch (error) {
+    if (error.response?.data) {
+      throw new Error(error.response.data.error || error.response.data.message);
+    }
+    throw error;
+  }
+};
+```
+
+### Langkah 2: Gunakan di Component
+
+```jsx
+// components/PengumumanGenerator.jsx
+import React, { useState } from 'react';
+import { generatePengumumanHTML } from '../api/pengumuman';
+
+function PengumumanGenerator() {
+  const [html, setHtml] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const tanggalAwal = '2024-12-16';
+      const tanggalAkhir = '2024-12-22';
+      
+      const htmlContent = await generatePengumumanHTML(tanggalAwal, tanggalAkhir);
+      setHtml(htmlContent);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePrint = () => {
+    if (!html) return;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => printWindow.print(), 250);
+  };
+
+  return (
+    <div>
+      <button onClick={handleGenerate} disabled={loading}>
+        {loading ? 'Generating...' : 'Generate'}
+      </button>
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+      {html && (
+        <>
+          <button onClick={handlePrint}>Print</button>
+          <iframe srcDoc={html} style={{ width: '100%', height: '800px' }} />
+        </>
+      )}
+    </div>
+  );
+}
+```
+
+### Langkah 3: Error Handling
+
+```javascript
+try {
+  const html = await generatePengumumanHTML('2024-12-16', '2024-12-22');
+  // Success
+} catch (error) {
+  if (error.message.includes('Format tanggal')) {
+    // Tanggal tidak valid
+    alert('Format tanggal tidak valid. Gunakan format YYYY-MM-DD');
+  } else if (error.message.includes('Unauthorized')) {
+    // Token expired atau tidak valid
+    // Redirect ke login
+    window.location.href = '/login';
+  } else if (error.message.includes('Forbidden')) {
+    // Role tidak memiliki akses
+    alert('Anda tidak memiliki akses untuk fitur ini');
+  } else {
+    // Error lainnya
+    alert('Terjadi kesalahan: ' + error.message);
+  }
+}
+```
+
+### Tips Penting
+
+1. **Response Type:** Selalu gunakan `responseType: 'text'` untuk mendapatkan HTML sebagai string
+2. **Error Handling:** Selalu handle error dengan baik, terutama untuk token expired
+3. **Loading State:** Tampilkan loading indicator saat generate
+4. **Print:** Gunakan `setTimeout` sebelum print untuk memastikan content sudah load
+5. **Preview:** Gunakan `iframe` dengan `srcDoc` untuk preview HTML
+6. **PDF:** Untuk konversi ke PDF, gunakan library seperti `html2pdf.js` atau `jspdf`
 
 ---
 
@@ -347,70 +580,321 @@ async function generatePengumuman(tanggalAwal, tanggalAkhir, kopSurat = null) {
 }
 ```
 
-### Menggunakan Fetch dengan React
+### Menggunakan Fetch dengan React (Lengkap)
 
 ```jsx
 import React, { useState } from 'react';
+import axios from 'axios';
 
 function PengumumanGenerator() {
   const [html, setHtml] = useState('');
   const [loading, setLoading] = useState(false);
-  
+  const [error, setError] = useState(null);
+  const [tanggalAwal, setTanggalAwal] = useState('');
+  const [tanggalAkhir, setTanggalAkhir] = useState('');
+  const [kopSurat, setKopSurat] = useState({
+    nama_kua: '',
+    alamat_kua: '',
+    kota: '',
+    provinsi: '',
+    kode_pos: '',
+    telepon: '',
+    email: '',
+    website: '',
+    logo_url: ''
+  });
+  const [useCustomKop, setUseCustomKop] = useState(false);
+
   const generatePengumuman = async () => {
+    // Validasi tanggal
+    if (!tanggalAwal || !tanggalAkhir) {
+      setError('Tanggal awal dan akhir harus diisi');
+      return;
+    }
+
     setLoading(true);
+    setError(null);
+
     try {
-      const response = await fetch(
-        '/simnikah/staff/pengumuman-nikah/generate?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22',
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to generate pengumuman');
+      const token = localStorage.getItem('token');
+      const config = {
+        method: useCustomKop ? 'post' : 'get',
+        url: '/simnikah/staff/pengumuman-nikah/generate',
+        params: {
+          tanggal_awal: tanggalAwal,
+          tanggal_akhir: tanggalAkhir
+        },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'text'
+      };
+
+      if (useCustomKop) {
+        config.data = {
+          tanggal_awal: tanggalAwal,
+          tanggal_akhir: tanggalAkhir,
+          ...kopSurat
+        };
       }
-      
-      const htmlContent = await response.text();
-      setHtml(htmlContent);
-    } catch (error) {
-      console.error(error);
-      alert('Gagal generate pengumuman');
+
+      const response = await axios(config);
+      setHtml(response.data);
+    } catch (err) {
+      console.error('Error generating pengumuman:', err);
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else {
+        setError('Gagal generate pengumuman. Silakan coba lagi.');
+      }
     } finally {
       setLoading(false);
     }
   };
-  
+
   const printPengumuman = () => {
     if (!html) return;
     
     const printWindow = window.open('', '_blank');
     printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.print();
+    // Wait for content to load before printing
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
   };
-  
+
+  const downloadHTML = () => {
+    if (!html) return;
+    
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pengumuman-nikah-${tanggalAwal}-${tanggalAkhir}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPDF = async () => {
+    if (!html) return;
+    
+    // Menggunakan html2pdf.js atau library PDF lainnya
+    // Contoh dengan html2pdf.js:
+    const html2pdf = (await import('html2pdf.js')).default;
+    
+    const opt = {
+      margin: [10, 10, 10, 10],
+      filename: `pengumuman-nikah-${tanggalAwal}-${tanggalAkhir}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    
+    await html2pdf().set(opt).from(html).save();
+  };
+
   return (
-    <div>
-      <button onClick={generatePengumuman} disabled={loading}>
-        {loading ? 'Generating...' : 'Generate Pengumuman'}
-      </button>
+    <div style={{ padding: '20px' }}>
+      <h2>Generate Pengumuman Nikah</h2>
       
+      {/* Form Input */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '10px' }}>
+          <label>
+            Tanggal Awal:
+            <input
+              type="date"
+              value={tanggalAwal}
+              onChange={(e) => setTanggalAwal(e.target.value)}
+              style={{ marginLeft: '10px', padding: '5px' }}
+            />
+          </label>
+        </div>
+        
+        <div style={{ marginBottom: '10px' }}>
+          <label>
+            Tanggal Akhir:
+            <input
+              type="date"
+              value={tanggalAkhir}
+              onChange={(e) => setTanggalAkhir(e.target.value)}
+              style={{ marginLeft: '10px', padding: '5px' }}
+            />
+          </label>
+        </div>
+        
+        <div style={{ marginBottom: '10px' }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={useCustomKop}
+              onChange={(e) => setUseCustomKop(e.target.checked)}
+            />
+            Gunakan Custom Kop Surat
+          </label>
+        </div>
+        
+        {useCustomKop && (
+          <div style={{ border: '1px solid #ccc', padding: '15px', marginTop: '10px' }}>
+            <h3>Custom Kop Surat</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <input
+                type="text"
+                placeholder="Nama KUA"
+                value={kopSurat.nama_kua}
+                onChange={(e) => setKopSurat({...kopSurat, nama_kua: e.target.value})}
+              />
+              <input
+                type="text"
+                placeholder="Alamat KUA"
+                value={kopSurat.alamat_kua}
+                onChange={(e) => setKopSurat({...kopSurat, alamat_kua: e.target.value})}
+              />
+              <input
+                type="text"
+                placeholder="Kota"
+                value={kopSurat.kota}
+                onChange={(e) => setKopSurat({...kopSurat, kota: e.target.value})}
+              />
+              <input
+                type="text"
+                placeholder="Provinsi"
+                value={kopSurat.provinsi}
+                onChange={(e) => setKopSurat({...kopSurat, provinsi: e.target.value})}
+              />
+              <input
+                type="text"
+                placeholder="Kode Pos"
+                value={kopSurat.kode_pos}
+                onChange={(e) => setKopSurat({...kopSurat, kode_pos: e.target.value})}
+              />
+              <input
+                type="text"
+                placeholder="Telepon"
+                value={kopSurat.telepon}
+                onChange={(e) => setKopSurat({...kopSurat, telepon: e.target.value})}
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={kopSurat.email}
+                onChange={(e) => setKopSurat({...kopSurat, email: e.target.value})}
+              />
+              <input
+                type="url"
+                placeholder="Website"
+                value={kopSurat.website}
+                onChange={(e) => setKopSurat({...kopSurat, website: e.target.value})}
+              />
+              <input
+                type="url"
+                placeholder="Logo URL"
+                value={kopSurat.logo_url}
+                onChange={(e) => setKopSurat({...kopSurat, logo_url: e.target.value})}
+                style={{ gridColumn: '1 / -1' }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div style={{ color: 'red', marginBottom: '10px', padding: '10px', background: '#ffe6e6', border: '1px solid red' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div style={{ marginBottom: '20px' }}>
+        <button
+          onClick={generatePengumuman}
+          disabled={loading || !tanggalAwal || !tanggalAkhir}
+          style={{
+            padding: '10px 20px',
+            marginRight: '10px',
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: loading ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {loading ? 'Generating...' : 'Generate Pengumuman'}
+        </button>
+        
+        {html && (
+          <>
+            <button
+              onClick={printPengumuman}
+              style={{
+                padding: '10px 20px',
+                marginRight: '10px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              🖨️ Print
+            </button>
+            <button
+              onClick={downloadHTML}
+              style={{
+                padding: '10px 20px',
+                marginRight: '10px',
+                backgroundColor: '#17a2b8',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              💾 Download HTML
+            </button>
+            <button
+              onClick={downloadPDF}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              📄 Download PDF
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Preview */}
       {html && (
-        <>
-          <button onClick={printPengumuman}>Print</button>
+        <div style={{ border: '1px solid #ccc', padding: '10px' }}>
+          <h3>Preview:</h3>
           <iframe
             srcDoc={html}
-            style={{ width: '100%', height: '800px', border: '1px solid #ccc' }}
-            title="Pengumuman Nikah"
+            style={{
+              width: '100%',
+              height: '800px',
+              border: '1px solid #ccc',
+              marginTop: '10px'
+            }}
+            title="Pengumuman Nikah Preview"
           />
-        </>
+        </div>
       )}
     </div>
   );
 }
+
+export default PengumumanGenerator;
 ```
 
 ### Konversi ke PDF (Client-side)
