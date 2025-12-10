@@ -1373,13 +1373,13 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 	// Get calon pasangan and wali nikah data
 	var registrations []gin.H
 	for _, p := range pendaftaran {
-		// Get calon suami
+		// Get calon suami (menggunakan user_id, bukan id)
 		var calonSuami structs.CalonPasangan
-		h.DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami)
+		h.DB.Where("user_id = ?", p.Calon_suami_id).First(&calonSuami)
 
-		// Get calon istri
+		// Get calon istri (menggunakan user_id, bukan id)
 		var calonIstri structs.CalonPasangan
-		h.DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri)
+		h.DB.Where("user_id = ?", p.Calon_istri_id).First(&calonIstri)
 
 		// Get wali nikah
 		var waliNikah structs.WaliNikah
@@ -1387,19 +1387,54 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 			h.DB.Where("id = ?", *p.Wali_nikah_id).First(&waliNikah)
 		}
 
+		// Get penghulu
+		var penghulu structs.Penghulu
+		if p.Penghulu_id != nil {
+			h.DB.Where("id = ?", *p.Penghulu_id).First(&penghulu)
+		}
+
+		// Calculate age
+		usiaPria := 0
+		if calonSuami.ID != 0 && !calonSuami.Tanggal_lahir.IsZero() {
+			usiaPria = calculateAge(calonSuami.Tanggal_lahir)
+		}
+
+		usiaWanita := 0
+		if calonIstri.ID != 0 && !calonIstri.Tanggal_lahir.IsZero() {
+			usiaWanita = calculateAge(calonIstri.Tanggal_lahir)
+		}
+
+		// Format tanggal nikah
+		hari := getDayName(p.Tanggal_nikah.Weekday())
+		tanggal := fmt.Sprintf("%d", p.Tanggal_nikah.Day())
+		jam := formatWaktu(p.Waktu_nikah)
+
+		// Get kelurahan from alamat (simplified - bisa di-extract dari alamat_akad jika ada pattern)
+		kelurahan := "-" // Default, bisa di-extract dari alamat_akad jika ada pattern
+
 		regData := gin.H{
-			"id":                 p.ID,
-			"nomor_pendaftaran":  p.Nomor_pendaftaran,
-			"status_pendaftaran": p.Status_pendaftaran,
-			"tanggal_nikah":      p.Tanggal_nikah,
-			"waktu_nikah":        p.Waktu_nikah,
-			"tempat_nikah":       p.Tempat_nikah,
-			"alamat_akad":        p.Alamat_akad,
+			"id":                    p.ID,
+			"nomor_pendaftaran":     p.Nomor_pendaftaran,
+			"status_pendaftaran":    p.Status_pendaftaran,
+			"tanggal_nikah":         p.Tanggal_nikah,
+			"waktu_nikah":           p.Waktu_nikah,
+			"waktu_nikah_formatted": jam, // Format HH.MM
+			"tempat_nikah":          p.Tempat_nikah,
+			"alamat_akad":           p.Alamat_akad,
+			"hari":                  hari,
+			"tanggal":               tanggal,
+			"kelurahan":             kelurahan,
 			"calon_suami": gin.H{
-				"nama_lengkap": calonSuami.Nama_lengkap,
+				"nama_lengkap":        calonSuami.Nama_lengkap,
+				"usia":                usiaPria,
+				"pendidikan_terakhir": calonSuami.Pendidikan_terakhir,
+				"tanggal_lahir":       calonSuami.Tanggal_lahir,
 			},
 			"calon_istri": gin.H{
-				"nama_lengkap": calonIstri.Nama_lengkap,
+				"nama_lengkap":        calonIstri.Nama_lengkap,
+				"usia":                usiaWanita,
+				"pendidikan_terakhir": calonIstri.Pendidikan_terakhir,
+				"tanggal_lahir":       calonIstri.Tanggal_lahir,
 			},
 		}
 
@@ -1409,6 +1444,19 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 				"nama_dan_bin":  waliNikah.Nama_dan_bin,
 				"hubungan_wali": waliNikah.Hubungan_wali,
 			}
+		} else {
+			regData["wali_nikah"] = nil
+		}
+
+		// Add penghulu if exists
+		if penghulu.ID != 0 {
+			regData["penghulu"] = gin.H{
+				"id":           penghulu.ID,
+				"nama_lengkap": penghulu.Nama_lengkap,
+				"nip":          penghulu.NIP,
+			}
+		} else {
+			regData["penghulu"] = nil
 		}
 
 		registrations = append(registrations, regData)
@@ -1618,6 +1666,12 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 		tanggal := fmt.Sprintf("%d", p.Tanggal_nikah.Day())
 		jam := formatWaktu(p.Waktu_nikah)
 
+		// Get tempat: jika "Di Luar KUA", gunakan alamat_akad, jika "Di KUA" tetap "Di KUA"
+		tempat := p.Tempat_nikah
+		if p.Tempat_nikah == "Di Luar KUA" && p.Alamat_akad != "" {
+			tempat = p.Alamat_akad
+		}
+
 		// Get kelurahan from alamat (simplified - bisa di-extract dari alamat_akad jika ada pattern)
 		kelurahan := "-" // Default, bisa di-extract dari alamat_akad jika ada pattern
 
@@ -1632,7 +1686,7 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 			Hari:             hari,
 			Tanggal:          tanggal,
 			Jam:              jam,
-			Tempat:           p.Tempat_nikah,
+			Tempat:           tempat,
 			WaliNikah:        waliNikahStr,
 			Penghulu:         penghuluStr,
 			Kelurahan:        kelurahan,
@@ -1664,21 +1718,21 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 	for _, reg := range registrations {
 		tableRows += fmt.Sprintf(`
 			<tr>
-				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%d</td>
-				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%d</td>
-				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%d</td>
-				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
-				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td class="col-no" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%d</td>
+				<td class="col-pria" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td class="col-usia" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%d</td>
+				<td class="col-pendk" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
+				<td class="col-wanita" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td class="col-usia" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%d</td>
+				<td class="col-pendk" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
+				<td class="col-hari" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td class="col-tgl" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
+				<td class="col-jam" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
+				<td class="col-tempat" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td class="col-wali" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td class="col-penghulu" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td class="col-kelurahan" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td class="col-ket" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
 			</tr>`,
 			reg.NoUrut,
 			reg.PriaBin,
@@ -1760,6 +1814,7 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 			border-collapse: collapse;
 			margin: 10px 0;
 			font-size: 8pt;
+			table-layout: fixed;
 		}
 		table th {
 			background-color: #e0e0e0;
@@ -1773,6 +1828,8 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 			border: 1px solid #000;
 			padding: 4px;
 			font-size: 8pt;
+			word-wrap: break-word;
+			overflow: hidden;
 		}
 		.col-no { width: 3%%; }
 		.col-pria { width: 12%%; }

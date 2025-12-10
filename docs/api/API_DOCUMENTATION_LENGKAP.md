@@ -1329,7 +1329,9 @@
        - **HARI** - Nama hari (SENIN, SELASA, RABU, KAMIS, JUM'AT, SABTU, AHAD)
        - **TGL** - Tanggal (hanya angka: 1, 2, 3, dll)
        - **JAM** - Waktu (format: 08.00, 09.00, dll - dari HH:MM menjadi HH.MM)
-       - **TEMPAT** - Tempat nikah
+       - **TEMPAT** - Tempat nikah:
+         - Jika `tempat_nikah` = "Di KUA" → menampilkan "Di KUA"
+         - Jika `tempat_nikah` = "Di Luar KUA" → menampilkan alamat lengkap dari `alamat_akad`
        - **WALINIKAH** - Nama wali nikah
        - **PENGHULU** - Nama penghulu (jika sudah ditugaskan, "-" jika belum)
        - **KELURAHAN** - Kelurahan

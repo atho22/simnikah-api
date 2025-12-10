@@ -195,6 +195,8 @@ Tabel akan menampilkan **semua pendaftaran** dalam periode yang dipilih. Contoh 
 
 ### Untuk Frontend Developer
 
+**✅ TIDAK ADA PERUBAHAN SETUP YANG DIPERLUKAN**
+
 Tidak ada perubahan pada API endpoint atau request/response format. Perubahan hanya pada format HTML output.
 
 **Sebelum:**
@@ -208,10 +210,14 @@ Tidak ada perubahan pada API endpoint atau request/response format. Perubahan ha
 - Judul "JADUAL NIKAH [BULAN] [TAHUN]"
 
 **Action Required:**
-- ✅ Tidak ada action required untuk frontend
-- ✅ HTML output tetap bisa di-parse dengan cara yang sama
+- ✅ **Tidak ada action required untuk frontend**
+- ✅ API endpoint, request format, response type **tetap sama**
+- ✅ HTML output tetap bisa di-parse/ditampilkan dengan cara yang sama
 - ✅ Print/PDF generation tetap berfungsi
+- ⚠️ Opsional: Set PDF export orientation ke landscape untuk hasil lebih baik
 - ⚠️ Pastikan printer/browser support landscape printing
+
+**Lihat [Frontend Migration Guide](./FRONTEND_MIGRATION_GUIDE.md) untuk detail lengkap.**
 
 ---
 

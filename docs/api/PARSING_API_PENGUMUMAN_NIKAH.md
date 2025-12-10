@@ -110,17 +110,32 @@ Authorization: Bearer YOUR_TOKEN
         "status_pendaftaran": "Disetujui",
         "tanggal_nikah": "2024-12-18T10:00:00Z",
         "waktu_nikah": "10:00",
+        "waktu_nikah_formatted": "10.00",
         "tempat_nikah": "Di KUA",
         "alamat_akad": "Kantor KUA Kecamatan Banjarmasin Utara",
+        "hari": "RABU",
+        "tanggal": "18",
+        "kelurahan": "-",
         "calon_suami": {
-          "nama_lengkap": "Ahmad bin Abdullah"
+          "nama_lengkap": "Ahmad bin Abdullah",
+          "usia": 29,
+          "pendidikan_terakhir": "S1",
+          "tanggal_lahir": "1995-01-15T00:00:00Z"
         },
         "calon_istri": {
-          "nama_lengkap": "Siti binti Muhammad"
+          "nama_lengkap": "Siti binti Muhammad",
+          "usia": 24,
+          "pendidikan_terakhir": "S1",
+          "tanggal_lahir": "2000-03-20T00:00:00Z"
         },
         "wali_nikah": {
           "nama_dan_bin": "Muhammad bin Ali",
           "hubungan_wali": "Ayah Kandung"
+        },
+        "penghulu": {
+          "id": 1,
+          "nama_lengkap": "H. Muhammad Amin",
+          "nip": "198001012003121001"
         }
       }
     ]
@@ -143,13 +158,28 @@ Authorization: Bearer YOUR_TOKEN
 | `data.registrations[].nomor_pendaftaran` | string | Nomor pendaftaran |
 | `data.registrations[].status_pendaftaran` | string | Status pendaftaran (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai) |
 | `data.registrations[].tanggal_nikah` | string (ISO 8601) | Tanggal nikah |
-| `data.registrations[].waktu_nikah` | string (HH:MM) | Waktu nikah |
+| `data.registrations[].waktu_nikah` | string (HH:MM) | Waktu nikah (format original) |
+| `data.registrations[].waktu_nikah_formatted` | string (HH.MM) | Waktu nikah (format untuk display: 08.00, 09.00) |
 | `data.registrations[].tempat_nikah` | string | Tempat nikah (Di KUA / Di Luar KUA) |
 | `data.registrations[].alamat_akad` | string | Alamat lengkap akad nikah |
+| `data.registrations[].hari` | string | Nama hari (SENIN, SELASA, RABU, KAMIS, JUM'AT, SABTU, AHAD) |
+| `data.registrations[].tanggal` | string | Tanggal (hanya angka: "1", "2", "18", dll) |
+| `data.registrations[].kelurahan` | string | Kelurahan (default: "-") |
 | `data.registrations[].calon_suami.nama_lengkap` | string | Nama calon suami |
+| `data.registrations[].calon_suami.usia` | number | Usia calon suami (dihitung otomatis dari tanggal lahir) |
+| `data.registrations[].calon_suami.pendidikan_terakhir` | string | Pendidikan terakhir calon suami |
+| `data.registrations[].calon_suami.tanggal_lahir` | string (ISO 8601) | Tanggal lahir calon suami |
 | `data.registrations[].calon_istri.nama_lengkap` | string | Nama calon istri |
+| `data.registrations[].calon_istri.usia` | number | Usia calon istri (dihitung otomatis dari tanggal lahir) |
+| `data.registrations[].calon_istri.pendidikan_terakhir` | string | Pendidikan terakhir calon istri |
+| `data.registrations[].calon_istri.tanggal_lahir` | string (ISO 8601) | Tanggal lahir calon istri |
+| `data.registrations[].wali_nikah` | object \| null | Data wali nikah (null jika tidak ada) |
 | `data.registrations[].wali_nikah.nama_dan_bin` | string | Nama wali nikah dengan bin |
 | `data.registrations[].wali_nikah.hubungan_wali` | string | Hubungan wali |
+| `data.registrations[].penghulu` | object \| null | Data penghulu (null jika belum ditugaskan) |
+| `data.registrations[].penghulu.id` | number | ID penghulu |
+| `data.registrations[].penghulu.nama_lengkap` | string | Nama lengkap penghulu |
+| `data.registrations[].penghulu.nip` | string | NIP penghulu |
 
 ### Catatan Penting
 
