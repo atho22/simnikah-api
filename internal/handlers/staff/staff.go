@@ -1514,13 +1514,23 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 	// Get calon pasangan and wali nikah data
 	var registrations []gin.H
 	for _, p := range pendaftaran {
-		// Get calon suami (menggunakan user_id, bukan id)
+		// Get calon suami - coba dengan id dulu, jika tidak ada coba dengan user_id
 		var calonSuami structs.CalonPasangan
-		h.DB.Where("user_id = ?", p.Calon_suami_id).First(&calonSuami)
+		// Calon_suami_id bisa menyimpan ID (uint sebagai string) atau User_id (string)
+		// Coba query dengan id dulu
+		if err := h.DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami).Error; err != nil {
+			// Jika tidak ditemukan dengan id, coba dengan user_id
+			h.DB.Where("user_id = ?", p.Calon_suami_id).First(&calonSuami)
+		}
 
-		// Get calon istri (menggunakan user_id, bukan id)
+		// Get calon istri - coba dengan id dulu, jika tidak ada coba dengan user_id
 		var calonIstri structs.CalonPasangan
-		h.DB.Where("user_id = ?", p.Calon_istri_id).First(&calonIstri)
+		// Calon_istri_id bisa menyimpan ID (uint sebagai string) atau User_id (string)
+		// Coba query dengan id dulu
+		if err := h.DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri).Error; err != nil {
+			// Jika tidak ditemukan dengan id, coba dengan user_id
+			h.DB.Where("user_id = ?", p.Calon_istri_id).First(&calonIstri)
+		}
 
 		// Get wali nikah
 		var waliNikah structs.WaliNikah
@@ -1741,13 +1751,23 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 	// Build registrations data
 	var regDataList []RegData
 	for i, p := range pendaftaran {
-		// Get calon suami (menggunakan user_id, bukan id)
+		// Get calon suami - coba dengan id dulu, jika tidak ada coba dengan user_id
 		var calonSuami structs.CalonPasangan
-		h.DB.Where("user_id = ?", p.Calon_suami_id).First(&calonSuami)
+		// Calon_suami_id bisa menyimpan ID (uint sebagai string) atau User_id (string)
+		// Coba query dengan id dulu
+		if err := h.DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami).Error; err != nil {
+			// Jika tidak ditemukan dengan id, coba dengan user_id
+			h.DB.Where("user_id = ?", p.Calon_suami_id).First(&calonSuami)
+		}
 
-		// Get calon istri (menggunakan user_id, bukan id)
+		// Get calon istri - coba dengan id dulu, jika tidak ada coba dengan user_id
 		var calonIstri structs.CalonPasangan
-		h.DB.Where("user_id = ?", p.Calon_istri_id).First(&calonIstri)
+		// Calon_istri_id bisa menyimpan ID (uint sebagai string) atau User_id (string)
+		// Coba query dengan id dulu
+		if err := h.DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri).Error; err != nil {
+			// Jika tidak ditemukan dengan id, coba dengan user_id
+			h.DB.Where("user_id = ?", p.Calon_istri_id).First(&calonIstri)
+		}
 
 		// Get wali nikah
 		var waliNikah structs.WaliNikah

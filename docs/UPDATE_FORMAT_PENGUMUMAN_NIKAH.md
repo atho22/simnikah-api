@@ -54,7 +54,9 @@ Format pengumuman nikah telah diupdate untuk mengikuti format Excel standar KUA 
 8. **HARI** - Nama hari (SENIN, SELASA, RABU, KAMIS, JUM'AT, SABTU, AHAD)
 9. **TGL** - Tanggal (hanya angka: 1, 2, 3, dll)
 10. **JAM** - Waktu (format: 08.00, 09.00, dll - dari HH:MM menjadi HH.MM)
-11. **TEMPAT** - Tempat nikah
+11. **TEMPAT** - Tempat nikah:
+    - Jika `tempat_nikah` = "Di KUA" → menampilkan "Di KUA"
+    - Jika `tempat_nikah` = "Di Luar KUA" → menampilkan alamat lengkap dari `alamat_akad`
 12. **WALINIKAH** - Nama wali nikah
 13. **PENGHULU** - Nama penghulu (jika sudah ditugaskan, "-" jika belum)
 14. **KELURAHAN** - Kelurahan
@@ -80,12 +82,12 @@ Format pengumuman nikah telah diupdate untuk mengikuti format Excel standar KUA 
 - Hanya menampilkan angka tanggal (1, 2, 3, dll)
 - Tidak menampilkan bulan dan tahun di kolom TGL
 
-### 5. Judul Dinamis
+### 6. Judul Dinamis
 - Format: "JADUAL NIKAH [BULAN] [TAHUN]"
 - Contoh: "JADUAL NIKAH JANUARI 2026"
 - Bulan otomatis berdasarkan tanggal awal periode
 
-### 6. Kop Surat Baru
+### 7. Kop Surat Baru
 - Logo di kiri (jika disediakan)
 - Informasi KUA di kanan
 - Format: KEMENTERIAN AGAMA REPUBLIK INDONESIA
