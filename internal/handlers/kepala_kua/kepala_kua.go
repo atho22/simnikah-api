@@ -1750,10 +1750,10 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 				<td class="col-tgl" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
 				<td class="col-jam" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
 				<td class="col-tempat" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td class="col-ket" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
 				<td class="col-wali" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
 				<td class="col-penghulu" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
 				<td class="col-kelurahan" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
-				<td class="col-ket" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
 			</tr>`,
 			reg.NoUrut,
 			reg.PriaBin,
@@ -1766,10 +1766,10 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 			reg.Tanggal,
 			reg.Jam,
 			reg.Tempat,
+			reg.Keterangan,
 			reg.WaliNikah,
 			reg.Penghulu,
 			reg.Kelurahan,
-			reg.Keterangan,
 		)
 	}
 
@@ -1904,10 +1904,10 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 				<th class="col-tgl">TGL</th>
 				<th class="col-jam">JAM</th>
 				<th class="col-tempat">TEMPAT</th>
+				<th class="col-ket">KET</th>
 				<th class="col-wali">WALINIKAH</th>
 				<th class="col-penghulu">PENGHULU</th>
 				<th class="col-kelurahan">KELURAHAN</th>
-				<th class="col-ket">KET</th>
 			</tr>
 		</thead>
 		<tbody>
