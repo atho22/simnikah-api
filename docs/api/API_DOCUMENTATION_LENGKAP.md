@@ -1043,7 +1043,7 @@
 
   **Endpoint:** `GET /simnikah/staff/pengumuman-nikah/list`
 
-  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode yang dipilih frontend beserta data kop surat. Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
+  **Description:** Mendapatkan daftar pendaftaran nikah untuk periode yang dipilih frontend beserta data kop surat. **Menampilkan semua status pendaftaran kecuali "Ditolak"** (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai). Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
 
   **Auth Required:** ✅ Yes
 
@@ -1100,7 +1100,7 @@
   ```json
   {
     "success": true,
-    "message": "Data pendaftaran disetujui berhasil diambil",
+    "message": "Data pendaftaran berhasil diambil",
     "data": {
       "tanggal_awal": "2024-12-16",
       "tanggal_akhir": "2024-12-22",
@@ -1121,6 +1121,7 @@
         {
           "id": 1,
           "nomor_pendaftaran": "NIKAH-20241215-1234",
+          "status_pendaftaran": "Disetujui",
           "tanggal_nikah": "2024-12-18T10:00:00Z",
           "waktu_nikah": "10:00",
           "tempat_nikah": "Di KUA",
@@ -1141,9 +1142,15 @@
   }
   ```
 
+  **Catatan Penting:**
+  - **Status yang ditampilkan:** Semua status kecuali "Ditolak" (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai)
+  - **Status "Ditolak" tidak ditampilkan** karena pendaftaran yang ditolak tidak perlu diumumkan
+  - Response includes `status_pendaftaran` untuk setiap pendaftaran agar frontend dapat menampilkan badge/indikator status
+
   **Use Case:**
   - Frontend memanggil endpoint ini untuk mendapatkan data pendaftaran dan kop surat
   - Frontend menggunakan data tersebut untuk generate HTML surat pengumuman nikah
+  - Frontend dapat menampilkan badge status untuk setiap pendaftaran (Draft = kuning, Disetujui = hijau, dll)
   - Surat dapat dicetak atau dikonversi ke PDF di frontend
   - Surat dicetak dan dipasang di papan pengumuman KUA
 
@@ -1507,7 +1514,7 @@
 
   **Endpoint:** `GET /simnikah/kepala-kua/pengumuman-nikah/list`
 
-  **Description:** Mendapatkan daftar pendaftaran nikah yang telah disetujui untuk periode yang dipilih frontend beserta data kop surat. Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
+  **Description:** Mendapatkan daftar pendaftaran nikah untuk periode yang dipilih frontend beserta data kop surat. **Menampilkan semua status pendaftaran kecuali "Ditolak"** (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai). Data ini digunakan oleh frontend untuk generate surat pengumuman nikah dalam format HTML.
 
   **Auth Required:** ✅ Yes
 
@@ -1585,6 +1592,7 @@
         {
           "id": 1,
           "nomor_pendaftaran": "NIKAH-20241215-1234",
+          "status_pendaftaran": "Disetujui",
           "tanggal_nikah": "2024-12-18T10:00:00Z",
           "waktu_nikah": "10:00",
           "tempat_nikah": "Di KUA",
@@ -1605,9 +1613,15 @@
   }
   ```
 
+  **Catatan Penting:**
+  - **Status yang ditampilkan:** Semua status kecuali "Ditolak" (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai)
+  - **Status "Ditolak" tidak ditampilkan** karena pendaftaran yang ditolak tidak perlu diumumkan
+  - Response includes `status_pendaftaran` untuk setiap pendaftaran agar frontend dapat menampilkan badge/indikator status
+
   **Use Case:**
   - Frontend memanggil endpoint ini untuk mendapatkan data pendaftaran dan kop surat
   - Frontend menggunakan data tersebut untuk generate HTML surat pengumuman nikah
+  - Frontend dapat menampilkan badge status untuk setiap pendaftaran (Draft = kuning, Disetujui = hijau, dll)
   - Surat dapat dicetak atau dikonversi ke PDF di frontend
   - Surat dicetak dan dipasang di papan pengumuman KUA
 

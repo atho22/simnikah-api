@@ -154,6 +154,8 @@ func main() {
 		simnikahRoutes.POST("/staff/pendaftaran", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.CreateRegistrationForUser)
 		simnikahRoutes.PUT("/pendaftaran/:id/update-status", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "penghulu", "kepala_kua"), staffHandler.UpdateRegistrationStatus)
 		simnikahRoutes.GET("/staff/pengumuman-nikah/list", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.GetApprovedRegistrationsPerWeek)
+		simnikahRoutes.GET("/staff/pengumuman-nikah/generate", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.GeneratePengumumanNikahHTML)
+		simnikahRoutes.POST("/staff/pengumuman-nikah/generate", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.GeneratePengumumanNikahHTML)
 
 		// ==================== PENGHULU ROUTES ====================
 		simnikahRoutes.GET("/penghulu", middleware.AuthMiddleware(), staffHandler.ListMarriageOfficers)
@@ -186,6 +188,8 @@ func main() {
 
 		// ==================== SURAT PENGUMUMAN NIKAH (KEPALA KUA) ====================
 		simnikahRoutes.GET("/kepala-kua/pengumuman-nikah/list", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetApprovedRegistrationsPerWeek)
+		simnikahRoutes.GET("/kepala-kua/pengumuman-nikah/generate", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GeneratePengumumanNikahHTML)
+		simnikahRoutes.POST("/kepala-kua/pengumuman-nikah/generate", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GeneratePengumumanNikahHTML)
 
 		// ==================== LOCATION ROUTES ====================
 		simnikahRoutes.POST("/location/geocode", middleware.AuthMiddleware(), catinHandler.GetCoordinatesFromAddressEndpoint)

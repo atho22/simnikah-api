@@ -23,9 +23,13 @@
 ## 🎯 Overview
 
 API Surat Pengumuman Nikah memungkinkan **Staff** dan **Kepala KUA** untuk:
-- Mengambil daftar pendaftaran nikah yang telah disetujui per minggu
+- Mengambil daftar pendaftaran nikah per periode (menampilkan semua status kecuali "Ditolak")
 - Generate surat pengumuman nikah dalam format HTML yang siap dicetak atau dikonversi ke PDF
 - Mengkustomisasi kop surat (logo, alamat, kontak, dll)
+
+**Catatan Penting:**
+- **Status yang ditampilkan:** Semua status kecuali "Ditolak" (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai)
+- **Status "Ditolak" tidak ditampilkan** karena pendaftaran yang ditolak tidak perlu diumumkan
 
 **Base URL:** `https://your-api-domain.com/simnikah`
 
@@ -35,10 +39,10 @@ API Surat Pengumuman Nikah memungkinkan **Staff** dan **Kepala KUA** untuk:
 
 | Method | Endpoint | Role | Deskripsi |
 |--------|----------|------|-----------|
-| `GET` | `/staff/pengumuman-nikah/list` | `staff`, `kepala_kua` | Daftar pendaftaran disetujui per minggu |
-| `GET` | `/staff/pengumuman-nikah/generate` | `staff`, `kepala_kua` | Generate surat pengumuman (HTML) |
-| `GET` | `/kepala-kua/pengumuman-nikah/list` | `kepala_kua` | Daftar pendaftaran disetujui per minggu |
-| `GET` | `/kepala-kua/pengumuman-nikah/generate` | `kepala_kua` | Generate surat pengumuman (HTML) |
+| `GET` | `/staff/pengumuman-nikah/list` | `staff`, `kepala_kua` | Daftar pendaftaran per periode (semua status kecuali "Ditolak") |
+| `GET` / `POST` | `/staff/pengumuman-nikah/generate` | `staff`, `kepala_kua` | Generate surat pengumuman (HTML) - siap dicetak |
+| `GET` | `/kepala-kua/pengumuman-nikah/list` | `kepala_kua` | Daftar pendaftaran per periode (semua status kecuali "Ditolak") |
+| `GET` / `POST` | `/kepala-kua/pengumuman-nikah/generate` | `kepala_kua` | Generate surat pengumuman (HTML) - siap dicetak |
 
 ---
 
@@ -93,7 +97,7 @@ Authorization: Bearer YOUR_TOKEN
 ```json
 {
   "success": true,
-  "message": "Data pendaftaran disetujui berhasil diambil",
+  "message": "Data pendaftaran berhasil diambil",
   "data": {
     "tanggal_awal": "2024-12-16",
     "tanggal_akhir": "2024-12-22",
@@ -103,6 +107,7 @@ Authorization: Bearer YOUR_TOKEN
       {
         "id": 1,
         "nomor_pendaftaran": "NIKAH-20241215-1234",
+        "status_pendaftaran": "Disetujui",
         "tanggal_nikah": "2024-12-18T10:00:00Z",
         "waktu_nikah": "10:00",
         "tempat_nikah": "Di KUA",
@@ -136,6 +141,7 @@ Authorization: Bearer YOUR_TOKEN
 | `data.registrations[]` | array | Array pendaftaran |
 | `data.registrations[].id` | number | ID pendaftaran |
 | `data.registrations[].nomor_pendaftaran` | string | Nomor pendaftaran |
+| `data.registrations[].status_pendaftaran` | string | Status pendaftaran (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai) |
 | `data.registrations[].tanggal_nikah` | string (ISO 8601) | Tanggal nikah |
 | `data.registrations[].waktu_nikah` | string (HH:MM) | Waktu nikah |
 | `data.registrations[].tempat_nikah` | string | Tempat nikah (Di KUA / Di Luar KUA) |
@@ -144,6 +150,13 @@ Authorization: Bearer YOUR_TOKEN
 | `data.registrations[].calon_istri.nama_lengkap` | string | Nama calon istri |
 | `data.registrations[].wali_nikah.nama_dan_bin` | string | Nama wali nikah dengan bin |
 | `data.registrations[].wali_nikah.hubungan_wali` | string | Hubungan wali |
+
+### Catatan Penting
+
+- **Status yang ditampilkan:** Semua status kecuali "Ditolak" (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai)
+- **Status "Ditolak" tidak ditampilkan** karena pendaftaran yang ditolak tidak perlu diumumkan
+- Response includes `status_pendaftaran` untuk setiap pendaftaran agar frontend dapat menampilkan badge/indikator status
+- Frontend dapat menggunakan status ini untuk styling berbeda (contoh: Draft = kuning, Disetujui = hijau, Selesai = biru)
 
 ---
 

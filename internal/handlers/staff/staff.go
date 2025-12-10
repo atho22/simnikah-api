@@ -1329,38 +1329,48 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 // Used for generating pengumuman nikah (marriage announcement)
 // Supports custom kop surat via request body (optional)
 func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
-	// Get query parameters
+	// Get query parameters (prioritas pertama)
 	tanggalAwal := c.Query("tanggal_awal")   // Format: YYYY-MM-DD (start of week)
 	tanggalAkhir := c.Query("tanggal_akhir") // Format: YYYY-MM-DD (end of week)
 
-	// Get kop surat from request body (optional)
-	var kopSuratInput struct {
-		NamaKUA   string `json:"nama_kua"`   // Nama KUA
-		AlamatKUA string `json:"alamat_kua"` // Alamat lengkap KUA
-		Kota      string `json:"kota"`       // Kota
-		Provinsi  string `json:"provinsi"`   // Provinsi
-		KodePos   string `json:"kode_pos"`   // Kode pos
-		Telepon   string `json:"telepon"`    // Nomor telepon
-		Email     string `json:"email"`      // Email
-		Website   string `json:"website"`    // Website (optional)
-		LogoURL   string `json:"logo_url"`   // URL logo KUA (optional)
+	// Get from request body (fallback jika query params tidak ada)
+	var requestBody struct {
+		TanggalAwal  string `json:"tanggal_awal"`  // Format: YYYY-MM-DD
+		TanggalAkhir string `json:"tanggal_akhir"` // Format: YYYY-MM-DD
+		NamaKUA      string `json:"nama_kua"`      // Nama KUA
+		AlamatKUA    string `json:"alamat_kua"`    // Alamat lengkap KUA
+		Kota         string `json:"kota"`          // Kota
+		Provinsi     string `json:"provinsi"`      // Provinsi
+		KodePos      string `json:"kode_pos"`      // Kode pos
+		Telepon      string `json:"telepon"`       // Nomor telepon
+		Email        string `json:"email"`         // Email
+		Website      string `json:"website"`       // Website (optional)
+		LogoURL      string `json:"logo_url"`     // URL logo KUA (optional)
 	}
 
-	// Try to bind JSON body for kop surat, if not provided use default
+	// Try to bind JSON body, if not provided use default
 	if c.Request.ContentLength > 0 {
-		c.ShouldBindJSON(&kopSuratInput)
+		c.ShouldBindJSON(&requestBody)
+	}
+
+	// Gunakan request body jika query params tidak ada
+	if tanggalAwal == "" && requestBody.TanggalAwal != "" {
+		tanggalAwal = requestBody.TanggalAwal
+	}
+	if tanggalAkhir == "" && requestBody.TanggalAkhir != "" {
+		tanggalAkhir = requestBody.TanggalAkhir
 	}
 
 	// Set default kop surat values
-	namaKUA := kopSuratInput.NamaKUA
-	alamatKUA := kopSuratInput.AlamatKUA
-	kota := kopSuratInput.Kota
-	provinsi := kopSuratInput.Provinsi
-	kodePos := kopSuratInput.KodePos
-	telepon := kopSuratInput.Telepon
-	email := kopSuratInput.Email
-	website := kopSuratInput.Website
-	logoURL := kopSuratInput.LogoURL
+	namaKUA := requestBody.NamaKUA
+	alamatKUA := requestBody.AlamatKUA
+	kota := requestBody.Kota
+	provinsi := requestBody.Provinsi
+	kodePos := requestBody.KodePos
+	telepon := requestBody.Telepon
+	email := requestBody.Email
+	website := requestBody.Website
+	logoURL := requestBody.LogoURL
 
 	// Set default values if not provided
 	if namaKUA == "" {
@@ -1435,10 +1445,10 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 		endOfWeek = startOfWeek.AddDate(0, 0, 6).Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	}
 
-	// Get approved registrations within the week
+	// Get registrations within the week (all status except "Ditolak")
 	var pendaftaran []structs.PendaftaranNikah
-	err := h.DB.Where("tanggal_nikah >= ? AND tanggal_nikah <= ? AND status_pendaftaran = ?",
-		startOfWeek, endOfWeek, structs.StatusPendaftaranDisetujui).
+	err := h.DB.Where("tanggal_nikah >= ? AND tanggal_nikah <= ? AND status_pendaftaran != ?",
+		startOfWeek, endOfWeek, structs.StatusPendaftaranDitolak).
 		Order("tanggal_nikah ASC, waktu_nikah ASC").
 		Find(&pendaftaran).Error
 
@@ -1471,6 +1481,7 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 		regData := gin.H{
 			"id":                p.ID,
 			"nomor_pendaftaran": p.Nomor_pendaftaran,
+			"status_pendaftaran": p.Status_pendaftaran,
 			"tanggal_nikah":     p.Tanggal_nikah,
 			"waktu_nikah":       p.Waktu_nikah,
 			"tempat_nikah":      p.Tempat_nikah,
@@ -1496,7 +1507,7 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Data pendaftaran disetujui berhasil diambil",
+		"message": "Data pendaftaran berhasil diambil",
 		"data": gin.H{
 			"tanggal_awal":  startOfWeek.Format("2006-01-02"),
 			"tanggal_akhir": endOfWeek.Format("2006-01-02"),
@@ -1506,4 +1517,382 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 			"registrations": registrations,
 		},
 	})
+}
+
+// GeneratePengumumanNikahHTML generates HTML document for pengumuman nikah
+// GET /simnikah/staff/pengumuman-nikah/generate
+func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
+	// Get query parameters (prioritas pertama)
+	tanggalAwal := c.Query("tanggal_awal")
+	tanggalAkhir := c.Query("tanggal_akhir")
+
+	// Get from request body (fallback jika query params tidak ada)
+	var requestBody struct {
+		TanggalAwal  string `json:"tanggal_awal"`
+		TanggalAkhir string `json:"tanggal_akhir"`
+		NamaKUA      string `json:"nama_kua"`
+		AlamatKUA    string `json:"alamat_kua"`
+		Kota         string `json:"kota"`
+		Provinsi     string `json:"provinsi"`
+		KodePos      string `json:"kode_pos"`
+		Telepon      string `json:"telepon"`
+		Email        string `json:"email"`
+		Website      string `json:"website"`
+		LogoURL      string `json:"logo_url"`
+	}
+
+	// Try to bind JSON body
+	if c.Request.ContentLength > 0 {
+		c.ShouldBindJSON(&requestBody)
+	}
+
+	// Gunakan request body jika query params tidak ada
+	if tanggalAwal == "" && requestBody.TanggalAwal != "" {
+		tanggalAwal = requestBody.TanggalAwal
+	}
+	if tanggalAkhir == "" && requestBody.TanggalAkhir != "" {
+		tanggalAkhir = requestBody.TanggalAkhir
+	}
+
+	// Set kop surat values
+	namaKUA := requestBody.NamaKUA
+	alamatKUA := requestBody.AlamatKUA
+	kota := requestBody.Kota
+	provinsi := requestBody.Provinsi
+	kodePos := requestBody.KodePos
+	telepon := requestBody.Telepon
+	email := requestBody.Email
+	website := requestBody.Website
+	logoURL := requestBody.LogoURL
+
+	// Set default values if not provided
+	if namaKUA == "" {
+		namaKUA = "KANTOR URUSAN AGAMA KECAMATAN BANJARMASIN UTARA"
+	}
+	if alamatKUA == "" {
+		alamatKUA = "PH5Q+F8C, Jl. Wira Karya, Pangeran"
+	}
+	if kota == "" {
+		kota = "Kota Banjarmasin"
+	}
+	if provinsi == "" {
+		provinsi = "Kalimantan Selatan"
+	}
+	if kodePos == "" {
+		kodePos = "70123"
+	}
+	if telepon == "" {
+		telepon = "-"
+	}
+	if email == "" {
+		email = "-"
+	}
+
+	// Parse dates
+	now := time.Now()
+	var startOfWeek, endOfWeek time.Time
+
+	if tanggalAwal != "" && tanggalAkhir != "" {
+		start, err := time.Parse("2006-01-02", tanggalAwal)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Format tanggal tidak valid",
+				"error":   "Format tanggal_awal harus YYYY-MM-DD",
+			})
+			return
+		}
+		end, err := time.Parse("2006-01-02", tanggalAkhir)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Format tanggal tidak valid",
+				"error":   "Format tanggal_akhir harus YYYY-MM-DD",
+			})
+			return
+		}
+		startOfWeek = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+		endOfWeek = time.Date(end.Year(), end.Month(), end.Day(), 23, 59, 59, 999999999, time.UTC)
+	} else {
+		// Default: current week
+		weekday := int(now.Weekday())
+		if weekday == 0 {
+			weekday = 7
+		}
+		daysFromMonday := weekday - 1
+		startOfWeek = time.Date(now.Year(), now.Month(), now.Day()-daysFromMonday, 0, 0, 0, 0, time.UTC)
+		endOfWeek = startOfWeek.AddDate(0, 0, 6).Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	}
+
+	// Get registrations
+	var pendaftaran []structs.PendaftaranNikah
+	err := h.DB.Where("tanggal_nikah >= ? AND tanggal_nikah <= ? AND status_pendaftaran != ?",
+		startOfWeek, endOfWeek, structs.StatusPendaftaranDitolak).
+		Order("tanggal_nikah ASC, waktu_nikah ASC").
+		Find(&pendaftaran).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   "Gagal mengambil data pendaftaran",
+		})
+		return
+	}
+
+	// Build registrations data
+	type RegData struct {
+		No              int
+		NomorPendaftaran string
+		TanggalNikah     string
+		WaktuNikah       string
+		TempatNikah      string
+		AlamatAkad       string
+		CalonSuami       string
+		CalonIstri       string
+		WaliNikah        string
+		HubunganWali     string
+	}
+
+	var regDataList []RegData
+	for i, p := range pendaftaran {
+		// Get calon suami
+		var calonSuami structs.CalonPasangan
+		h.DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami)
+
+		// Get calon istri
+		var calonIstri structs.CalonPasangan
+		h.DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri)
+
+		// Get wali nikah
+		var waliNikah structs.WaliNikah
+		waliNikahStr := "-"
+		hubunganWaliStr := "-"
+		if p.Wali_nikah_id != nil {
+			h.DB.Where("id = ?", *p.Wali_nikah_id).First(&waliNikah)
+			if waliNikah.ID != 0 {
+				waliNikahStr = waliNikah.Nama_dan_bin
+				hubunganWaliStr = waliNikah.Hubungan_wali
+			}
+		}
+
+		regDataList = append(regDataList, RegData{
+			No:               i + 1,
+			NomorPendaftaran: p.Nomor_pendaftaran,
+			TanggalNikah:     p.Tanggal_nikah.Format("02 Januari 2006"),
+			WaktuNikah:       p.Waktu_nikah,
+			TempatNikah:      p.Tempat_nikah,
+			AlamatAkad:       p.Alamat_akad,
+			CalonSuami:       calonSuami.Nama_lengkap,
+			CalonIstri:       calonIstri.Nama_lengkap,
+			WaliNikah:        waliNikahStr,
+			HubunganWali:     hubunganWaliStr,
+		})
+	}
+
+	// Generate HTML
+	periodeStr := fmt.Sprintf("%s s/d %s", startOfWeek.Format("02 Januari 2006"), endOfWeek.Format("02 Januari 2006"))
+	tanggalSurat := now.Format("02 Januari 2006")
+
+	html := h.generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePos, telepon, email, website, logoURL, periodeStr, tanggalSurat, regDataList)
+
+	// Set response headers
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
+// generatePengumumanHTML generates HTML string for pengumuman nikah
+func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePos, telepon, email, website, logoURL, periode, tanggalSurat string, registrations []RegData) string {
+	logoHTML := ""
+	if logoURL != "" {
+		logoHTML = fmt.Sprintf(`<img src="%s" alt="Logo KUA" style="max-width: 100px; max-height: 100px; margin-bottom: 10px;">`, logoURL)
+	}
+
+	websiteHTML := ""
+	if website != "" {
+		websiteHTML = fmt.Sprintf(`<p style="margin: 2px 0;">Website: %s</p>`, website)
+	}
+
+	tableRows := ""
+	for _, reg := range registrations {
+		tableRows += fmt.Sprintf(`
+			<tr>
+				<td style="border: 1px solid #000; padding: 8px; text-align: center;">%d</td>
+				<td style="border: 1px solid #000; padding: 8px;">%s</td>
+				<td style="border: 1px solid #000; padding: 8px;">%s</td>
+				<td style="border: 1px solid #000; padding: 8px;">%s</td>
+				<td style="border: 1px solid #000; padding: 8px;">%s</td>
+				<td style="border: 1px solid #000; padding: 8px;">%s</td>
+				<td style="border: 1px solid #000; padding: 8px;">%s</td>
+				<td style="border: 1px solid #000; padding: 8px;">%s</td>
+				<td style="border: 1px solid #000; padding: 8px;">%s</td>
+			</tr>`,
+			reg.No,
+			reg.NomorPendaftaran,
+			reg.TanggalNikah,
+			reg.WaktuNikah,
+			reg.TempatNikah,
+			reg.AlamatAkad,
+			reg.CalonSuami,
+			reg.CalonIstri,
+			reg.WaliNikah,
+		)
+	}
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="id">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Pengumuman Pernikahan - %s</title>
+	<style>
+		@media print {
+			@page {
+				size: A4;
+				margin: 2cm;
+			}
+			.no-print {
+				display: none;
+			}
+		}
+		body {
+			font-family: 'Times New Roman', Times, serif;
+			font-size: 12pt;
+			line-height: 1.6;
+			margin: 0;
+			padding: 20px;
+			color: #000;
+		}
+		.header {
+			text-align: center;
+			margin-bottom: 30px;
+		}
+		.logo {
+			margin-bottom: 10px;
+		}
+		.kop-surat {
+			border-bottom: 3px solid #000;
+			padding-bottom: 10px;
+			margin-bottom: 20px;
+		}
+		.kop-surat h1 {
+			margin: 5px 0;
+			font-size: 14pt;
+			font-weight: bold;
+			text-transform: uppercase;
+		}
+		.kop-surat p {
+			margin: 2px 0;
+			font-size: 11pt;
+		}
+		.content {
+			margin: 20px 0;
+		}
+		.content p {
+			text-align: justify;
+			margin: 10px 0;
+			text-indent: 50px;
+		}
+		table {
+			width: 100%%;
+			border-collapse: collapse;
+			margin: 20px 0;
+			font-size: 10pt;
+		}
+		table th {
+			background-color: #f0f0f0;
+			border: 1px solid #000;
+			padding: 10px;
+			text-align: center;
+			font-weight: bold;
+		}
+		table td {
+			border: 1px solid #000;
+			padding: 8px;
+		}
+		.signature {
+			margin-top: 50px;
+			text-align: right;
+		}
+		.signature p {
+			margin: 5px 0;
+		}
+		.footer {
+			margin-top: 30px;
+			text-align: center;
+			font-size: 10pt;
+		}
+	</style>
+</head>
+<body>
+	<div class="kop-surat">
+		<div class="header">
+			<div class="logo">%s</div>
+			<h1>%s</h1>
+			<p>%s</p>
+			<p>%s, %s %s</p>
+			<p style="margin: 2px 0;">Telp: %s | Email: %s</p>
+			%s
+		</div>
+	</div>
+
+	<div class="content">
+		<p style="text-align: center; font-weight: bold; font-size: 14pt; margin: 20px 0;">PENGUMUMAN PERNIKAHAN</p>
+		
+		<p>Berdasarkan data pendaftaran pernikahan yang telah diterima oleh Kantor Urusan Agama, dengan ini diumumkan kepada masyarakat bahwa akan dilaksanakan pernikahan pada periode <strong>%s</strong> dengan rincian sebagai berikut:</p>
+
+		<table>
+			<thead>
+				<tr>
+					<th style="width: 3%%;">No</th>
+					<th style="width: 10%%;">Nomor Pendaftaran</th>
+					<th style="width: 10%%;">Tanggal Nikah</th>
+					<th style="width: 8%%;">Waktu</th>
+					<th style="width: 10%%;">Tempat</th>
+					<th style="width: 15%%;">Alamat Akad</th>
+					<th style="width: 12%%;">Calon Suami</th>
+					<th style="width: 12%%;">Calon Istri</th>
+					<th style="width: 10%%;">Wali Nikah</th>
+				</tr>
+			</thead>
+			<tbody>
+				%s
+			</tbody>
+		</table>
+
+		<p>Pengumuman ini dibuat untuk memberikan kesempatan kepada masyarakat yang berkeberatan terhadap pernikahan tersebut untuk menyampaikan keberatannya sesuai dengan ketentuan yang berlaku.</p>
+
+		<p>Demikian pengumuman ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.</p>
+	</div>
+
+	<div class="signature">
+		<p>%s, %s</p>
+		<br><br><br>
+		<p><strong>Kepala KUA</strong></p>
+		<p style="margin-top: 50px;"><strong>(_______________________)</strong></p>
+	</div>
+
+	<div class="footer">
+		<p>Surat ini dicetak pada: %s</p>
+	</div>
+</body>
+</html>`,
+		namaKUA,
+		logoHTML,
+		namaKUA,
+		alamatKUA,
+		kota,
+		provinsi,
+		kodePos,
+		telepon,
+		email,
+		websiteHTML,
+		periode,
+		tableRows,
+		kota,
+		tanggalSurat,
+		tanggalSurat,
+	)
+
+	return html
 }
