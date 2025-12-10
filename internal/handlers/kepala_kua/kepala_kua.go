@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	structs "simnikah/internal/models"
@@ -19,18 +20,54 @@ type InDB struct {
 	DB *gorm.DB
 }
 
-// RegData struct untuk data registrasi dalam pengumuman nikah
+// RegData struct untuk data registrasi dalam pengumuman nikah (format Excel)
 type RegData struct {
-	No              int
-	NomorPendaftaran string
-	TanggalNikah     string
-	WaktuNikah       string
-	TempatNikah      string
-	AlamatAkad       string
-	CalonSuami       string
-	CalonIstri       string
+	NoUrut           int
+	PriaBin          string // Nama pria dengan bin
+	UsiaPria         int
+	PendidikanPria   string
+	WanitaBinti      string // Nama wanita dengan binti
+	UsiaWanita       int
+	PendidikanWanita string
+	Hari             string // Nama hari (SENIN, SELASA, dll)
+	Tanggal          string // Tanggal saja (1, 2, 3, dll)
+	Jam              string // Waktu (08.00, 09.00, dll)
+	Tempat           string // Tempat nikah
 	WaliNikah        string
-	HubunganWali     string
+	Penghulu         string
+	Kelurahan        string
+	Keterangan       string
+}
+
+// Helper functions untuk pengumuman nikah
+
+// calculateAge menghitung usia dari tanggal lahir
+func calculateAge(tanggalLahir time.Time) int {
+	now := time.Now()
+	years := now.Year() - tanggalLahir.Year()
+	if now.YearDay() < tanggalLahir.YearDay() {
+		years--
+	}
+	return years
+}
+
+// getDayName mengembalikan nama hari dalam bahasa Indonesia
+func getDayName(weekday time.Weekday) string {
+	days := map[time.Weekday]string{
+		time.Sunday:    "AHAD",
+		time.Monday:    "SENIN",
+		time.Tuesday:   "SELASA",
+		time.Wednesday: "RABU",
+		time.Thursday:  "KAMIS",
+		time.Friday:    "JUM'AT",
+		time.Saturday:  "SABTU",
+	}
+	return days[weekday]
+}
+
+// formatWaktu mengubah format waktu dari HH:MM ke HH.MM
+func formatWaktu(waktu string) string {
+	return strings.Replace(waktu, ":", ".", 1)
 }
 
 // ==================== PENGHULU ASSIGNMENT ====================
@@ -1214,10 +1251,10 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 		Kota         string `json:"kota"`          // Kota
 		Provinsi     string `json:"provinsi"`      // Provinsi
 		KodePos      string `json:"kode_pos"`      // Kode pos
-		Telepon      string `json:"telepon"`        // Nomor telepon
+		Telepon      string `json:"telepon"`       // Nomor telepon
 		Email        string `json:"email"`         // Email
 		Website      string `json:"website"`       // Website (optional)
-		LogoURL      string `json:"logo_url"`     // URL logo KUA (optional)
+		LogoURL      string `json:"logo_url"`      // URL logo KUA (optional)
 	}
 
 	// Try to bind JSON body, if not provided use default
@@ -1351,13 +1388,13 @@ func (h *InDB) GetApprovedRegistrationsPerWeek(c *gin.Context) {
 		}
 
 		regData := gin.H{
-			"id":                p.ID,
-			"nomor_pendaftaran": p.Nomor_pendaftaran,
+			"id":                 p.ID,
+			"nomor_pendaftaran":  p.Nomor_pendaftaran,
 			"status_pendaftaran": p.Status_pendaftaran,
-			"tanggal_nikah":     p.Tanggal_nikah,
-			"waktu_nikah":       p.Waktu_nikah,
-			"tempat_nikah":      p.Tempat_nikah,
-			"alamat_akad":       p.Alamat_akad,
+			"tanggal_nikah":      p.Tanggal_nikah,
+			"waktu_nikah":        p.Waktu_nikah,
+			"tempat_nikah":       p.Tempat_nikah,
+			"alamat_akad":        p.Alamat_akad,
 			"calon_suami": gin.H{
 				"nama_lengkap": calonSuami.Nama_lengkap,
 			},
@@ -1526,75 +1563,113 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 		// Get wali nikah
 		var waliNikah structs.WaliNikah
 		waliNikahStr := "-"
-		hubunganWaliStr := "-"
 		if p.Wali_nikah_id != nil {
 			h.DB.Where("id = ?", *p.Wali_nikah_id).First(&waliNikah)
 			if waliNikah.ID != 0 {
 				waliNikahStr = waliNikah.Nama_dan_bin
-				hubunganWaliStr = waliNikah.Hubungan_wali
 			}
 		}
 
+		// Get penghulu
+		penghuluStr := "-"
+		if p.Penghulu_id != nil {
+			var penghulu structs.Penghulu
+			h.DB.Where("id = ?", *p.Penghulu_id).First(&penghulu)
+			if penghulu.ID != 0 {
+				penghuluStr = penghulu.Nama_lengkap
+			}
+		}
+
+		// Calculate age
+		usiaPria := calculateAge(calonSuami.Tanggal_lahir)
+		usiaWanita := calculateAge(calonIstri.Tanggal_lahir)
+
+		// Format nama dengan bin/binti (simplified - assume nama sudah lengkap)
+		priaBin := calonSuami.Nama_lengkap
+		wanitaBinti := calonIstri.Nama_lengkap
+
+		// Format tanggal nikah
+		hari := getDayName(p.Tanggal_nikah.Weekday())
+		tanggal := fmt.Sprintf("%d", p.Tanggal_nikah.Day())
+		jam := formatWaktu(p.Waktu_nikah)
+
+		// Get kelurahan from alamat (simplified - bisa di-extract dari alamat_akad jika ada pattern)
+		kelurahan := "-" // Default, bisa di-extract dari alamat_akad jika ada pattern
+
 		regDataList = append(regDataList, RegData{
-			No:               i + 1,
-			NomorPendaftaran: p.Nomor_pendaftaran,
-			TanggalNikah:     p.Tanggal_nikah.Format("02 Januari 2006"),
-			WaktuNikah:       p.Waktu_nikah,
-			TempatNikah:      p.Tempat_nikah,
-			AlamatAkad:       p.Alamat_akad,
-			CalonSuami:       calonSuami.Nama_lengkap,
-			CalonIstri:       calonIstri.Nama_lengkap,
+			NoUrut:           i + 1,
+			PriaBin:          priaBin,
+			UsiaPria:         usiaPria,
+			PendidikanPria:   calonSuami.Pendidikan_terakhir,
+			WanitaBinti:      wanitaBinti,
+			UsiaWanita:       usiaWanita,
+			PendidikanWanita: calonIstri.Pendidikan_terakhir,
+			Hari:             hari,
+			Tanggal:          tanggal,
+			Jam:              jam,
+			Tempat:           p.Tempat_nikah,
 			WaliNikah:        waliNikahStr,
-			HubunganWali:     hubunganWaliStr,
+			Penghulu:         penghuluStr,
+			Kelurahan:        kelurahan,
+			Keterangan:       "", // Default kosong
 		})
 	}
 
-	// Generate HTML
-	periodeStr := fmt.Sprintf("%s s/d %s", startOfWeek.Format("02 Januari 2006"), endOfWeek.Format("02 Januari 2006"))
+	// Generate HTML - format Excel
+	// Format bulan tahun: JANUARI 2026
+	bulanNama := []string{"JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI", "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"}
+	bulanTahun := fmt.Sprintf("%s %d", bulanNama[startOfWeek.Month()-1], startOfWeek.Year())
 	tanggalSurat := now.Format("02 Januari 2006")
 
-	html := h.generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePos, telepon, email, website, logoURL, periodeStr, tanggalSurat, regDataList)
+	html := h.generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePos, telepon, email, website, logoURL, bulanTahun, tanggalSurat, regDataList)
 
 	// Set response headers
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
-// generatePengumumanHTML generates HTML string for pengumuman nikah
-func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePos, telepon, email, website, logoURL, periode, tanggalSurat string, registrations []RegData) string {
+// generatePengumumanHTML generates HTML string for pengumuman nikah (format Excel)
+func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePos, telepon, email, website, logoURL, bulanTahun, tanggalSurat string, registrations []RegData) string {
 	logoHTML := ""
 	if logoURL != "" {
-		logoHTML = fmt.Sprintf(`<img src="%s" alt="Logo KUA" style="max-width: 100px; max-height: 100px; margin-bottom: 10px;">`, logoURL)
-	}
-
-	websiteHTML := ""
-	if website != "" {
-		websiteHTML = fmt.Sprintf(`<p style="margin: 2px 0;">Website: %s</p>`, website)
+		logoHTML = fmt.Sprintf(`<img src="%s" alt="Logo KUA" style="max-width: 80px; max-height: 80px;">`, logoURL)
 	}
 
 	tableRows := ""
 	for _, reg := range registrations {
 		tableRows += fmt.Sprintf(`
 			<tr>
-				<td style="border: 1px solid #000; padding: 8px; text-align: center;">%d</td>
-				<td style="border: 1px solid #000; padding: 8px;">%s</td>
-				<td style="border: 1px solid #000; padding: 8px;">%s</td>
-				<td style="border: 1px solid #000; padding: 8px;">%s</td>
-				<td style="border: 1px solid #000; padding: 8px;">%s</td>
-				<td style="border: 1px solid #000; padding: 8px;">%s</td>
-				<td style="border: 1px solid #000; padding: 8px;">%s</td>
-				<td style="border: 1px solid #000; padding: 8px;">%s</td>
-				<td style="border: 1px solid #000; padding: 8px;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%d</td>
+				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%d</td>
+				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%d</td>
+				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
+				<td style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
 			</tr>`,
-			reg.No,
-			reg.NomorPendaftaran,
-			reg.TanggalNikah,
-			reg.WaktuNikah,
-			reg.TempatNikah,
-			reg.AlamatAkad,
-			reg.CalonSuami,
-			reg.CalonIstri,
+			reg.NoUrut,
+			reg.PriaBin,
+			reg.UsiaPria,
+			reg.PendidikanPria,
+			reg.WanitaBinti,
+			reg.UsiaWanita,
+			reg.PendidikanWanita,
+			reg.Hari,
+			reg.Tanggal,
+			reg.Jam,
+			reg.Tempat,
 			reg.WaliNikah,
+			reg.Penghulu,
+			reg.Kelurahan,
+			reg.Keterangan,
 		)
 	}
 
@@ -1603,12 +1678,12 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Pengumuman Pernikahan - %s</title>
+	<title>Jadual Nikah - %s</title>
 	<style>
 		@media print {
 			@page {
-				size: A4;
-				margin: 2cm;
+				size: A4 landscape;
+				margin: 1cm;
 			}
 			.no-print {
 				display: none;
@@ -1616,141 +1691,137 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 		}
 		body {
 			font-family: 'Times New Roman', Times, serif;
-			font-size: 12pt;
-			line-height: 1.6;
+			font-size: 11pt;
+			line-height: 1.4;
 			margin: 0;
-			padding: 20px;
+			padding: 15px;
 			color: #000;
 		}
-		.header {
-			text-align: center;
-			margin-bottom: 30px;
-		}
-		.logo {
-			margin-bottom: 10px;
-		}
 		.kop-surat {
-			border-bottom: 3px solid #000;
+			display: flex;
+			align-items: flex-start;
+			margin-bottom: 15px;
 			padding-bottom: 10px;
-			margin-bottom: 20px;
+			border-bottom: 2px solid #000;
 		}
-		.kop-surat h1 {
-			margin: 5px 0;
-			font-size: 14pt;
+		.logo-container {
+			margin-right: 15px;
+		}
+		.logo-container img {
+			max-width: 80px;
+			max-height: 80px;
+		}
+		.kop-info {
+			flex: 1;
+		}
+		.kop-info h1 {
+			margin: 2px 0;
+			font-size: 12pt;
 			font-weight: bold;
 			text-transform: uppercase;
 		}
-		.kop-surat p {
-			margin: 2px 0;
-			font-size: 11pt;
+		.kop-info p {
+			margin: 1px 0;
+			font-size: 10pt;
 		}
-		.content {
-			margin: 20px 0;
-		}
-		.content p {
-			text-align: justify;
-			margin: 10px 0;
-			text-indent: 50px;
+		.judul {
+			text-align: center;
+			font-weight: bold;
+			font-size: 14pt;
+			margin: 15px 0;
 		}
 		table {
 			width: 100%%;
 			border-collapse: collapse;
-			margin: 20px 0;
-			font-size: 10pt;
+			margin: 10px 0;
+			font-size: 8pt;
 		}
 		table th {
-			background-color: #f0f0f0;
+			background-color: #e0e0e0;
 			border: 1px solid #000;
-			padding: 10px;
+			padding: 4px;
 			text-align: center;
 			font-weight: bold;
+			font-size: 8pt;
 		}
 		table td {
 			border: 1px solid #000;
-			padding: 8px;
+			padding: 4px;
+			font-size: 8pt;
 		}
-		.signature {
-			margin-top: 50px;
-			text-align: right;
-		}
-		.signature p {
-			margin: 5px 0;
-		}
-		.footer {
-			margin-top: 30px;
-			text-align: center;
-			font-size: 10pt;
-		}
+		.col-no { width: 3%%; }
+		.col-pria { width: 12%%; }
+		.col-usia { width: 4%%; }
+		.col-pendk { width: 5%%; }
+		.col-wanita { width: 12%%; }
+		.col-hari { width: 6%%; }
+		.col-tgl { width: 3%%; }
+		.col-jam { width: 5%%; }
+		.col-tempat { width: 15%%; }
+		.col-wali { width: 10%%; }
+		.col-penghulu { width: 10%%; }
+		.col-kelurahan { width: 8%%; }
+		.col-ket { width: 4%%; }
 	</style>
 </head>
 <body>
 	<div class="kop-surat">
-		<div class="header">
-			<div class="logo">%s</div>
+		<div class="logo-container">
+			%s
+		</div>
+		<div class="kop-info">
+			<h1>KEMENTERIAN AGAMA REPUBLIK INDONESIA</h1>
+			<h1>KANTOR KEMENTERIAN AGAMA KOTA %s</h1>
 			<h1>%s</h1>
 			<p>%s</p>
-			<p>%s, %s %s</p>
-			<p style="margin: 2px 0;">Telp: %s | Email: %s</p>
-			%s
+			<p>Telpon %s</p>
+			<p>%s</p>
 		</div>
 	</div>
 
-	<div class="content">
-		<p style="text-align: center; font-weight: bold; font-size: 14pt; margin: 20px 0;">PENGUMUMAN PERNIKAHAN</p>
-		
-		<p>Berdasarkan data pendaftaran pernikahan yang telah diterima oleh Kantor Urusan Agama, dengan ini diumumkan kepada masyarakat bahwa akan dilaksanakan pernikahan pada periode <strong>%s</strong> dengan rincian sebagai berikut:</p>
-
-		<table>
-			<thead>
-				<tr>
-					<th style="width: 3%%;">No</th>
-					<th style="width: 10%%;">Nomor Pendaftaran</th>
-					<th style="width: 10%%;">Tanggal Nikah</th>
-					<th style="width: 8%%;">Waktu</th>
-					<th style="width: 10%%;">Tempat</th>
-					<th style="width: 15%%;">Alamat Akad</th>
-					<th style="width: 12%%;">Calon Suami</th>
-					<th style="width: 12%%;">Calon Istri</th>
-					<th style="width: 10%%;">Wali Nikah</th>
-				</tr>
-			</thead>
-			<tbody>
-				%s
-			</tbody>
-		</table>
-
-		<p>Pengumuman ini dibuat untuk memberikan kesempatan kepada masyarakat yang berkeberatan terhadap pernikahan tersebut untuk menyampaikan keberatannya sesuai dengan ketentuan yang berlaku.</p>
-
-		<p>Demikian pengumuman ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.</p>
+	<div class="judul">
+		JADUAL NIKAH %s
 	</div>
 
-	<div class="signature">
-		<p>%s, %s</p>
-		<br><br><br>
-		<p><strong>Kepala KUA</strong></p>
-		<p style="margin-top: 50px;"><strong>(_______________________)</strong></p>
-	</div>
-
-	<div class="footer">
-		<p>Surat ini dicetak pada: %s</p>
-	</div>
+	<table>
+		<thead>
+			<tr>
+				<th rowspan="2" class="col-no">NO<br>URUT</th>
+				<th colspan="6">DATA CALON PENGANTIN</th>
+				<th colspan="8">PELAKSANAAN NIKAH</th>
+			</tr>
+			<tr>
+				<th class="col-pria">PRIA / BIN</th>
+				<th class="col-usia">USIA</th>
+				<th class="col-pendk">PENDK</th>
+				<th class="col-wanita">WANITA / BINTI</th>
+				<th class="col-usia">USIA</th>
+				<th class="col-pendk">PENDK</th>
+				<th class="col-hari">HARI</th>
+				<th class="col-tgl">TGL</th>
+				<th class="col-jam">JAM</th>
+				<th class="col-tempat">TEMPAT</th>
+				<th class="col-wali">WALINIKAH</th>
+				<th class="col-penghulu">PENGHULU</th>
+				<th class="col-kelurahan">KELURAHAN</th>
+				<th class="col-ket">KET</th>
+			</tr>
+		</thead>
+		<tbody>
+			%s
+		</tbody>
+	</table>
 </body>
 </html>`,
 		namaKUA,
 		logoHTML,
+		strings.ToUpper(kota),
 		namaKUA,
 		alamatKUA,
-		kota,
-		provinsi,
-		kodePos,
 		telepon,
 		email,
-		websiteHTML,
-		periode,
+		strings.ToUpper(bulanTahun),
 		tableRows,
-		kota,
-		tanggalSurat,
-		tanggalSurat,
 	)
 
 	return html
