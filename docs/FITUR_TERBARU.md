@@ -230,6 +230,8 @@ GET /simnikah/kepala-kua/pengumuman-nikah/generate
 POST /simnikah/kepala-kua/pengumuman-nikah/generate
 ```
 
+> ⚠️ **PENTING:** Jika Anda mendapatkan error 404, pastikan server backend sudah di-restart setelah route ditambahkan. Route baru tidak akan aktif sampai server di-restart.
+
 ### Authentication
 
 ✅ **Required** - Bearer Token
@@ -888,14 +890,56 @@ await html2pdf().set(opt).from(element).save();
 
 ## 🔧 Troubleshooting
 
-### Problem 1: HTML tidak ter-render dengan benar
+### Problem 1: Error 404 - Endpoint tidak ditemukan
+
+**Gejala:**
+```
+Failed to load resource: the server responded with a status of 404 (Not Found)
+{"error":"Path '/simnikah/kepala-kua/pengumuman-nikah/generate' tidak ditemukan"}
+```
+
+**Solusi:**
+1. **Restart Server Backend** - Route baru memerlukan restart server:
+   ```bash
+   # Stop server yang sedang berjalan (Ctrl+C)
+   # Kemudian start ulang
+   go run cmd/api/main.go
+   # atau jika menggunakan build
+   ./simnikah-api
+   ```
+
+2. **Verifikasi Route Terdaftar** - Pastikan route sudah terdaftar di `cmd/api/main.go`:
+   ```go
+   simnikahRoutes.GET("/kepala-kua/pengumuman-nikah/generate", ...)
+   simnikahRoutes.POST("/kepala-kua/pengumuman-nikah/generate", ...)
+   ```
+
+3. **Cek Proxy Configuration** - Jika menggunakan proxy di frontend, pastikan konfigurasi proxy sudah benar:
+   ```javascript
+   // Contoh: Jika menggunakan proxy /api/proxy
+   // Pastikan proxy mengarah ke backend yang benar
+   const API_BASE_URL = '/api/proxy/simnikah';
+   ```
+
+4. **Test dengan curl atau Postman** - Test langsung ke backend tanpa proxy:
+   ```bash
+   curl -X GET "http://localhost:8080/simnikah/kepala-kua/pengumuman-nikah/generate?tanggal_awal=2024-12-16&tanggal_akhir=2024-12-22" \
+     -H "Authorization: Bearer YOUR_TOKEN"
+   ```
+
+5. **Cek Log Server** - Lihat log server untuk melihat apakah request sampai ke server:
+   ```
+   [GIN] 2024/12/16 - 10:00:00 | 404 | 1ms | 127.0.0.1 | GET /simnikah/kepala-kua/pengumuman-nikah/generate
+   ```
+
+### Problem 2: HTML tidak ter-render dengan benar
 
 **Solusi:**
 - Pastikan `responseType: 'text'` sudah diset
 - Pastikan HTML di-write ke document dengan benar
 - Tunggu beberapa saat sebelum print untuk memastikan CSS ter-load
 
-### Problem 2: Logo tidak muncul di PDF
+### Problem 3: Logo tidak muncul di PDF
 
 **Solusi:**
 - Pastikan logo URL accessible (public URL)
@@ -903,21 +947,21 @@ await html2pdf().set(opt).from(element).save();
 - Set `useCORS: true` di html2canvas config
 - Pastikan server logo mengizinkan CORS
 
-### Problem 3: Error 403 Forbidden
+### Problem 4: Error 403 Forbidden
 
 **Solusi:**
 - Pastikan user memiliki role yang sesuai (`staff` atau `kepala_kua`)
 - Pastikan token masih valid
 - Cek apakah user memiliki akses ke endpoint tersebut
 
-### Problem 4: Format tanggal tidak valid
+### Problem 5: Format tanggal tidak valid
 
 **Solusi:**
 - Pastikan format tanggal adalah `YYYY-MM-DD` (contoh: `2024-12-16`)
 - Gunakan date picker yang otomatis format ke format yang benar
 - Validasi tanggal di frontend sebelum kirim request
 
-### Problem 5: PDF tidak sesuai dengan print preview
+### Problem 6: PDF tidak sesuai dengan print preview
 
 **Solusi:**
 - Pastikan `@media print` CSS sudah include di HTML

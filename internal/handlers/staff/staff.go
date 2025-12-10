@@ -20,6 +20,20 @@ type InDB struct {
 	DB *gorm.DB
 }
 
+// RegData struct untuk data registrasi dalam pengumuman nikah
+type RegData struct {
+	No              int
+	NomorPendaftaran string
+	TanggalNikah     string
+	WaktuNikah       string
+	TempatNikah      string
+	AlamatAkad       string
+	CalonSuami       string
+	CalonIstri       string
+	WaliNikah        string
+	HubunganWali     string
+}
+
 // ==================== STAFF MANAGEMENT HANDLERS ====================
 
 // CreateStaff creates a new staff member
@@ -1641,19 +1655,6 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 	}
 
 	// Build registrations data
-	type RegData struct {
-		No              int
-		NomorPendaftaran string
-		TanggalNikah     string
-		WaktuNikah       string
-		TempatNikah      string
-		AlamatAkad       string
-		CalonSuami       string
-		CalonIstri       string
-		WaliNikah        string
-		HubunganWali     string
-	}
-
 	var regDataList []RegData
 	for i, p := range pendaftaran {
 		// Get calon suami
