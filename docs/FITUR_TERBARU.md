@@ -214,7 +214,7 @@ console.log(detail.data);
 
 ### Deskripsi
 
-Endpoint ini mengembalikan **HTML document lengkap** untuk surat pengumuman nikah yang siap dicetak atau dikonversi ke PDF. HTML sudah include CSS untuk print optimization dan format A4.
+Endpoint ini mengembalikan **HTML document lengkap** untuk surat pengumuman nikah yang siap dicetak atau dikonversi ke PDF. Format HTML mengikuti format Excel standar KUA dengan **15 kolom** dan layout **landscape A4**. HTML sudah include CSS untuk print optimization.
 
 ### Endpoints
 
@@ -346,27 +346,62 @@ const generatePengumumanCustom = async (tanggalAwal, tanggalAkhir, kopSurat) => 
 
 **Content-Type:** `text/html; charset=utf-8`
 
-Response berupa **HTML document lengkap** dengan struktur:
+Response berupa **HTML document lengkap** dengan struktur sesuai format Excel standar KUA:
 
-1. **Kop Surat KUA** (dengan logo jika disediakan)
-2. **Judul:** "PENGUMUMAN PERNIKAHAN"
-3. **Periode:** Format "DD Bulan YYYY s/d DD Bulan YYYY"
-4. **Paragraf Pembuka**
-5. **Tabel Data Pendaftaran** (9 kolom)
-6. **Paragraf Penutup**
-7. **Tanda Tangan** Kepala KUA
-8. **Footer** dengan tanggal cetak
+1. **Kop Surat KUA:**
+   - Logo di kiri (jika `logo_url` disediakan)
+   - KEMENTERIAN AGAMA REPUBLIK INDONESIA
+   - KANTOR KEMENTERIAN AGAMA KOTA [KOTA]
+   - Nama KUA
+   - Alamat lengkap
+   - Kontak (telepon, email)
+
+2. **Judul:** "JADUAL NIKAH [BULAN] [TAHUN]" (contoh: "JADUAL NIKAH JANUARI 2026")
+
+3. **Tabel Data Pendaftaran** dengan **15 kolom** (kolom tetap, baris dinamis):
+   
+   **Struktur Kolom (Tetap 15 kolom):**
+   - **NO URUT** - Nomor urut (1, 2, 3, ...)
+   - **DATA CALON PENGANTIN:**
+     - **PRIA / BIN** - Nama calon suami
+     - **USIA** - Usia calon suami (dihitung otomatis)
+     - **PENDK** - Pendidikan terakhir calon suami
+     - **WANITA / BINTI** - Nama calon istri
+     - **USIA** - Usia calon istri (dihitung otomatis)
+     - **PENDK** - Pendidikan terakhir calon istri
+   - **PELAKSANAAN NIKAH:**
+     - **HARI** - Nama hari (SENIN, SELASA, RABU, KAMIS, JUM'AT, SABTU, AHAD)
+     - **TGL** - Tanggal (hanya angka: 1, 2, 3, dll)
+     - **JAM** - Waktu (format: 08.00, 09.00, dll)
+     - **TEMPAT** - Tempat nikah
+     - **WALINIKAH** - Nama wali nikah
+     - **PENGHULU** - Nama penghulu (jika sudah ditugaskan)
+     - **KELURAHAN** - Kelurahan
+     - **KET** - Keterangan
+   
+   **Catatan Penting:**
+   - ✅ **Kolom tetap 15 kolom** (tidak berubah)
+   - ✅ **Baris dinamis** - jumlah baris tergantung jumlah data pendaftaran dalam periode yang dipilih
+   - ✅ **Setiap baris = 1 pendaftaran nikah**
+   - ✅ Jika ada 10 pendaftaran, akan ada 10 baris data
+   - ✅ Jika ada 50 pendaftaran, akan ada 50 baris data
+   - ✅ Data diurutkan berdasarkan tanggal nikah dan waktu (ASC)
 
 **Fitur HTML:**
 - ✅ CSS untuk print optimization (`@media print`)
-- ✅ Format A4 dengan margin yang sesuai
+- ✅ Format **A4 Landscape** untuk menampung tabel lebar
 - ✅ Font: Times New Roman (serif)
+- ✅ Font size: 8-9pt untuk tabel, 11-12pt untuk kop surat
 - ✅ Tabel dengan border untuk kejelasan
+- ✅ Header tabel dengan rowspan/colspan untuk grouping kolom
 - ✅ Siap untuk dicetak langsung atau dikonversi ke PDF
 
 **Catatan Penting:**
 - **Status yang ditampilkan:** Semua status kecuali "Ditolak" (Draft, Disetujui, Menunggu Penugasan, Penghulu Ditugaskan, Selesai)
 - Status "Ditolak" tidak ditampilkan karena tidak perlu diumumkan
+- **Usia dihitung otomatis** dari tanggal lahir calon pengantin
+- **Format waktu:** HH:MM diubah menjadi HH.MM (contoh: 08:00 → 08.00)
+- **Nama hari:** Otomatis dalam bahasa Indonesia (SENIN, SELASA, dll)
 
 ### Response Error
 

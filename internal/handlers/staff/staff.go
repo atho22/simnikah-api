@@ -1693,13 +1693,13 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 	// Build registrations data
 	var regDataList []RegData
 	for i, p := range pendaftaran {
-		// Get calon suami
+		// Get calon suami (menggunakan user_id, bukan id)
 		var calonSuami structs.CalonPasangan
-		h.DB.Where("id = ?", p.Calon_suami_id).First(&calonSuami)
+		h.DB.Where("user_id = ?", p.Calon_suami_id).First(&calonSuami)
 
-		// Get calon istri
+		// Get calon istri (menggunakan user_id, bukan id)
 		var calonIstri structs.CalonPasangan
-		h.DB.Where("id = ?", p.Calon_istri_id).First(&calonIstri)
+		h.DB.Where("user_id = ?", p.Calon_istri_id).First(&calonIstri)
 
 		// Get wali nikah
 		var waliNikah structs.WaliNikah
@@ -1721,13 +1721,38 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 			}
 		}
 
-		// Calculate age
-		usiaPria := calculateAge(calonSuami.Tanggal_lahir)
-		usiaWanita := calculateAge(calonIstri.Tanggal_lahir)
+		// Format nama dengan bin/binti
+		priaBin := "-"
+		if calonSuami.ID != 0 {
+			priaBin = calonSuami.Nama_lengkap
+		}
 
-		// Format nama dengan bin/binti (simplified - assume nama sudah lengkap)
-		priaBin := calonSuami.Nama_lengkap
-		wanitaBinti := calonIstri.Nama_lengkap
+		wanitaBinti := "-"
+		if calonIstri.ID != 0 {
+			wanitaBinti = calonIstri.Nama_lengkap
+		}
+
+		// Calculate age (hanya jika tanggal lahir valid)
+		usiaPria := 0
+		if calonSuami.ID != 0 && !calonSuami.Tanggal_lahir.IsZero() {
+			usiaPria = calculateAge(calonSuami.Tanggal_lahir)
+		}
+
+		usiaWanita := 0
+		if calonIstri.ID != 0 && !calonIstri.Tanggal_lahir.IsZero() {
+			usiaWanita = calculateAge(calonIstri.Tanggal_lahir)
+		}
+
+		// Get pendidikan terakhir
+		pendidikanPria := "-"
+		if calonSuami.ID != 0 && calonSuami.Pendidikan_terakhir != "" {
+			pendidikanPria = calonSuami.Pendidikan_terakhir
+		}
+
+		pendidikanWanita := "-"
+		if calonIstri.ID != 0 && calonIstri.Pendidikan_terakhir != "" {
+			pendidikanWanita = calonIstri.Pendidikan_terakhir
+		}
 
 		// Format tanggal nikah
 		hari := getDayName(p.Tanggal_nikah.Weekday())
@@ -1741,10 +1766,10 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 			NoUrut:           i + 1,
 			PriaBin:          priaBin,
 			UsiaPria:         usiaPria,
-			PendidikanPria:   calonSuami.Pendidikan_terakhir,
+			PendidikanPria:   pendidikanPria,
 			WanitaBinti:      wanitaBinti,
 			UsiaWanita:       usiaWanita,
-			PendidikanWanita: calonIstri.Pendidikan_terakhir,
+			PendidikanWanita: pendidikanWanita,
 			Hari:             hari,
 			Tanggal:          tanggal,
 			Jam:              jam,
