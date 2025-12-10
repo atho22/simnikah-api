@@ -67,7 +67,6 @@ type RegData struct {
 	WaliNikah        string
 	Penghulu         string
 	Kelurahan        string
-	Keterangan       string
 }
 
 // ==================== STAFF MANAGEMENT HANDLERS ====================
@@ -1852,7 +1851,6 @@ func (h *InDB) GeneratePengumumanNikahHTML(c *gin.Context) {
 			WaliNikah:        waliNikahStr,
 			Penghulu:         penghuluStr,
 			Kelurahan:        kelurahan,
-			Keterangan:       "", // Default kosong
 		})
 	}
 
@@ -1891,7 +1889,6 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 				<td class="col-tgl" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
 				<td class="col-jam" style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 9pt;">%s</td>
 				<td class="col-tempat" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
-				<td class="col-ket" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
 				<td class="col-wali" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
 				<td class="col-penghulu" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
 				<td class="col-kelurahan" style="border: 1px solid #000; padding: 5px; font-size: 9pt;">%s</td>
@@ -1907,7 +1904,6 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 			reg.Tanggal,
 			reg.Jam,
 			reg.Tempat,
-			reg.Keterangan,
 			reg.WaliNikah,
 			reg.Penghulu,
 			reg.Kelurahan,
@@ -2005,7 +2001,6 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 		.col-wali { width: 10%%; }
 		.col-penghulu { width: 10%%; }
 		.col-kelurahan { width: 8%%; }
-		.col-ket { width: 4%%; }
 	</style>
 </head>
 <body>
@@ -2032,7 +2027,7 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 			<tr>
 				<th rowspan="2" class="col-no">NO<br>URUT</th>
 				<th colspan="6">DATA CALON PENGANTIN</th>
-				<th colspan="8">PELAKSANAAN NIKAH</th>
+				<th colspan="7">PELAKSANAAN NIKAH</th>
 			</tr>
 			<tr>
 				<th class="col-pria">PRIA / BIN</th>
@@ -2045,7 +2040,6 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 				<th class="col-tgl">TGL</th>
 				<th class="col-jam">JAM</th>
 				<th class="col-tempat">TEMPAT</th>
-				<th class="col-ket">KET</th>
 				<th class="col-wali">WALINIKAH</th>
 				<th class="col-penghulu">PENGHULU</th>
 				<th class="col-kelurahan">KELURAHAN</th>
