@@ -1794,31 +1794,33 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 			color: #000;
 		}
 		.kop-surat {
-			display: flex;
-			align-items: flex-start;
+			text-align: center;
 			margin-bottom: 15px;
 			padding-bottom: 10px;
 			border-bottom: 2px solid #000;
 		}
 		.logo-container {
-			margin-right: 15px;
+			display: inline-block;
+			margin-bottom: 5px;
 		}
 		.logo-container img {
 			max-width: 80px;
 			max-height: 80px;
 		}
 		.kop-info {
-			flex: 1;
+			text-align: center;
 		}
 		.kop-info h1 {
 			margin: 2px 0;
 			font-size: 12pt;
 			font-weight: bold;
 			text-transform: uppercase;
+			text-align: center;
 		}
 		.kop-info p {
 			margin: 1px 0;
 			font-size: 10pt;
+			text-align: center;
 		}
 		.judul {
 			text-align: center;
