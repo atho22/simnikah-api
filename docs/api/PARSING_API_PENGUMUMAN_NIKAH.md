@@ -310,9 +310,9 @@ Content-Length: <ukuran file>
 
 2. **Judul:** "JADUAL NIKAH [BULAN] [TAHUN]" (contoh: "JADUAL NIKAH JANUARI 2026")
 
-3. **Tabel Data Pendaftaran** dengan **15 kolom** (kolom tetap, baris dinamis):
+3. **Tabel Data Pendaftaran** dengan **14 kolom** (kolom tetap, baris dinamis):
    
-   **Struktur Kolom (Tetap 15 kolom):**
+   **Struktur Kolom (Tetap 14 kolom):**
    - **NO URUT** - Nomor urut (1, 2, 3, ...)
    - **DATA CALON PENGANTIN:**
      - **PRIA / BIN** - Nama calon suami
@@ -331,10 +331,9 @@ Content-Length: <ukuran file>
      - **WALINIKAH** - Nama wali nikah
      - **PENGHULU** - Nama penghulu (jika sudah ditugaskan, "-" jika belum)
      - **KELURAHAN** - Kelurahan
-     - **KET** - Keterangan
    
    **Catatan Penting:**
-   - ✅ **Kolom tetap 15 kolom** (tidak berubah)
+   - ✅ **Kolom tetap 14 kolom** (tidak berubah)
    - ✅ **Baris dinamis** - jumlah baris tergantung jumlah data pendaftaran dalam periode yang dipilih
    - ✅ **Setiap baris = 1 pendaftaran nikah**
    - ✅ Jika ada 10 pendaftaran, akan ada 10 baris data

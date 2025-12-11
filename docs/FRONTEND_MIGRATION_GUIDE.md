@@ -49,9 +49,9 @@ Update format pengumuman nikah dari 9 kolom ke 15 kolom **TIDAK memerlukan perub
 
 **Sesudah (v2.0.0):**
 - Judul: "JADUAL NIKAH [BULAN] [TAHUN]"
-- Tabel: **15 kolom** dengan grouping
+- Tabel: **14 kolom** dengan grouping
 - Layout: **A4 Landscape**
-- Kolom: NO URUT, PRIA/BIN, USIA, PENDK, WANITA/BINTI, USIA, PENDK, HARI, TGL, JAM, TEMPAT, WALINIKAH, PENGHULU, KELURAHAN, KET
+- Kolom: NO URUT, PRIA/BIN, USIA, PENDK, WANITA/BINTI, USIA, PENDK, HARI, TGL, JAM, TEMPAT, WALINIKAH, PENGHULU, KELURAHAN
 
 ### Dampak untuk Frontend
 
@@ -205,7 +205,7 @@ Jika frontend melakukan parsing HTML untuk extract data spesifik (tidak disarank
 - Selector: `table tr td:nth-child(1)` = No, `td:nth-child(2)` = Nomor Pendaftaran, dll.
 
 **Sesudah:**
-- Tabel dengan 15 kolom
+- Tabel dengan 14 kolom
 - Selector: `table tr td:nth-child(1)` = NO URUT, `td:nth-child(2)` = PRIA/BIN, dll.
 
 **Rekomendasi:** Gunakan endpoint `/list` untuk mendapatkan data dalam format JSON, bukan parsing HTML.
@@ -234,7 +234,7 @@ Jika frontend melakukan parsing HTML untuk extract data spesifik (tidak disarank
 
 2. **HTML Display**
    - [ ] HTML ditampilkan dengan benar di iframe/preview
-   - [ ] Tabel 15 kolom terlihat lengkap
+   - [ ] Tabel 14 kolom terlihat lengkap
    - [ ] Kop surat dengan logo (jika ada) terlihat benar
 
 3. **Print**

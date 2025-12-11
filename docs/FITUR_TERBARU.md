@@ -214,7 +214,7 @@ console.log(detail.data);
 
 ### Deskripsi
 
-Endpoint ini mengembalikan **HTML document lengkap** untuk surat pengumuman nikah yang siap dicetak atau dikonversi ke PDF. Format HTML mengikuti format Excel standar KUA dengan **15 kolom** dan layout **landscape A4**. HTML sudah include CSS untuk print optimization.
+Endpoint ini mengembalikan **HTML document lengkap** untuk surat pengumuman nikah yang siap dicetak atau dikonversi ke PDF. Format HTML mengikuti format Excel standar KUA dengan **14 kolom** dan layout **landscape A4**. HTML sudah include CSS untuk print optimization.
 
 ### Endpoints
 
@@ -358,9 +358,9 @@ Response berupa **HTML document lengkap** dengan struktur sesuai format Excel st
 
 2. **Judul:** "JADUAL NIKAH [BULAN] [TAHUN]" (contoh: "JADUAL NIKAH JANUARI 2026")
 
-3. **Tabel Data Pendaftaran** dengan **15 kolom** (kolom tetap, baris dinamis):
+3. **Tabel Data Pendaftaran** dengan **14 kolom** (kolom tetap, baris dinamis):
    
-   **Struktur Kolom (Tetap 15 kolom):**
+   **Struktur Kolom (Tetap 14 kolom):**
    - **NO URUT** - Nomor urut (1, 2, 3, ...)
    - **DATA CALON PENGANTIN:**
      - **PRIA / BIN** - Nama calon suami
@@ -379,10 +379,9 @@ Response berupa **HTML document lengkap** dengan struktur sesuai format Excel st
      - **WALINIKAH** - Nama wali nikah
      - **PENGHULU** - Nama penghulu (jika sudah ditugaskan)
      - **KELURAHAN** - Kelurahan
-     - **KET** - Keterangan
    
    **Catatan Penting:**
-   - ✅ **Kolom tetap 15 kolom** (tidak berubah)
+   - ✅ **Kolom tetap 14 kolom** (tidak berubah)
    - ✅ **Baris dinamis** - jumlah baris tergantung jumlah data pendaftaran dalam periode yang dipilih
    - ✅ **Setiap baris = 1 pendaftaran nikah**
    - ✅ Jika ada 10 pendaftaran, akan ada 10 baris data

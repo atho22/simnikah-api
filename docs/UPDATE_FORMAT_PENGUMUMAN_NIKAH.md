@@ -1,14 +1,14 @@
 # 📋 Update Format Pengumuman Nikah
 
 **Tanggal Update:** Desember 2024  
-**Versi:** 2.0.0  
+**Versi:** 2.1.0  
 **Status:** ✅ Production Ready
 
 ---
 
 ## 🎯 Overview
 
-Format pengumuman nikah telah diupdate untuk mengikuti format Excel standar KUA dengan **15 kolom** dan layout **landscape A4**. Update ini membuat format HTML output lebih sesuai dengan format dokumen resmi yang digunakan di KUA.
+Format pengumuman nikah telah diupdate untuk mengikuti format Excel standar KUA dengan **14 kolom** dan layout **landscape A4**. Update ini membuat format HTML output lebih sesuai dengan format dokumen resmi yang digunakan di KUA.
 
 ---
 
@@ -22,22 +22,22 @@ Format pengumuman nikah telah diupdate untuk mengikuti format Excel standar KUA 
 
 ### Format Baru (v2.0.0) ✨
 - Judul: "JADUAL NIKAH [BULAN] [TAHUN]" (contoh: "JADUAL NIKAH JANUARI 2026")
-- Tabel: **15 kolom** dengan grouping
+- Tabel: **14 kolom** dengan grouping
 - Layout: **A4 Landscape**
 - Kop surat: Logo di kiri, informasi KUA di kanan
 
 ---
 
-## 📊 Struktur Tabel Baru (15 Kolom)
+## 📊 Struktur Tabel Baru (14 Kolom)
 
 ### Header Tabel
 
-| NO URUT | DATA CALON PENGANTIN | | | | | | PELAKSANAAN NIKAH | | | | | | | | |
-|---------|----------------------|-|-|-|-|-|-------------------|-|-|-|-|-|-|-|-|
-| | PRIA / BIN | USIA | PENDK | WANITA / BINTI | USIA | PENDK | HARI | TGL | JAM | TEMPAT | WALINIKAH | PENGHULU | KELURAHAN | KET |
+| NO URUT | DATA CALON PENGANTIN | | | | | | PELAKSANAAN NIKAH | | | | | | | |
+|---------|----------------------|-|-|-|-|-|-------------------|-|-|-|-|-|-|-|
+| | PRIA / BIN | USIA | PENDK | WANITA / BINTI | USIA | PENDK | HARI | TGL | JAM | TEMPAT | WALINIKAH | PENGHULU | KELURAHAN |
 
 **Catatan:**
-- ✅ **Kolom tetap 15 kolom** (tidak berubah)
+- ✅ **Kolom tetap 14 kolom** (tidak berubah)
 - ✅ **Baris dinamis** - jumlah baris tergantung jumlah data pendaftaran dalam periode yang dipilih
 - ✅ **Setiap baris = 1 pendaftaran nikah**
 - ✅ Semua pendaftaran dalam periode akan ditampilkan (kecuali status "Ditolak")
@@ -60,7 +60,6 @@ Format pengumuman nikah telah diupdate untuk mengikuti format Excel standar KUA 
 12. **WALINIKAH** - Nama wali nikah
 13. **PENGHULU** - Nama penghulu (jika sudah ditugaskan, "-" jika belum)
 14. **KELURAHAN** - Kelurahan
-15. **KET** - Keterangan
 
 ---
 
@@ -121,7 +120,7 @@ Format pengumuman nikah telah diupdate untuk mengikuti format Excel standar KUA 
 
 ### Backend Changes
 
-1. **RegData Struct** - Diupdate untuk 15 kolom:
+1. **RegData Struct** - Diupdate untuk 14 kolom:
    ```go
    type RegData struct {
        NoUrut           int
@@ -138,7 +137,6 @@ Format pengumuman nikah telah diupdate untuk mengikuti format Excel standar KUA 
        WaliNikah        string
        Penghulu         string
        Kelurahan        string
-       Keterangan       string
    }
    ```
 
@@ -149,7 +147,7 @@ Format pengumuman nikah telah diupdate untuk mengikuti format Excel standar KUA 
 
 3. **HTML Generation** - Diupdate untuk:
    - Layout landscape A4
-   - Tabel 15 kolom dengan header kompleks
+   - Tabel 14 kolom dengan header kompleks
    - Kop surat dengan logo di kiri
 
 ### Files Modified
@@ -179,11 +177,11 @@ JADUAL NIKAH JANUARI 2026
 
 Tabel akan menampilkan **semua pendaftaran** dalam periode yang dipilih. Contoh jika ada 3 pendaftaran:
 
-| NO | PRIA / BIN | USIA | PENDK | WANITA / BINTI | USIA | PENDK | HARI | TGL | JAM | TEMPAT | WALINIKAH | PENGHULU | KELURAHAN | KET |
-|----|------------|------|-------|----------------|------|-------|------|-----|-----|---------|-----------|----------|-----------|-----|
-| 1 | AHMAD RIFANI / SALIM | 29 | S1 | NUR AIDA ANGGRAINI / SADARUDDIN | 23 | S1 | KAMIS | 1 | 08.00 | KOMP DASAMAYA 2 BLOK D RT.16 RW.02 ALALAK SELATAN | SADARUDDIN | - | ALALAK SELATAN | - |
-| 2 | MUHAMMAD RIZKY YULIANTO / SUPRAPTO (ALM) | 24 | S1 | ALFINA NUR ISLAMY SABILA RIADY / RIADI (ALM) | 24 | S1 | KAMIS | 1 | 09.00 | JL. TEMBUS PERUMNAS GG. NURUL FATA NO.4 | MUHAMMAD NUR ALAMSYAHBANA | - | ALALAK UTARA | SDR KDG |
-| 3 | AKMAL MAULANA RAHMAN / MUHAMMAD IHSAN RAHMATILLAH | 26 | S1 | DINDA FINA SHOLEHA / JUANDA (ALM) | 26 | S1 | AHAD | 4 | 07.00 | GEDUNG HAFIYYUN | MUHAMMAD ALFI MUGRAHA | - | SURGI MUFTI | SDR KDG |
+| NO | PRIA / BIN | USIA | PENDK | WANITA / BINTI | USIA | PENDK | HARI | TGL | JAM | TEMPAT | WALINIKAH | PENGHULU | KELURAHAN |
+|----|------------|------|-------|----------------|------|-------|------|-----|-----|---------|-----------|----------|-----------|
+| 1 | AHMAD RIFANI / SALIM | 29 | S1 | NUR AIDA ANGGRAINI / SADARUDDIN | 23 | S1 | KAMIS | 1 | 08.00 | KOMP DASAMAYA 2 BLOK D RT.16 RW.02 ALALAK SELATAN | SADARUDDIN | - | ALALAK SELATAN |
+| 2 | MUHAMMAD RIZKY YULIANTO / SUPRAPTO (ALM) | 24 | S1 | ALFINA NUR ISLAMY SABILA RIADY / RIADI (ALM) | 24 | S1 | KAMIS | 1 | 09.00 | JL. TEMBUS PERUMNAS GG. NURUL FATA NO.4 | MUHAMMAD NUR ALAMSYAHBANA | - | ALALAK UTARA |
+| 3 | AKMAL MAULANA RAHMAN / MUHAMMAD IHSAN RAHMATILLAH | 26 | S1 | DINDA FINA SHOLEHA / JUANDA (ALM) | 26 | S1 | AHAD | 4 | 07.00 | GEDUNG HAFIYYUN | MUHAMMAD ALFI MUGRAHA | - | SURGI MUFTI |
 
 **Catatan:**
 - Jumlah baris akan sesuai dengan jumlah pendaftaran dalam periode
@@ -207,7 +205,7 @@ Tidak ada perubahan pada API endpoint atau request/response format. Perubahan ha
 - Judul "PENGUMUMAN PERNIKAHAN"
 
 **Sesudah:**
-- HTML dengan 15 kolom
+- HTML dengan 14 kolom
 - Format landscape A4
 - Judul "JADUAL NIKAH [BULAN] [TAHUN]"
 
@@ -234,7 +232,7 @@ Tidak ada perubahan pada API endpoint atau request/response format. Perubahan ha
 ## ✅ Testing Checklist
 
 - [x] Format HTML sesuai Excel standar KUA
-- [x] Tabel 15 kolom dengan header yang benar
+- [x] Tabel 14 kolom dengan header yang benar
 - [x] Usia dihitung otomatis dengan benar
 - [x] Format waktu HH.MM benar
 - [x] Nama hari dalam bahasa Indonesia
@@ -246,5 +244,5 @@ Tidak ada perubahan pada API endpoint atau request/response format. Perubahan ha
 ---
 
 **Last Updated:** Desember 2024  
-**Version:** 2.0.0
+**Version:** 2.1.0
 

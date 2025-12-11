@@ -1884,24 +1884,24 @@ func (h *InDB) generatePengumumanHTML(namaKUA, alamatKUA, kota, provinsi, kodePo
 	<table>
 		<thead>
 			<tr>
-				<th rowspan="2" class="col-no">NO<br>URUT</th>
-				<th colspan="6">DATA CALON PENGANTIN</th>
-				<th colspan="7">PELAKSANAAN NIKAH</th>
+				<th rowspan="2" class="col-no" style="text-align: center; vertical-align: middle;">NO<br>URUT</th>
+				<th colspan="6" style="text-align: center; vertical-align: middle;">DATA CALON PENGANTIN</th>
+				<th colspan="7" style="text-align: center; vertical-align: middle;">PELAKSANAAN NIKAH</th>
 			</tr>
 			<tr>
-				<th class="col-pria">PRIA / BIN</th>
-				<th class="col-usia">USIA</th>
-				<th class="col-pendk">PENDK</th>
-				<th class="col-wanita">WANITA / BINTI</th>
-				<th class="col-usia">USIA</th>
-				<th class="col-pendk">PENDK</th>
-				<th class="col-hari">HARI</th>
-				<th class="col-tgl">TGL</th>
-				<th class="col-jam">JAM</th>
-				<th class="col-tempat">TEMPAT</th>
-				<th class="col-wali">WALINIKAH</th>
-				<th class="col-penghulu">PENGHULU</th>
-				<th class="col-kelurahan">KELURAHAN</th>
+				<th class="col-pria" style="text-align: center;">PRIA / BIN</th>
+				<th class="col-usia" style="text-align: center;">USIA</th>
+				<th class="col-pendk" style="text-align: center;">PENDK</th>
+				<th class="col-wanita" style="text-align: center;">WANITA / BINTI</th>
+				<th class="col-usia" style="text-align: center;">USIA</th>
+				<th class="col-pendk" style="text-align: center;">PENDK</th>
+				<th class="col-hari" style="text-align: center;">HARI</th>
+				<th class="col-tgl" style="text-align: center;">TGL</th>
+				<th class="col-jam" style="text-align: center;">JAM</th>
+				<th class="col-tempat" style="text-align: center;">TEMPAT</th>
+				<th class="col-wali" style="text-align: center;">WALINIKAH</th>
+				<th class="col-penghulu" style="text-align: center;">PENGHULU</th>
+				<th class="col-kelurahan" style="text-align: center;">KELURAHAN</th>
 			</tr>
 		</thead>
 		<tbody>
