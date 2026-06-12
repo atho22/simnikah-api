@@ -20,6 +20,12 @@ const (
 	StatusPendaftaranDitolak            = "Ditolak"              // Ditolak oleh staff
 )
 
+// Define constants for Tempat Nikah
+const (
+	TempatNikahDiKUA     = "Di KUA"
+	TempatNikahDiLuarKUA = "Di Luar KUA"
+)
+
 
 
 // Define constants for Users Role

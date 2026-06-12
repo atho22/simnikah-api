@@ -9,6 +9,7 @@ import (
 	"time"
 
 	structs "simnikah/internal/models"
+	services "simnikah/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -32,8 +33,6 @@ var TimeSlots = []string{
 	"13:00", "14:00", "15:00", "16:00",
 }
 
-// HariLiburNasional daftar hari libur nasional Indonesia 2024-2025
-// Format: "MM-DD" untuk hari libur tetap, atau "YYYY-MM-DD" untuk hari libur berubah
 var HariLiburNasional = map[string]string{
 	// Hari libur tetap (setiap tahun)
 	"01-01": "Tahun Baru Masehi",
@@ -568,7 +567,7 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 
 	// Generate unique IDs
 	hashGroom := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s_groom_%d", userIDStr, timestamp))))
-	hashBride := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s_bride_%d", timestamp, timestamp+1))))
+	hashBride := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s_bride_%d", userIDStr, timestamp+1))))
 	groomUserID := hashGroom[:20]
 	brideUserID := hashBride[:20]
 
@@ -732,6 +731,32 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 		})
 		return
 	}
+
+	// Run forward-chaining recommendation asynchronously
+	go func(regID uint, pendaftarID string) {
+		fc := services.NewForwardChainingEngine(h.DB)
+		rec, err := fc.GetPenghuluRecommendations(regID)
+		if err != nil {
+			fmt.Println("forward chaining error:", err)
+			return
+		}
+		if rec != nil && rec.RecommendedPenghuluID != 0 {
+			// Notify the registrant that a penghulu recommendation is available
+			notif := structs.Notifikasi{
+				User_id:    pendaftarID,
+				Judul:      "Rekomendasi Penghulu Tersedia",
+				Pesan:      fmt.Sprintf("Sistem merekomendasikan penghulu %s (score: %.2f).", rec.RecommendedPenghulu.Nama_lengkap, rec.SelectedScore),
+				Tipe:       structs.NotifikasiTipeInfo,
+				Status_baca: structs.NotifikasiStatusBelumDibaca,
+				Link:       fmt.Sprintf("/pendaftaran/%d/rekomendasi", regID),
+				Created_at: time.Now(),
+				Updated_at: time.Now(),
+			}
+			if err := h.DB.Create(&notif).Error; err != nil {
+				fmt.Println("failed to create recommendation notification:", err)
+			}
+		}
+	}(pendaftaranNikah.ID, pendaftaranNikah.Pendaftar_id)
 
 	// Response sukses
 	c.JSON(http.StatusCreated, gin.H{
@@ -1239,6 +1264,151 @@ func (h *InDB) GetRegistrationDetail(c *gin.Context) {
 }
 
 // ==================== CALENDAR AVAILABILITY ====================
+
+type checkScheduleAvailabilityRequest struct {
+	TanggalNikah string   `json:"tanggal_nikah" binding:"required"`
+	WaktuNikah   string   `json:"waktu_nikah"`
+	TempatNikah  string   `json:"tempat_nikah"`
+	AlamatNikah  string   `json:"alamat_nikah"`
+	Latitude     *float64 `json:"latitude"`
+	Longitude    *float64 `json:"longitude"`
+}
+
+// CheckScheduleAvailability mengecek apakah slot nikah masih tersedia.
+// Endpoint ini dipakai catin sebelum mengirim pendaftaran final.
+func (h *InDB) CheckScheduleAvailability(c *gin.Context) {
+	var input checkScheduleAvailabilityRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format data tidak valid",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	parsedDate, err := time.Parse("2006-01-02", strings.TrimSpace(input.TanggalNikah))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Format tanggal tidak valid",
+			"error":   "tanggal_nikah harus berformat YYYY-MM-DD",
+		})
+		return
+	}
+
+	engine := services.NewForwardChainingEngine(h.DB)
+
+	var activePenghuluCount int64
+	if err := h.DB.Model(&structs.Penghulu{}).
+		Where("status = ?", structs.PenghuluStatusAktif).
+		Count(&activePenghuluCount).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal menghitung penghulu aktif",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	if activePenghuluCount == 0 {
+		c.JSON(http.StatusConflict, gin.H{
+			"success": false,
+			"message": "Belum ada penghulu aktif",
+			"data": gin.H{
+				"is_available": false,
+				"total_slots_available": 0,
+				"message": "Tidak ada penghulu aktif yang dapat ditugaskan",
+			},
+		})
+		return
+	}
+
+	selectedTime := strings.TrimSpace(input.WaktuNikah)
+	selectedPlace := strings.TrimSpace(input.TempatNikah)
+	if selectedPlace == "" {
+		selectedPlace = structs.TempatNikahDiKUA
+	}
+
+	startOfDay := time.Date(parsedDate.Year(), parsedDate.Month(), parsedDate.Day(), 0, 0, 0, 0, parsedDate.Location())
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	var occupiedDaily int64
+	if err := h.DB.Model(&structs.PendaftaranNikah{}).
+		Where("tanggal_nikah >= ? AND tanggal_nikah < ? AND status_pendaftaran IN ?",
+			startOfDay,
+			endOfDay,
+			[]string{structs.StatusPendaftaranDisetujui, structs.StatusPendaftaranMenungguPenugasan, structs.StatusPendaftaranPenghuluDitugaskan, structs.StatusPendaftaranSelesai}).
+		Count(&occupiedDaily).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal mengecek kapasitas jadwal",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	dailyCapacity := activePenghuluCount * int64(engine.Config.CapacityPerDay)
+	totalSlotsAvailable := dailyCapacity - occupiedDaily
+	if totalSlotsAvailable < 0 {
+		totalSlotsAvailable = 0
+	}
+
+	isAvailable := occupiedDaily < dailyCapacity
+	message := "Tanggal masih tersedia"
+	if !isAvailable {
+		message = "Tanggal sudah penuh"
+	}
+
+	response := gin.H{
+		"tanggal_nikah":           parsedDate.Format("2006-01-02"),
+		"waktu_nikah":             selectedTime,
+		"tempat_nikah":            selectedPlace,
+		"occupied_slots":          occupiedDaily,
+		"daily_capacity":          dailyCapacity,
+		"total_slots_available":    totalSlotsAvailable,
+		"is_available":            isAvailable,
+		"message":                 message,
+	}
+
+	if selectedTime != "" {
+		var occupiedPerSlot int64
+		if err := h.DB.Model(&structs.PendaftaranNikah{}).
+			Where("tanggal_nikah = ? AND waktu_nikah = ? AND status_pendaftaran IN ?",
+				parsedDate,
+				selectedTime,
+				[]string{structs.StatusPendaftaranDisetujui, structs.StatusPendaftaranMenungguPenugasan, structs.StatusPendaftaranPenghuluDitugaskan, structs.StatusPendaftaranSelesai}).
+			Count(&occupiedPerSlot).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Gagal mengecek kapasitas per jam",
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		hourCapacity := activePenghuluCount * int64(engine.Config.CapacityPerHour)
+		hourSlotsAvailable := hourCapacity - occupiedPerSlot
+		if hourSlotsAvailable < 0 {
+			hourSlotsAvailable = 0
+		}
+
+		response["occupied_hour_slots"] = occupiedPerSlot
+		response["hour_capacity"] = hourCapacity
+		response["hour_slots_available"] = hourSlotsAvailable
+
+		if occupiedPerSlot >= hourCapacity {
+			response["is_available"] = false
+			response["message"] = "Slot waktu tersebut sudah penuh"
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Pengecekan jadwal selesai",
+		"data":    response,
+	})
+}
 
 // GetCalendarAvailability returns available and unavailable dates for a specific month
 // GET /simnikah/kalender-ketersediaan?bulan=01&tahun=2024

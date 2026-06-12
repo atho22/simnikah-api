@@ -133,18 +133,8 @@ func main() {
 	simnikahRoutes := r.Group("/simnikah")
 	{
 		// ==================== CATIN ROUTES ====================
-		simnikahRoutes.POST("/pendaftaran", middleware.AuthMiddleware(), catinHandler.CreateRegistration)
-		simnikahRoutes.GET("/pendaftaran/:id", middleware.AuthMiddleware(), catinHandler.GetRegistrationDetail)
-		simnikahRoutes.GET("/pendaftaran/status", middleware.AuthMiddleware(), catinHandler.GetUserRegistrationStatus)
-		simnikahRoutes.GET("/pendaftaran", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), catinHandler.ListRegistrations)
-
-		// ==================== FEEDBACK ROUTES ====================
-		simnikahRoutes.POST("/feedback-pernikahan", middleware.AuthMiddleware(), catinHandler.CreateFeedbackPernikahan)
-
 		// ==================== CALENDAR & AVAILABILITY ROUTES ====================
-		simnikahRoutes.GET("/kalender-ketersediaan", catinHandler.GetCalendarAvailability)
-		simnikahRoutes.GET("/ketersediaan-jam", catinHandler.GetAvailableTimeSlots)
-		simnikahRoutes.GET("/pernikahan-tanggal", catinHandler.GetWeddingsByDate)
+		simnikahRoutes.POST("/check-schedule", middleware.AuthMiddleware(), catinHandler.CheckScheduleAvailability)
 
 		// ==================== STAFF ROUTES ====================
 		simnikahRoutes.GET("/staff", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), staffHandler.ListStaff)
@@ -158,12 +148,7 @@ func main() {
 		simnikahRoutes.POST("/staff/pengumuman-nikah/generate", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), staffHandler.GeneratePengumumanNikahHTML)
 
 		// ==================== PENGHULU ROUTES ====================
-		simnikahRoutes.GET("/penghulu", middleware.AuthMiddleware(), staffHandler.ListMarriageOfficers)
-		simnikahRoutes.PUT("/penghulu/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), staffHandler.UpdateMarriageOfficer)
-		simnikahRoutes.POST("/penghulu/verify-documents/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("penghulu"), penghuluHandler.VerifyRegistrationDocuments)
-		simnikahRoutes.GET("/penghulu/assigned-registrations", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("penghulu", "kepala_kua"), penghuluHandler.ListMyAssignments)
-		simnikahRoutes.GET("/penghulu/today-schedule", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("penghulu", "kepala_kua"), penghuluHandler.GetTodaySchedule)
-		simnikahRoutes.POST("/penghulu/complete-marriage/:id", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("penghulu", "kepala_kua"), penghuluHandler.CompleteMarriage)
+		simnikahRoutes.GET("/penghulu/jadwal-penugasan", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("penghulu", "kepala_kua"), penghuluHandler.GetJadwalPenugasan)
 
 		// ==================== DASHBOARD ROUTES ====================
 		simnikahRoutes.GET("/dashboard/kepala-kua", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), dashboardHandler.GetKepalaKUADashboard)
@@ -175,7 +160,10 @@ func main() {
 		// ==================== KEPALA KUA ROUTES ====================
 		simnikahRoutes.POST("/kepala-kua/staff", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.CreateStaff)
 		simnikahRoutes.POST("/kepala-kua/penghulu", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.CreateMarriageOfficer)
-		simnikahRoutes.POST("/pendaftaran/:id/assign-penghulu", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.AssignMarriageOfficer)
+		simnikahRoutes.GET("/kepala-kua/forward-chaining/recommendation/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.RecommendPenghuluWithForwardChaining)
+		simnikahRoutes.GET("/kepala-kua/forward-chaining/evaluation/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetDetailedEvaluationReport)
+		simnikahRoutes.POST("/kepala-kua/forward-chaining/assign/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.AssignPenghuluWithApproval)
+		simnikahRoutes.GET("/kepala-kua/forward-chaining/config", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetForwardChainingConfig)
 		simnikahRoutes.GET("/kepala-kua/available-penghulu", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.ListAvailableOfficers)
 		simnikahRoutes.GET("/kepala-kua/statistik-penghulu", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetPenghuluStatistics)
 		simnikahRoutes.GET("/kepala-kua/penghulu-schedule", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.GetPenghuluScheduleAvailability)

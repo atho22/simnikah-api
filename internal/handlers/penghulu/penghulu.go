@@ -16,163 +16,123 @@ type InDB struct {
 	DB *gorm.DB
 }
 
-// ==================== DOCUMENT VERIFICATION ====================
-
-// VerifyRegistrationDocuments verifies documents for a marriage registration assigned to this penghulu
-func (h *InDB) VerifyRegistrationDocuments(c *gin.Context) {
-	registrationID := c.Param("id")
-
-	// Get user_id from context (penghulu who is verifying)
-	penghuluID, exists := c.Get("user_id")
+func (h *InDB) requirePenghulu(c *gin.Context) (*structs.Penghulu, string, bool) {
+	userIDValue, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
 			"message": "Unauthorized",
 			"error":   "User ID tidak ditemukan",
 		})
+		return nil, "", false
+	}
+
+	roleValue, roleExists := c.Get("role")
+	if !roleExists || roleValue.(string) != structs.UserRolePenghulu {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Forbidden",
+			"error":   "Hanya user dengan role Penghulu yang dapat mengakses aksi ini",
+		})
+		return nil, "", false
+	}
+
+	userID := fmt.Sprint(userIDValue)
+	var user structs.Users
+	if err := h.DB.Select("user_id, role, status").Where("user_id = ?", userID).First(&user).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Forbidden",
+			"error":   "Akun penghulu tidak valid atau tidak aktif",
+		})
+		return nil, "", false
+	}
+
+	if user.Role != structs.UserRolePenghulu || user.Status != structs.UserStatusAktif {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Forbidden",
+			"error":   "Role atau status akun tidak memenuhi syarat Penghulu aktif",
+		})
+		return nil, "", false
+	}
+
+	var penghulu structs.Penghulu
+	if err := h.DB.Where("user_id = ?", userID).First(&penghulu).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Data penghulu tidak ditemukan",
+			"error":   err.Error(),
+		})
+		return nil, "", false
+	}
+
+	return &penghulu, userID, true
+}
+
+// GetJadwalPenugasan menampilkan assignment final untuk penghulu yang login.
+func (h *InDB) GetJadwalPenugasan(c *gin.Context) {
+	penghulu, _, ok := h.requirePenghulu(c)
+	if !ok {
 		return
 	}
 
-	var input struct {
-		Status  string `json:"status" binding:"required"` // "Menunggu Pelaksanaan" or "Ditolak"
-		Catatan string `json:"catatan"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	var assignments []structs.PendaftaranJadwal
+	if err := h.DB.
+		Table("pendaftaran_nikahs").
+		Select("id, nomor_pendaftaran, tanggal_nikah, waktu_nikah, tempat_nikah, alamat_akad, latitude, longitude, status_pendaftaran, penghulu_id, penghulu_assigned_at, catatan").
+		Where("penghulu_id = ? AND status_pendaftaran = ?", penghulu.ID, structs.StatusPendaftaranPenghuluDitugaskan).
+		Order("tanggal_nikah ASC, waktu_nikah ASC").
+		Find(&assignments).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "Format data tidak valid",
+			"message": "Data penghulu atau jadwal tidak ditemukan",
 			"error":   err.Error(),
 		})
 		return
 	}
 
-	// Validate status
-	if input.Status != "Menunggu Pelaksanaan" && input.Status != "Ditolak" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Status tidak valid",
-			"error":   "Status harus 'Menunggu Pelaksanaan' atau 'Ditolak'",
-		})
-		return
-	}
-
-	// Check if registration exists
-	var pendaftaran structs.PendaftaranNikah
-	if err := h.DB.Where("id = ?", registrationID).First(&pendaftaran).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "Pendaftaran tidak ditemukan",
-			"error":   "Pendaftaran dengan ID tersebut tidak ditemukan",
-		})
-		return
-	}
-
-	// Check if registration is in correct status for document verification
-	if pendaftaran.Status_pendaftaran != "Menunggu Verifikasi Penghulu" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Status tidak sesuai",
-			"error":   "Pendaftaran harus dalam status 'Menunggu Verifikasi Penghulu' untuk diverifikasi",
-		})
-		return
-	}
-
-	// Check if this penghulu is assigned to this registration
-	if pendaftaran.Penghulu_id == nil || *pendaftaran.Penghulu_id == 0 {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "Akses ditolak",
-			"error":   "Anda tidak ditugaskan untuk pendaftaran ini",
-		})
-		return
-	}
-
-	// Get penghulu info to verify assignment
-	var penghulu structs.Penghulu
-	if err := h.DB.Where("user_id = ?", penghuluID.(string)).First(&penghulu).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "Akses ditolak",
-			"error":   "Data penghulu tidak ditemukan",
-		})
-		return
-	}
-
-	if penghulu.ID != *pendaftaran.Penghulu_id {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "Akses ditolak",
-			"error":   "Anda tidak ditugaskan untuk pendaftaran ini",
-		})
-		return
-	}
-
-	// Update registration status
-	// Jika disetujui, ubah ke "Menunggu Bimbingan"
-	if input.Status == "Menunggu Pelaksanaan" {
-		pendaftaran.Status_pendaftaran = "Menunggu Bimbingan"
-	} else {
-		pendaftaran.Status_pendaftaran = input.Status
-	}
-	pendaftaran.Catatan = input.Catatan
-	pendaftaran.Updated_at = time.Now()
-
-	if err := h.DB.Save(&pendaftaran).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Database error",
-			"error":   "Gagal mengupdate status pendaftaran",
-		})
-		return
-	}
-
-	// Create notification for the couple
-	var notification structs.Notifikasi
-	if input.Status == "Menunggu Pelaksanaan" {
-		notification = structs.Notifikasi{
-			User_id:     pendaftaran.Pendaftar_id,
-			Judul:       "Berkas Disetujui - Siap Bimbingan",
-			Pesan:       "Berkas Anda telah disetujui oleh penghulu. Sekarang Anda dapat mendaftar bimbingan perkawinan yang dilaksanakan setiap hari Rabu.",
-			Tipe:        "Success",
-			Status_baca: "Belum Dibaca",
-			Link:        "/bimbingan",
-			Created_at:  time.Now(),
-			Updated_at:  time.Now(),
+	jadwal := make([]gin.H, 0, len(assignments))
+	for _, pendaftaran := range assignments {
+		item := gin.H{
+			"ID":                 pendaftaran.ID,
+			"TanggalNikah":       pendaftaran.Tanggal_nikah,
+			"WaktuNikah":         pendaftaran.Waktu_nikah,
+			"TempatNikah":        pendaftaran.Tempat_nikah,
+			"AlamatLengkap":      pendaftaran.Alamat_akad,
+			"Latitude":           pendaftaran.Latitude,
+			"Longitude":          pendaftaran.Longitude,
+			"StatusPendaftaran":  pendaftaran.Status_pendaftaran,
+			"PenghuluID":         pendaftaran.Penghulu_id,
+			"PenghuluAssignedAt":  pendaftaran.Penghulu_assigned_at,
+			"Catatan":            pendaftaran.Catatan,
+			"NomorPendaftaran":   pendaftaran.Nomor_pendaftaran,
 		}
-	} else {
-		notification = structs.Notifikasi{
-			User_id:     pendaftaran.Pendaftar_id,
-			Judul:       "Berkas Ditolak",
-			Pesan:       "Berkas Anda ditolak oleh penghulu. " + input.Catatan,
-			Tipe:        "Error",
-			Status_baca: "Belum Dibaca",
-			Link:        "/pendaftaran/" + registrationID,
-			Created_at:  time.Now(),
-			Updated_at:  time.Now(),
-		}
-	}
 
-	if err := h.DB.Create(&notification).Error; err != nil {
-		// Log error but don't fail the main operation
+		if pendaftaran.Latitude != nil && pendaftaran.Longitude != nil {
+			item["latitude"] = *pendaftaran.Latitude
+			item["longitude"] = *pendaftaran.Longitude
+			item["has_coordinates"] = true
+			item["google_maps_url"] = fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%f,%f", *pendaftaran.Latitude, *pendaftaran.Longitude)
+		} else {
+			item["has_coordinates"] = false
+		}
+
+		jadwal = append(jadwal, item)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Verifikasi berkas berhasil",
+		"message": "Jadwal penugasan berhasil diambil",
 		"data": gin.H{
-			"id":                 pendaftaran.ID,
-			"nomor_pendaftaran":  pendaftaran.Nomor_pendaftaran,
-			"status_pendaftaran": pendaftaran.Status_pendaftaran,
-			"penghulu_id":        pendaftaran.Penghulu_id,
-			"catatan":            pendaftaran.Catatan,
-			"updated_at":         pendaftaran.Updated_at,
+			"penghulu_id": penghulu.ID,
+			"penghulu_nama": penghulu.Nama_lengkap,
+			"total":        len(jadwal),
+			"jadwal":       jadwal,
 		},
 	})
 }
-
-// ListMyAssignments gets marriage registrations assigned to this penghulu
-// Supports both penghulu and kepala_kua roles (kepala KUA can also act as penghulu)
+	
 func (h *InDB) ListMyAssignments(c *gin.Context) {
 	// Get user_id and role from context
 	userID, exists := c.Get("user_id")

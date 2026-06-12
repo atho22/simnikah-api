@@ -73,6 +73,23 @@ type PendaftaranNikah struct {
 	Updated_at           time.Time  `json:"diperbarui_pada"`
 }
 
+// PendaftaranJadwal merepresentasikan subset data yang dipakai oleh flow scheduling-only.
+// Struct ini dipakai sebagai kontrak ringan untuk rekomendasi, pengecekan slot, dan tampilan jadwal penghulu.
+type PendaftaranJadwal struct {
+	ID                 uint       `json:"id"`
+	Nomor_pendaftaran  string     `json:"nomor_pendaftaran"`
+	Tanggal_nikah      time.Time  `json:"tanggal_nikah"`
+	Waktu_nikah        string     `json:"waktu_nikah"`
+	Tempat_nikah       string     `json:"tempat_nikah"`
+	Alamat_akad        string     `json:"alamat_akad"`
+	Latitude           *float64   `json:"latitude"`
+	Longitude          *float64   `json:"longitude"`
+	Status_pendaftaran string     `json:"status_pendaftaran"`
+	Penghulu_id        *uint      `json:"penghulu_id"`
+	Penghulu_assigned_at *time.Time `json:"penghulu_assigned_at"`
+	Catatan            string     `json:"catatan"`
+}
+
 
 // ==================== USER MANAGEMENT & ROLES ====================
 
