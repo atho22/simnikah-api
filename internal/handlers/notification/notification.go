@@ -105,20 +105,14 @@ func (h *InDB) CreateNotification(c *gin.Context) {
 	})
 }
 
-// GetUserNotifications mengambil semua notifikasi user
+// GetUserNotifications mengambil semua notifikasi user (dari JWT context)
 func (h *InDB) GetUserNotifications(c *gin.Context) {
-	userID := c.Param("user_id")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID diperlukan"})
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID tidak ditemukan"})
 		return
 	}
-
-	// Cek apakah user ada
-	var user structs.Users
-	if err := h.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
-		return
-	}
+	uid := userID.(string)
 
 	// Query parameters
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -137,7 +131,7 @@ func (h *InDB) GetUserNotifications(c *gin.Context) {
 	offset := (page - 1) * limit
 
 	// Query notifikasi
-	query := h.DB.Where("user_id = ?", userID)
+	query := h.DB.Where("user_id = ?", uid)
 
 	// Filter berdasarkan status
 	if status != "" {
@@ -192,7 +186,7 @@ func (h *InDB) GetUserNotifications(c *gin.Context) {
 
 	// Hitung unread count
 	var unreadCount int64
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", userID, structs.NotifikasiStatusBelumDibaca).Count(&unreadCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", uid, structs.NotifikasiStatusBelumDibaca).Count(&unreadCount)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "Notifikasi berhasil diambil",
@@ -207,7 +201,7 @@ func (h *InDB) GetUserNotifications(c *gin.Context) {
 	})
 }
 
-// GetNotificationByID mengambil notifikasi berdasarkan ID
+// GetNotificationByID mengambil notifikasi berdasarkan ID (hanya pemilik)
 func (h *InDB) GetNotificationByID(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -215,8 +209,14 @@ func (h *InDB) GetNotificationByID(c *gin.Context) {
 		return
 	}
 
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID tidak ditemukan"})
+		return
+	}
+
 	var notification structs.Notifikasi
-	if err := h.DB.Where("id = ?", id).First(&notification).Error; err != nil {
+	if err := h.DB.Where("id = ? AND user_id = ?", id, userID.(string)).First(&notification).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Notifikasi tidak ditemukan"})
 		return
 	}
@@ -239,11 +239,17 @@ func (h *InDB) GetNotificationByID(c *gin.Context) {
 	})
 }
 
-// UpdateNotificationStatus mengupdate status notifikasi
+// UpdateNotificationStatus mengupdate status notifikasi (hanya pemilik)
 func (h *InDB) UpdateNotificationStatus(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID notifikasi diperlukan"})
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID tidak ditemukan"})
 		return
 	}
 
@@ -263,9 +269,9 @@ func (h *InDB) UpdateNotificationStatus(c *gin.Context) {
 		return
 	}
 
-	// Cek apakah notifikasi ada
+	// Cek apakah notifikasi milik user yang login
 	var notification structs.Notifikasi
-	if err := h.DB.Where("id = ?", id).First(&notification).Error; err != nil {
+	if err := h.DB.Where("id = ? AND user_id = ?", id, userID.(string)).First(&notification).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Notifikasi tidak ditemukan"})
 		return
 	}
@@ -297,23 +303,17 @@ func (h *InDB) UpdateNotificationStatus(c *gin.Context) {
 	})
 }
 
-// MarkAllAsRead menandai semua notifikasi user sebagai sudah dibaca
+// MarkAllAsRead menandai semua notifikasi user sebagai sudah dibaca (dari JWT)
 func (h *InDB) MarkAllAsRead(c *gin.Context) {
-	userID := c.Param("user_id")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID diperlukan"})
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID tidak ditemukan"})
 		return
 	}
-
-	// Cek apakah user ada
-	var user structs.Users
-	if err := h.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
-		return
-	}
+	uid := userID.(string)
 
 	// Update semua notifikasi user menjadi sudah dibaca
-	result := h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", userID, structs.NotifikasiStatusBelumDibaca).Update("status_baca", structs.NotifikasiStatusSudahDibaca)
+	result := h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", uid, structs.NotifikasiStatusBelumDibaca).Update("status_baca", structs.NotifikasiStatusSudahDibaca)
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menandai notifikasi sebagai sudah dibaca"})
 		return
@@ -325,7 +325,7 @@ func (h *InDB) MarkAllAsRead(c *gin.Context) {
 	})
 }
 
-// DeleteNotification menghapus notifikasi
+// DeleteNotification menghapus notifikasi (hanya pemilik)
 func (h *InDB) DeleteNotification(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -333,9 +333,15 @@ func (h *InDB) DeleteNotification(c *gin.Context) {
 		return
 	}
 
-	// Cek apakah notifikasi ada
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID tidak ditemukan"})
+		return
+	}
+
+	// Cek apakah notifikasi milik user yang login
 	var notification structs.Notifikasi
-	if err := h.DB.Where("id = ?", id).First(&notification).Error; err != nil {
+	if err := h.DB.Where("id = ? AND user_id = ?", id, userID.(string)).First(&notification).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Notifikasi tidak ditemukan"})
 		return
 	}
@@ -351,45 +357,39 @@ func (h *InDB) DeleteNotification(c *gin.Context) {
 	})
 }
 
-// GetNotificationStats mengambil statistik notifikasi user
+// GetNotificationStats mengambil statistik notifikasi user (dari JWT)
 func (h *InDB) GetNotificationStats(c *gin.Context) {
-	userID := c.Param("user_id")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID diperlukan"})
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID tidak ditemukan"})
 		return
 	}
-
-	// Cek apakah user ada
-	var user structs.Users
-	if err := h.DB.Where("user_id = ?", userID).First(&user).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
-		return
-	}
+	uid := userID.(string)
 
 	// Hitung statistik
 	var totalCount, unreadCount, infoCount, warningCount, errorCount, successCount int64
 
 	// Total notifikasi
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ?", userID).Count(&totalCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ?", uid).Count(&totalCount)
 
 	// Notifikasi belum dibaca
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", userID, structs.NotifikasiStatusBelumDibaca).Count(&unreadCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND status_baca = ?", uid, structs.NotifikasiStatusBelumDibaca).Count(&unreadCount)
 
 	// Notifikasi berdasarkan tipe
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, structs.NotifikasiTipeInfo).Count(&infoCount)
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, structs.NotifikasiTipeWarning).Count(&warningCount)
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, structs.NotifikasiTipeError).Count(&errorCount)
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", userID, structs.NotifikasiTipeSuccess).Count(&successCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", uid, structs.NotifikasiTipeInfo).Count(&infoCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", uid, structs.NotifikasiTipeWarning).Count(&warningCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", uid, structs.NotifikasiTipeError).Count(&errorCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND tipe = ?", uid, structs.NotifikasiTipeSuccess).Count(&successCount)
 
 	// Notifikasi hari ini
 	var todayCount int64
 	today := time.Now().Format("2006-01-02")
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND DATE(created_at) = ?", userID, today).Count(&todayCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND DATE(created_at) = ?", uid, today).Count(&todayCount)
 
 	// Notifikasi minggu ini
 	var weekCount int64
 	weekStart := time.Now().AddDate(0, 0, -7).Format("2006-01-02")
-	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND DATE(created_at) >= ?", userID, weekStart).Count(&weekCount)
+	h.DB.Model(&structs.Notifikasi{}).Where("user_id = ? AND DATE(created_at) >= ?", uid, weekStart).Count(&weekCount)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Statistik notifikasi berhasil diambil",

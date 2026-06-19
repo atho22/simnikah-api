@@ -2,6 +2,10 @@ package utils
 
 import "time"
 
+// WITA adalah zona waktu Waktu Indonesia Tengah (UTC+8).
+// Digunakan untuk semua operasi tanggal/jam di SIPENA agar konsisten.
+var WITA = time.FixedZone("WITA", 8*3600)
+
 // CalculateWorkingDays calculates working days between two dates (excluding weekends)
 func CalculateWorkingDays(startDate, endDate time.Time) int {
 	if endDate.Before(startDate) {

@@ -28,20 +28,11 @@ func (ns *NotificationService) SendPendaftaranNotification(pendaftaranID uint, p
 		return fmt.Errorf("gagal mengambil data pendaftaran: %v", err)
 	}
 
-	// Ambil data calon suami dan istri
-	var calonSuami, calonIstri structs.CalonPasangan
-	if err := ns.DB.Where("id = ?", pendaftaran.Calon_suami_id).First(&calonSuami).Error; err != nil {
-		return fmt.Errorf("gagal mengambil data calon suami: %v", err)
-	}
-	if err := ns.DB.Where("id = ?", pendaftaran.Calon_istri_id).First(&calonIstri).Error; err != nil {
-		return fmt.Errorf("gagal mengambil data calon istri: %v", err)
-	}
-
 	// Notifikasi untuk staff dan kepala KUA
 	staffNotification := structs.Notifikasi{
-		User_id:     "ALL_STAFF", // Akan dipecah menjadi notifikasi individual
+		User_id:     "ALL_STAFF",
 		Judul:       "Pendaftaran Nikah Baru",
-		Pesan:       fmt.Sprintf("Pendaftaran nikah baru dari %s dan %s dengan nomor pendaftaran %s", calonSuami.Nama_lengkap, calonIstri.Nama_lengkap, pendaftaran.Nomor_pendaftaran),
+		Pesan:       fmt.Sprintf("Pendaftaran nikah %s & %s pada %s pukul %s di %s", pendaftaran.Nama_suami, pendaftaran.Nama_istri, pendaftaran.Tanggal_nikah.Format("02 Januari 2006"), pendaftaran.Waktu_nikah, pendaftaran.Tempat_nikah),
 		Tipe:        structs.NotifikasiTipeInfo,
 		Status_baca: structs.NotifikasiStatusBelumDibaca,
 		Link:        fmt.Sprintf("/simnikah/pendaftaran/%d", pendaftaranID),
@@ -55,38 +46,31 @@ func (ns *NotificationService) SendPendaftaranNotification(pendaftaranID uint, p
 		log.Printf("Gagal mengirim notifikasi ke kepala KUA: %v", err)
 	}
 
-	// Notifikasi untuk pendaftar (calon suami)
-	pendaftarNotification := structs.Notifikasi{
-		User_id:     pendaftarID,
-		Judul:       "Pendaftaran Nikah Berhasil",
-		Pesan:       fmt.Sprintf("Pendaftaran nikah Anda dengan %s berhasil dibuat dengan nomor pendaftaran %s. Silakan tunggu proses verifikasi dari KUA.", calonIstri.Nama_lengkap, pendaftaran.Nomor_pendaftaran),
-		Tipe:        structs.NotifikasiTipeSuccess,
-		Status_baca: structs.NotifikasiStatusBelumDibaca,
-		Link:        fmt.Sprintf("/simnikah/pendaftaran/%d", pendaftaranID),
-	}
+	// Notifikasi untuk pendaftar
+	if pendaftarID != "" {
+		pendaftarNotification := structs.Notifikasi{
+			User_id:     pendaftarID,
+			Judul:       "Pendaftaran Nikah Berhasil",
+			Pesan:       fmt.Sprintf("Pendaftaran nikah Anda pada %s pukul %s berhasil dibuat. Silakan tunggu penugasan penghulu dari KUA.", pendaftaran.Tanggal_nikah.Format("02 Januari 2006"), pendaftaran.Waktu_nikah),
+			Tipe:        structs.NotifikasiTipeSuccess,
+			Status_baca: structs.NotifikasiStatusBelumDibaca,
+			Link:        fmt.Sprintf("/simnikah/pendaftaran/%d", pendaftaranID),
+		}
 
-	if err := ns.DB.Create(&pendaftarNotification).Error; err != nil {
-		log.Printf("Gagal mengirim notifikasi ke pendaftar: %v", err)
+		if err := ns.DB.Create(&pendaftarNotification).Error; err != nil {
+			log.Printf("Gagal mengirim notifikasi ke pendaftar: %v", err)
+		}
 	}
 
 	return nil
 }
 
 // SendStatusUpdateNotification mengirim notifikasi saat status pendaftaran berubah
-func (ns *NotificationService) SendStatusUpdateNotification(pendaftaranID uint, statusLama, statusBaru string, updatedBy string) error {
+func (ns *NotificationService) SendStatusUpdateNotification(pendaftaranID uint, statusLama, statusBaru string, pendaftarID string) error {
 	// Ambil data pendaftaran
 	var pendaftaran structs.PendaftaranNikah
 	if err := ns.DB.Where("id = ?", pendaftaranID).First(&pendaftaran).Error; err != nil {
 		return fmt.Errorf("gagal mengambil data pendaftaran: %v", err)
-	}
-
-	// Ambil data calon suami dan istri
-	var calonSuami, calonIstri structs.CalonPasangan
-	if err := ns.DB.Where("user_id = ?", pendaftaran.Calon_suami_id).First(&calonSuami).Error; err != nil {
-		return fmt.Errorf("gagal mengambil data calon suami: %v", err)
-	}
-	if err := ns.DB.Where("user_id = ?", pendaftaran.Calon_istri_id).First(&calonIstri).Error; err != nil {
-		return fmt.Errorf("gagal mengambil data calon istri: %v", err)
 	}
 
 	// Tentukan tipe notifikasi berdasarkan status
@@ -94,47 +78,27 @@ func (ns *NotificationService) SendStatusUpdateNotification(pendaftaranID uint, 
 	var pesan string
 
 	switch statusBaru {
-	case structs.StatusPendaftaranDisetujui:
-		tipe = structs.NotifikasiTipeSuccess
-		pesan = fmt.Sprintf("Selamat! Pendaftaran nikah Anda dengan %s telah disetujui oleh KUA.", calonIstri.Nama_lengkap)
 	case structs.StatusPendaftaranMenungguPenugasan:
 		tipe = structs.NotifikasiTipeInfo
-		pesan = fmt.Sprintf("Pendaftaran nikah Anda dengan %s sedang menunggu penugasan penghulu.", calonIstri.Nama_lengkap)
+		pesan = fmt.Sprintf("Pendaftaran nikah Anda pada %s pukul %s sedang menunggu penugasan penghulu.", pendaftaran.Tanggal_nikah.Format("02 Januari 2006"), pendaftaran.Waktu_nikah)
 	case structs.StatusPendaftaranPenghuluDitugaskan:
 		tipe = structs.NotifikasiTipeSuccess
-		pesan = fmt.Sprintf("Penghulu telah ditugaskan untuk menikahkan Anda dengan %s.", calonIstri.Nama_lengkap)
-	case "Surat Diterbitkan": // Custom status not in constants
-		tipe = structs.NotifikasiTipeSuccess
-		pesan = fmt.Sprintf("Surat undangan nikah Anda dengan %s telah diterbitkan. Silakan cek detail surat undangan.", calonIstri.Nama_lengkap)
+		pesan = fmt.Sprintf("Penghulu telah ditugaskan untuk nikah Anda pada %s pukul %s.", pendaftaran.Tanggal_nikah.Format("02 Januari 2006"), pendaftaran.Waktu_nikah)
 	case structs.StatusPendaftaranSelesai:
 		tipe = structs.NotifikasiTipeSuccess
-		pesan = fmt.Sprintf("Selamat! Proses nikah Anda dengan %s telah selesai. Semoga menjadi keluarga yang sakinah, mawaddah, wa rahmah.", calonIstri.Nama_lengkap)
+		pesan = fmt.Sprintf("Proses nikah Anda pada %s telah selesai. Semoga menjadi keluarga yang sakinah, mawaddah, wa rahmah.", pendaftaran.Tanggal_nikah.Format("02 Januari 2006"))
 	case structs.StatusPendaftaranDitolak:
 		tipe = structs.NotifikasiTipeError
-		pesan = fmt.Sprintf("Maaf, pendaftaran nikah Anda dengan %s ditolak. Silakan hubungi KUA untuk informasi lebih lanjut.", calonIstri.Nama_lengkap)
+		pesan = fmt.Sprintf("Maaf, pendaftaran nikah Anda pada %s ditolak. Silakan hubungi KUA untuk informasi lebih lanjut.", pendaftaran.Tanggal_nikah.Format("02 Januari 2006"))
 	default:
 		tipe = structs.NotifikasiTipeInfo
-		pesan = fmt.Sprintf("Status pendaftaran nikah Anda dengan %s telah diubah menjadi %s.", calonIstri.Nama_lengkap, statusBaru)
+		pesan = fmt.Sprintf("Status pendaftaran nikah Anda pada %s telah diubah menjadi %s.", pendaftaran.Tanggal_nikah.Format("02 Januari 2006"), statusBaru)
 	}
 
-	// Notifikasi untuk calon suami
-	suamiNotification := structs.Notifikasi{
-		User_id:     calonSuami.User_id,
-		Judul:       "Update Status Pendaftaran Nikah",
-		Pesan:       pesan,
-		Tipe:        tipe,
-		Status_baca: structs.NotifikasiStatusBelumDibaca,
-		Link:        fmt.Sprintf("/simnikah/pendaftaran/%d", pendaftaranID),
-	}
-
-	if err := ns.DB.Create(&suamiNotification).Error; err != nil {
-		log.Printf("Gagal mengirim notifikasi ke calon suami: %v", err)
-	}
-
-	// Notifikasi untuk calon istri (jika berbeda dengan suami)
-	if pendaftaran.Calon_istri_id != pendaftaran.Calon_suami_id {
-		istriNotification := structs.Notifikasi{
-			User_id:     calonIstri.User_id,
+	// Notifikasi untuk pendaftar
+	if pendaftarID != "" {
+		notification := structs.Notifikasi{
+			User_id:     pendaftarID,
 			Judul:       "Update Status Pendaftaran Nikah",
 			Pesan:       pesan,
 			Tipe:        tipe,
@@ -142,14 +106,13 @@ func (ns *NotificationService) SendStatusUpdateNotification(pendaftaranID uint, 
 			Link:        fmt.Sprintf("/simnikah/pendaftaran/%d", pendaftaranID),
 		}
 
-		if err := ns.DB.Create(&istriNotification).Error; err != nil {
-			log.Printf("Gagal mengirim notifikasi ke calon istri: %v", err)
+		if err := ns.DB.Create(&notification).Error; err != nil {
+			log.Printf("Gagal mengirim notifikasi ke pendaftar: %v", err)
 		}
 	}
 
 	return nil
 }
-
 
 // SendPenghuluAssignmentNotification mengirim notifikasi saat penghulu ditugaskan
 func (ns *NotificationService) SendPenghuluAssignmentNotification(pendaftaranID uint, penghuluID string) error {
@@ -165,22 +128,13 @@ func (ns *NotificationService) SendPenghuluAssignmentNotification(pendaftaranID 
 		return fmt.Errorf("gagal mengambil data penghulu: %v", err)
 	}
 
-	// Ambil data calon suami dan istri
-	var calonSuami, calonIstri structs.CalonPasangan
-	if err := ns.DB.Where("user_id = ?", pendaftaran.Calon_suami_id).First(&calonSuami).Error; err != nil {
-		return fmt.Errorf("gagal mengambil data calon suami: %v", err)
-	}
-	if err := ns.DB.Where("user_id = ?", pendaftaran.Calon_istri_id).First(&calonIstri).Error; err != nil {
-		return fmt.Errorf("gagal mengambil data calon istri: %v", err)
-	}
-
 	// Notifikasi untuk penghulu
 	penghuluNotification := structs.Notifikasi{
 		User_id: penghuluID,
 		Judul:   "Penugasan Nikah Baru",
-		Pesan: fmt.Sprintf("Anda ditugaskan untuk memimpin nikah %s dan %s pada %s pukul %s di %s.",
-			calonSuami.Nama_lengkap,
-			calonIstri.Nama_lengkap,
+		Pesan: fmt.Sprintf("Anda ditugaskan untuk memimpin nikah %s & %s pada %s pukul %s di %s.",
+			pendaftaran.Nama_suami,
+			pendaftaran.Nama_istri,
 			pendaftaran.Tanggal_nikah.Format("02 Januari 2006"),
 			pendaftaran.Waktu_nikah,
 			pendaftaran.Tempat_nikah),
@@ -193,28 +147,6 @@ func (ns *NotificationService) SendPenghuluAssignmentNotification(pendaftaranID 
 		log.Printf("Gagal mengirim notifikasi ke penghulu: %v", err)
 	}
 
-	// Notifikasi untuk calon pasangan
-	calonNotification := structs.Notifikasi{
-		User_id:     calonSuami.User_id,
-		Judul:       "Penghulu Ditugaskan",
-		Pesan:       fmt.Sprintf("Penghulu %s telah ditugaskan untuk memimpin nikah Anda dengan %s.", penghulu.Nama_lengkap, calonIstri.Nama_lengkap),
-		Tipe:        structs.NotifikasiTipeSuccess,
-		Status_baca: structs.NotifikasiStatusBelumDibaca,
-		Link:        fmt.Sprintf("/simnikah/pendaftaran/%d", pendaftaranID),
-	}
-
-	if err := ns.DB.Create(&calonNotification).Error; err != nil {
-		log.Printf("Gagal mengirim notifikasi ke calon suami: %v", err)
-	}
-
-	// Notifikasi untuk calon istri juga
-	if pendaftaran.Calon_istri_id != pendaftaran.Calon_suami_id {
-		calonNotification.User_id = calonIstri.User_id
-		if err := ns.DB.Create(&calonNotification).Error; err != nil {
-			log.Printf("Gagal mengirim notifikasi ke calon istri: %v", err)
-		}
-	}
-
 	return nil
 }
 
@@ -224,46 +156,70 @@ func (ns *NotificationService) SendReminderNotification() error {
 	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 
 	var pendaftaranBesok []structs.PendaftaranNikah
-	// Note: Some statuses like "Disetujui", "Surat Diterbitkan" are custom and not in constants
-	if err := ns.DB.Where("DATE(tanggal_nikah) = ? AND status_pendaftaran IN (?)", tomorrow, []string{structs.StatusPendaftaranDisetujui, structs.StatusPendaftaranMenungguPenugasan, structs.StatusPendaftaranPenghuluDitugaskan}).Find(&pendaftaranBesok).Error; err != nil {
+	if err := ns.DB.Where("DATE(tanggal_nikah) = ? AND status_pendaftaran IN (?)", tomorrow, []string{structs.StatusPendaftaranMenungguPenugasan, structs.StatusPendaftaranPenghuluDitugaskan}).Find(&pendaftaranBesok).Error; err != nil {
 		log.Printf("Gagal mengambil data pendaftaran besok: %v", err)
 		return err
 	}
 
-	for _, pendaftaran := range pendaftaranBesok {
-		// Ambil data calon suami dan istri
-		var calonSuami, calonIstri structs.CalonPasangan
-		if err := ns.DB.Where("id = ?", pendaftaran.Calon_suami_id).First(&calonSuami).Error; err != nil {
-			continue
+	// Batch-fetch semua penghulu yang ditugaskan untuk menghindari N+1 query
+	penghuluIDs := make([]uint, 0)
+	for _, p := range pendaftaranBesok {
+		if p.Penghulu_id != nil {
+			penghuluIDs = append(penghuluIDs, *p.Penghulu_id)
 		}
-		if err := ns.DB.Where("id = ?", pendaftaran.Calon_istri_id).First(&calonIstri).Error; err != nil {
-			continue
-		}
+	}
 
-		// Notifikasi pengingat untuk calon suami
-		reminderNotification := structs.Notifikasi{
-			User_id: calonSuami.User_id,
-			Judul:   "Pengingat Nikah Besok",
-			Pesan: fmt.Sprintf("Pengingat: Nikah Anda dengan %s akan dilaksanakan besok (%s) pukul %s di %s. Pastikan semua persiapan sudah siap!",
-				calonIstri.Nama_lengkap,
-				pendaftaran.Tanggal_nikah.Format("02 Januari 2006"),
-				pendaftaran.Waktu_nikah,
-				pendaftaran.Tempat_nikah),
-			Tipe:        structs.NotifikasiTipeWarning,
-			Status_baca: structs.NotifikasiStatusBelumDibaca,
-			Link:        fmt.Sprintf("/simnikah/pendaftaran/%d", pendaftaran.ID),
-		}
-
-		if err := ns.DB.Create(&reminderNotification).Error; err != nil {
-			log.Printf("Gagal mengirim notifikasi pengingat ke calon suami: %v", err)
-		}
-
-		// Notifikasi pengingat untuk calon istri juga
-		if pendaftaran.Calon_istri_id != pendaftaran.Calon_suami_id {
-			reminderNotification.User_id = calonIstri.User_id
-			if err := ns.DB.Create(&reminderNotification).Error; err != nil {
-				log.Printf("Gagal mengirim notifikasi pengingat ke calon istri: %v", err)
+	penghuluMap := map[uint]*structs.Penghulu{}
+	if len(penghuluIDs) > 0 {
+		var penghulus []structs.Penghulu
+		if err := ns.DB.Where("id IN ?", penghuluIDs).Find(&penghulus).Error; err == nil {
+			for i := range penghulus {
+				p := penghulus[i]
+				penghuluMap[p.ID] = &p
 			}
+		}
+	}
+
+	for _, pendaftaran := range pendaftaranBesok {
+		// Notifikasi pengingat untuk penghulu yang ditugaskan
+		if pendaftaran.Penghulu_id != nil {
+			penghulu, ok := penghuluMap[*pendaftaran.Penghulu_id]
+			if !ok {
+				continue
+			}
+
+			reminderNotification := structs.Notifikasi{
+				User_id: penghulu.User_id,
+				Judul:   "Pengingat Nikah Besok",
+				Pesan: fmt.Sprintf("Pengingat: Nikah %s & %s akan dilaksanakan besok (%s) pukul %s di %s.",
+					pendaftaran.Nama_suami,
+					pendaftaran.Nama_istri,
+					pendaftaran.Tanggal_nikah.Format("02 Januari 2006"),
+					pendaftaran.Waktu_nikah,
+					pendaftaran.Tempat_nikah),
+				Tipe:        structs.NotifikasiTipeWarning,
+				Status_baca: structs.NotifikasiStatusBelumDibaca,
+				Link:        fmt.Sprintf("/simnikah/pendaftaran/%d", pendaftaran.ID),
+			}
+
+			if err := ns.DB.Create(&reminderNotification).Error; err != nil {
+				log.Printf("Gagal mengirim notifikasi pengingat ke penghulu: %v", err)
+			}
+		}
+
+		// Notifikasi pengingat untuk staff dan kepala KUA
+		staffReminder := structs.Notifikasi{
+			Judul:   "Pengingat Nikah Besok",
+			Pesan:   fmt.Sprintf("Pengingat: Nikah %s & %s akan dilaksanakan besok (%s) pukul %s di %s.", pendaftaran.Nama_suami, pendaftaran.Nama_istri, pendaftaran.Tanggal_nikah.Format("02 Januari 2006"), pendaftaran.Waktu_nikah, pendaftaran.Tempat_nikah),
+			Tipe:    structs.NotifikasiTipeWarning,
+			Link:    fmt.Sprintf("/simnikah/pendaftaran/%d", pendaftaran.ID),
+		}
+
+		if err := ns.sendToRole(structs.UserRoleStaff, staffReminder); err != nil {
+			log.Printf("Gagal mengirim notifikasi pengingat ke staff: %v", err)
+		}
+		if err := ns.sendToRole(structs.UserRoleKepalaKUA, staffReminder); err != nil {
+			log.Printf("Gagal mengirim notifikasi pengingat ke kepala KUA: %v", err)
 		}
 	}
 
@@ -355,7 +311,7 @@ func (ns *NotificationService) SendStaffCreatedNotification(staffUserID, staffNa
 
 	// Notifikasi untuk kepala KUA bahwa staff baru telah dibuat
 	kepalaKuaNotification := structs.Notifikasi{
-		User_id:     "ALL_KEPALA_KUA", // Akan dipecah menjadi notifikasi individual
+		User_id:     "ALL_KEPALA_KUA",
 		Judul:       "Staff Baru Dibuat",
 		Pesan:       fmt.Sprintf("Staff baru %s dengan jabatan %s telah berhasil dibuat dan dapat login ke sistem.", staffNama, jabatan),
 		Tipe:        structs.NotifikasiTipeInfo,

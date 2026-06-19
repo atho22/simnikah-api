@@ -1,34 +1,25 @@
 package structs
 
+// ==================== PENDAFTARAN NIKAH STATUS ====================
+// Flow scheduling-only: Menunggu Penugasan -> Penghulu Ditugaskan -> Selesai
+// (Draft dan Disetujui dihapus karena staff verification adalah alur SIMKAH)
 
 const (
-	StatusPerkawinanBelumKawin = "Belum Kawin"
-	StatusPerkawinanKawin      = "Kawin"
-	StatusPerkawinanCeraiMati  = "Cerai Mati"
-	StatusPerkawinanCeraiHidup = "Cerai Hidup"
+	StatusPendaftaranMenungguPenugasan  = "Menunggu Penugasan"
+	StatusPendaftaranPenghuluDitugaskan = "Penghulu Ditugaskan"
+	StatusPendaftaranSelesai            = "Selesai"
+	StatusPendaftaranDitolak            = "Ditolak"
 )
 
+// ==================== TEMPAT NIKAH ====================
 
-// Define constants for PendaftaranNikah Status_pendaftaran
-// Flow sederhana: Draft → Disetujui → Menunggu Penugasan → Penghulu Ditugaskan → Selesai
-const (
-	StatusPendaftaranDraft              = "Draft"                // Catin daftar (form sederhana)
-	StatusPendaftaranDisetujui          = "Disetujui"            // Staff menyetujui setelah verifikasi di belakang layar
-	StatusPendaftaranMenungguPenugasan  = "Menunggu Penugasan"   // Menunggu kepala KUA menentukan penghulu
-	StatusPendaftaranPenghuluDitugaskan = "Penghulu Ditugaskan"  // Kepala KUA sudah assign penghulu
-	StatusPendaftaranSelesai            = "Selesai"              // Penghulu sudah melaksanakan nikah
-	StatusPendaftaranDitolak            = "Ditolak"              // Ditolak oleh staff
-)
-
-// Define constants for Tempat Nikah
 const (
 	TempatNikahDiKUA     = "Di KUA"
 	TempatNikahDiLuarKUA = "Di Luar KUA"
 )
 
+// ==================== USERS ROLE ====================
 
-
-// Define constants for Users Role
 const (
 	UserRoleUserBiasa = "user_biasa"
 	UserRolePenghulu  = "penghulu"
@@ -36,47 +27,36 @@ const (
 	UserRoleKepalaKUA = "kepala_kua"
 )
 
-// Define constants for Users Status
+// ==================== USERS STATUS ====================
+
 const (
 	UserStatusAktif    = "Aktif"
 	UserStatusNonaktif = "Nonaktif"
 	UserStatusBlokir   = "Blokir"
 )
 
-// Define constants for StaffKUA Jabatan
+// ==================== STAFF KUA ====================
+
 const (
 	StaffJabatanStaff     = "Staff"
 	StaffJabatanPenghulu  = "Penghulu"
 	StaffJabatanKepalaKUA = "Kepala KUA"
 )
 
-// Define constants for StaffKUA Status
 const (
 	StaffStatusAktif    = "Aktif"
 	StaffStatusNonaktif = "Nonaktif"
 )
 
-// Define constants for Penghulu Status
+// ==================== PENGHULU STATUS ====================
+
 const (
 	PenghuluStatusAktif    = "Aktif"
 	PenghuluStatusNonaktif = "Nonaktif"
 )
 
-// Define constants for FeedbackPernikahan Jenis_feedback
-const (
-	FeedbackJenisRating  = "Rating"
-	FeedbackJenisSaran   = "Saran"
-	FeedbackJenisKritik  = "Kritik"
-	FeedbackJenisLaporan = "Laporan"
-)
+// ==================== NOTIFIKASI ====================
 
-// Define constants for FeedbackPernikahan Status_baca
-const (
-	FeedbackStatusBelumDibaca = "Belum Dibaca"
-	FeedbackStatusSudahDibaca = "Sudah Dibaca"
-)
-
-// Define constants for Notifikasi Tipe
 const (
 	NotifikasiTipeInfo    = "Info"
 	NotifikasiTipeSuccess = "Success"
@@ -84,38 +64,7 @@ const (
 	NotifikasiTipeError   = "Error"
 )
 
-// Define constants for Notifikasi Status_baca
 const (
 	NotifikasiStatusBelumDibaca = "Belum Dibaca"
 	NotifikasiStatusSudahDibaca = "Sudah Dibaca"
 )
-
-// Define constants for WaliNikah Hubungan_wali (Urutan Wali Nasab)
-const (
-	WaliHubunganAyahKandung            = "Ayah Kandung"
-	WaliHubunganKakek                  = "Kakek"
-	WaliHubunganSaudaraLakiLakiKandung = "Saudara Laki-Laki Kandung"
-	WaliHubunganSaudaraLakiLakiSeayah  = "Saudara Laki-Laki Seayah"
-	WaliHubunganKeponakanLakiLaki      = "Keponakan Laki-Laki"
-	WaliHubunganPamanKandung           = "Paman Kandung"
-	WaliHubunganPamanSeayah            = "Paman Seayah"
-	WaliHubunganSepupuLakiLaki         = "Sepupu Laki-Laki"
-	WaliHubunganWaliHakim              = "Wali Hakim"
-	WaliHubunganLainnya                = "Lainnya"
-)
-
-// ValidHubunganWali - Daftar hubungan wali yang valid
-var ValidHubunganWali = []string{
-	WaliHubunganAyahKandung,
-	WaliHubunganKakek,
-	WaliHubunganSaudaraLakiLakiKandung,
-	WaliHubunganSaudaraLakiLakiSeayah,
-	WaliHubunganKeponakanLakiLaki,
-	WaliHubunganPamanKandung,
-	WaliHubunganPamanSeayah,
-	WaliHubunganSepupuLakiLaki,
-	WaliHubunganWaliHakim,
-	WaliHubunganLainnya,
-}
-
-

@@ -36,9 +36,7 @@ func UploadToImgBB(fileData []byte, filename string) (string, error) {
 	// If not set, ImgBB will use anonymous upload (limited)
 	apiKey := os.Getenv("IMGBB_API_KEY")
 	if apiKey == "" {
-		// Use anonymous upload (free but with limitations)
-		// For production, get free API key from https://api.imgbb.com/
-		apiKey = "anonymous"
+		return "", fmt.Errorf("IMGBB_API_KEY environment variable tidak diset. Dapatkan API key gratis di https://api.imgbb.com/")
 	}
 
 	// Create multipart form

@@ -20,9 +20,8 @@ type registrationURI struct {
 }
 
 type assignPenghuluApprovalRequest struct {
-	PenghuluID     uint   `json:"penghulu_id" binding:"required"`
-	ApprovalNotes  string `json:"approval_notes" binding:"required"`
-	Catatan        string `json:"catatan"`
+	PenghuluID    uint   `json:"penghulu_id" binding:"required"`
+	ApprovalNotes string `json:"approval_notes" binding:"required"`
 }
 
 type forwardChainingConfigResponse struct {
@@ -220,9 +219,6 @@ func (h *InDB) AssignPenghuluWithApproval(c *gin.Context) {
 
 	approvalNotes := strings.TrimSpace(input.ApprovalNotes)
 	if approvalNotes == "" {
-		approvalNotes = strings.TrimSpace(input.Catatan)
-	}
-	if approvalNotes == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Approval notes wajib diisi",
@@ -261,11 +257,11 @@ func (h *InDB) AssignPenghuluWithApproval(c *gin.Context) {
 		return
 	}
 
-	if registration.Status_pendaftaran != structs.StatusPendaftaranDisetujui && registration.Status_pendaftaran != structs.StatusPendaftaranMenungguPenugasan {
+	if registration.Status_pendaftaran != structs.StatusPendaftaranMenungguPenugasan {
 		c.JSON(http.StatusConflict, gin.H{
 			"success": false,
 			"message": "Status pendaftaran tidak dapat di-assign",
-			"error":   fmt.Sprintf("status saat ini: %s", registration.Status_pendaftaran),
+			"error":   fmt.Sprintf("status saat ini: %s, harus 'Menunggu Penugasan'", registration.Status_pendaftaran),
 		})
 		return
 	}
@@ -287,12 +283,8 @@ func (h *InDB) AssignPenghuluWithApproval(c *gin.Context) {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"penghulu_id":           input.PenghuluID,
-		"penghulu_assigned_by":  currentUserID,
-		"penghulu_assigned_at":   &now,
-		"disetujui_oleh":        currentUserID,
-		"disetujui_pada":        &now,
 		"status_pendaftaran":    structs.StatusPendaftaranPenghuluDitugaskan,
-		"catatan":               approvalNotes,
+		"updated_at":            now,
 	}
 
 	if err := tx.Model(&structs.PendaftaranNikah{}).
@@ -318,15 +310,19 @@ func (h *InDB) AssignPenghuluWithApproval(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Penghulu berhasil ditugaskan dan pendaftaran disetujui",
+		"message": "Penghulu berhasil ditugaskan",
 		"data": gin.H{
-			"registration_id":        registrationID,
-			"penghulu_id":            penghulu.ID,
-			"penghulu_nama":          penghulu.Nama_lengkap,
-			"status_pendaftaran":     structs.StatusPendaftaranPenghuluDitugaskan,
-			"approval_notes":         approvalNotes,
-			"assigned_by":            currentUserID,
-			"assigned_at":            now,
+			"registration_id":    registrationID,
+			"nama_suami":         registration.Nama_suami,
+			"nama_istri":         registration.Nama_istri,
+			"tanggal_nikah":      registration.Tanggal_nikah.Format("2006-01-02"),
+			"waktu_nikah":        registration.Waktu_nikah,
+			"tempat_nikah":       registration.Tempat_nikah,
+			"penghulu_id":        penghulu.ID,
+			"penghulu_nama":      penghulu.Nama_lengkap,
+			"status_pendaftaran": structs.StatusPendaftaranPenghuluDitugaskan,
+			"assigned_by":        currentUserID,
+			"assigned_at":        now,
 		},
 	})
 }

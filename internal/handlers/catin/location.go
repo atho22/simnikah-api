@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"simnikah/internal/models"
+	structs "simnikah/internal/models"
 	"simnikah/pkg/cache"
 
 	"github.com/gin-gonic/gin"
@@ -214,8 +214,8 @@ func (h *InDB) UpdateWeddingLocationWithCoordinates(c *gin.Context) {
 		return
 	}
 
-	// Get user_id from context
-	userID, exists := c.Get("user_id")
+	// Get user_id and role from JWT context
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
@@ -223,13 +223,27 @@ func (h *InDB) UpdateWeddingLocationWithCoordinates(c *gin.Context) {
 		})
 		return
 	}
+	userID := userIDVal.(string)
+	role, _ := c.Get("role")
+	userRole, _ := role.(string)
 
-	// Check if registration exists and belongs to this user
+	// Check if registration exists
 	var pendaftaran structs.PendaftaranNikah
-	if err := h.DB.Where("id = ? AND pendaftar_id = ?", registrationID, userID.(string)).First(&pendaftaran).Error; err != nil {
+	if err := h.DB.Where("id = ?", registrationID).First(&pendaftaran).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"message": "Pendaftaran tidak ditemukan",
+		})
+		return
+	}
+
+	// Ownership validation: hanya pendaftar, staff, atau kepala_kua yang bisa update
+	isOwner := pendaftaran.Pendaftar_id == userID
+	isStaffOrKepala := userRole == structs.UserRoleStaff || userRole == structs.UserRoleKepalaKUA
+	if !isOwner && !isStaffOrKepala {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Anda tidak berhak mengubah lokasi pernikahan ini",
 		})
 		return
 	}
@@ -286,11 +300,10 @@ func (h *InDB) UpdateWeddingLocationWithCoordinates(c *gin.Context) {
 	h.DB.Where("id = ?", registrationID).First(&pendaftaran)
 
 	response := gin.H{
-		"pendaftaran_id":    pendaftaran.ID,
-		"nomor_pendaftaran": pendaftaran.Nomor_pendaftaran,
-		"alamat_akad":       pendaftaran.Alamat_akad,
-		"tempat_nikah":      pendaftaran.Tempat_nikah,
-		"updated_at":        pendaftaran.Updated_at,
+		"pendaftaran_id": pendaftaran.ID,
+		"alamat_akad":    pendaftaran.Alamat_akad,
+		"tempat_nikah":   pendaftaran.Tempat_nikah,
+		"updated_at":     pendaftaran.Updated_at,
 	}
 
 	// Tambahkan koordinat dan map URL jika tersedia
@@ -308,9 +321,19 @@ func (h *InDB) UpdateWeddingLocationWithCoordinates(c *gin.Context) {
 	})
 }
 
-// GetWeddingLocationDetail - Mendapatkan detail lokasi nikah dengan koordinat untuk penghulu
+// GetWeddingLocationDetail - Mendapatkan detail lokasi nikah dengan koordinat (dengan ownership validation)
 func (h *InDB) GetWeddingLocationDetail(c *gin.Context) {
 	registrationID := c.Param("id")
+
+	// Get user_id and role from JWT context
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Unauthorized"})
+		return
+	}
+	userID := userIDVal.(string)
+	role, _ := c.Get("role")
+	userRole, _ := role.(string)
 
 	// Get registration
 	var pendaftaran structs.PendaftaranNikah
@@ -322,13 +345,32 @@ func (h *InDB) GetWeddingLocationDetail(c *gin.Context) {
 		return
 	}
 
+	// Ownership validation: pendaftar, penghulu yang ditugaskan, staff, atau kepala_kua
+	isOwner := pendaftaran.Pendaftar_id == userID
+	isStaffOrKepala := userRole == structs.UserRoleStaff || userRole == structs.UserRoleKepalaKUA
+	isAssignedPenghulu := false
+	if userRole == structs.UserRolePenghulu && pendaftaran.Penghulu_id != nil {
+		var penghulu structs.Penghulu
+		if err := h.DB.Where("id = ? AND user_id = ?", *pendaftaran.Penghulu_id, userID).First(&penghulu).Error; err == nil {
+			isAssignedPenghulu = true
+		}
+	}
+	if !isOwner && !isStaffOrKepala && !isAssignedPenghulu {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Anda tidak berhak mengakses detail lokasi ini",
+		})
+		return
+	}
+
 	response := gin.H{
-		"pendaftaran_id":    pendaftaran.ID,
-		"nomor_pendaftaran": pendaftaran.Nomor_pendaftaran,
-		"tanggal_nikah":     pendaftaran.Tanggal_nikah,
-		"waktu_nikah":       pendaftaran.Waktu_nikah,
-		"tempat_nikah":      pendaftaran.Tempat_nikah,
-		"alamat_akad":       pendaftaran.Alamat_akad,
+		"pendaftaran_id": pendaftaran.ID,
+		"nama_suami":    pendaftaran.Nama_suami,
+		"nama_istri":    pendaftaran.Nama_istri,
+		"tanggal_nikah":  pendaftaran.Tanggal_nikah,
+		"waktu_nikah":    pendaftaran.Waktu_nikah,
+		"tempat_nikah":   pendaftaran.Tempat_nikah,
+		"alamat_akad":    pendaftaran.Alamat_akad,
 	}
 
 	// Jika ada koordinat, tambahkan info map

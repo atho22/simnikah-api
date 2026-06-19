@@ -11,9 +11,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	structs "simnikah/internal/models"
+	"simnikah/pkg/utils"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -88,13 +90,6 @@ type PenghuluFact struct {
 	CapacityPerDay  int
 	CapacityPerHour int
 	Rating          float64
-	RejectRate      float64
-	AverageDuration int
-	BaseLocation    string
-	CanServeOutside bool
-	SpecializedArea  []string
-	HomeLatitude    *float64
-	HomeLongitude   *float64
 }
 
 // ==================== INFERENCE AUDIT ====================
@@ -189,9 +184,9 @@ func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckIn
 		return nil, fmt.Errorf("format tanggal_nikah harus YYYY-MM-DD")
 	}
 
-	waktuNikah := normalizeClock(strings.TrimSpace(input.WaktuNikah))
-	if waktuNikah == "" {
-		return nil, fmt.Errorf("waktu_nikah tidak valid")
+	waktuNikah, err := normalizeClock(strings.TrimSpace(input.WaktuNikah))
+	if err != nil {
+		return nil, fmt.Errorf("waktu_nikah tidak valid: %w", err)
 	}
 
 	tempatNikah := strings.TrimSpace(input.TempatNikah)
@@ -235,9 +230,20 @@ func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckIn
 		}
 		penghuluID := *registration.Penghulu_id
 		dayCounts[penghuluID]++
-		if normalizeClock(registration.Waktu_nikah) == waktuNikah {
+		clock, clockErr := normalizeClock(registration.Waktu_nikah)
+		if clockErr != nil {
+			clock = registration.Waktu_nikah
+		}
+		if clock == waktuNikah {
 			hourCounts[penghuluID]++
 		}
+	}
+
+	totalCapacity := int64(len(penghulus) * fc.Config.CapacityPerDay)
+
+	slotRemaining := totalCapacity - totalBooked
+	if slotRemaining < 0 {
+		slotRemaining = 0
 	}
 
 	result := &ScheduleCheckResult{
@@ -248,7 +254,7 @@ func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckIn
 		HolidayName:   holidayName,
 		TotalBooked:   totalBooked,
 		BookedInKUA:   bookedInKUA,
-		SlotRemaining: 3 - totalBooked,
+		SlotRemaining: slotRemaining,
 		Available:     true,
 	}
 
@@ -258,7 +264,7 @@ func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckIn
 		return result, nil
 	}
 
-	if totalBooked >= 3 {
+	if totalBooked >= totalCapacity {
 		result.Available = false
 		result.Reason = "Semua slot penghulu pada jam tersebut sudah penuh"
 		return result, nil
@@ -314,7 +320,7 @@ func (fc *ForwardChainingEngine) ListApprovedAssignmentsForPenghulu(userID strin
 
 	var assignments []structs.PendaftaranJadwal
 	if err := query.
-		Select("id, nomor_pendaftaran, tanggal_nikah, waktu_nikah, tempat_nikah, alamat_akad, latitude, longitude, status_pendaftaran, penghulu_id, penghulu_assigned_at, catatan").
+		Select("id, nama_suami, umur_suami, nama_istri, umur_istri, tanggal_nikah, waktu_nikah, tempat_nikah, alamat_akad, latitude, longitude, status_pendaftaran, penghulu_id").
 		Order("tanggal_nikah ASC, waktu_nikah ASC").Find(&assignments).Error; err != nil {
 		return nil, err
 	}
@@ -362,6 +368,32 @@ type inferenceRule struct {
 	Blocking bool
 	CanFire  func() bool
 	Fire     func() (RuleEvaluation, []DerivedFact)
+}
+
+// osrmDistanceCache meng-cache hasil OSRM route berdasarkan pasangan koordinat.
+// Mengurangi HTTP call duplikat untuk rute yang sama dalam satu sesi evaluasi.
+type osrmDistanceCache struct {
+	mu    sync.RWMutex
+	cache map[string]float64
+}
+
+func newOSRMDistanceCache() *osrmDistanceCache {
+	return &osrmDistanceCache{cache: make(map[string]float64)}
+}
+
+func (c *osrmDistanceCache) get(fromLat, fromLon, toLat, toLon float64) (float64, bool) {
+	key := fmt.Sprintf("%.6f,%.6f->%.6f,%.6f", fromLat, fromLon, toLat, toLon)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	val, ok := c.cache[key]
+	return val, ok
+}
+
+func (c *osrmDistanceCache) set(fromLat, fromLon, toLat, toLon, distance float64) {
+	key := fmt.Sprintf("%.6f,%.6f->%.6f,%.6f", fromLat, fromLon, toLat, toLon)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cache[key] = distance
 }
 
 // ==================== CONSTRUCTOR ====================
@@ -441,29 +473,33 @@ func clampFloat(value, minValue, maxValue float64) float64 {
 	return value
 }
 
-func normalizeClock(clock string) string {
+func normalizeClock(clock string) (string, error) {
 	trimmed := strings.TrimSpace(clock)
 	if trimmed == "" {
-		return "00:00"
+		return "", fmt.Errorf("waktu tidak boleh kosong")
 	}
 	parsed, err := time.Parse(allowedTimeFormat, trimmed)
 	if err != nil {
 		parts := strings.Split(trimmed, ":")
 		if len(parts) != 2 {
-			return "00:00"
+			return "", fmt.Errorf("format waktu tidak valid, gunakan HH:MM")
 		}
 		hour, errHour := strconv.Atoi(parts[0])
 		minute, errMinute := strconv.Atoi(parts[1])
-		if errHour != nil || errMinute != nil {
-			return "00:00"
+		if errHour != nil || errMinute != nil || hour < 0 || hour > 23 || minute < 0 || minute > 59 {
+			return "", fmt.Errorf("format waktu tidak valid, gunakan HH:MM")
 		}
-		return fmt.Sprintf("%02d:%02d", hour, minute)
+		return fmt.Sprintf("%02d:%02d", hour, minute), nil
 	}
-	return parsed.Format(allowedTimeFormat)
+	return parsed.Format(allowedTimeFormat), nil
 }
 
 func combineDateAndClock(date time.Time, clock string) (time.Time, error) {
-	parts := strings.Split(normalizeClock(clock), ":")
+	normalized, err := normalizeClock(clock)
+	if err != nil {
+		return time.Time{}, err
+	}
+	parts := strings.Split(normalized, ":")
 	if len(parts) != 2 {
 		return time.Time{}, fmt.Errorf("invalid clock format: %s", clock)
 	}
@@ -491,8 +527,7 @@ func haversineMeters(fromLat, fromLon, toLat, toLon float64) float64 {
 
 func isAllowedAssignmentStatus(status string) bool {
 	switch status {
-	case structs.StatusPendaftaranDisetujui,
-		structs.StatusPendaftaranMenungguPenugasan:
+	case structs.StatusPendaftaranMenungguPenugasan:
 		return true
 	default:
 		return false
@@ -566,6 +601,23 @@ func (fc *ForwardChainingEngine) routeDistanceMeters(fromLat, fromLon, toLat, to
 	return parsed.Routes[0].Distance, nil
 }
 
+// routeDistanceCached wraps routeDistanceMeters dengan in-memory cache.
+// Jika OSRM gagal, fallback ke Haversine * 1.35 (road factor).
+func (fc *ForwardChainingEngine) routeDistanceCached(cache *osrmDistanceCache, fromLat, fromLon, toLat, toLon float64) float64 {
+	if dist, found := cache.get(fromLat, fromLon, toLat, toLon); found {
+		return dist
+	}
+
+	distance, err := fc.routeDistanceMeters(fromLat, fromLon, toLat, toLon)
+	if err != nil {
+		// Fallback Haversine dengan road factor 1.35 + penalty
+		distance = haversineMeters(fromLat, fromLon, toLat, toLon)*1.35 + fc.Config.OSRMFailurePenaltyMeters
+	}
+
+	cache.set(fromLat, fromLon, toLat, toLon, distance)
+	return distance
+}
+
 func (fc *ForwardChainingEngine) IsHoliday(date time.Time) (bool, string) {
 	if date.Weekday() == time.Sunday {
 		return true, "Minggu"
@@ -627,10 +679,15 @@ func (fc *ForwardChainingEngine) extractMarriageRegistrationFactsWithDB(db *gorm
 		return nil, fmt.Errorf("registrasi tidak ditemukan: %w", err)
 	}
 
+	waktu, _ := normalizeClock(reg.Waktu_nikah)
+	if waktu == "" {
+		waktu = reg.Waktu_nikah
+	}
+
 	fact := &MarriageRegistrationFact{
 		RegistrationID:    reg.ID,
 		TanggalNikah:      reg.Tanggal_nikah,
-		WaktuNikah:        normalizeClock(reg.Waktu_nikah),
+		WaktuNikah:        waktu,
 		TempatNikah:       strings.TrimSpace(reg.Tempat_nikah),
 		AlamatNikah:       reg.Alamat_akad,
 		StatusPendaftaran: reg.Status_pendaftaran,
@@ -663,18 +720,11 @@ func (fc *ForwardChainingEngine) extractPenghuluFactsWithDB(db *gorm.DB, penghul
 		CapacityPerDay:  fc.Config.CapacityPerDay,
 		CapacityPerHour: fc.Config.CapacityPerHour,
 		Rating:          penghulu.Rating,
-		BaseLocation:    penghulu.Alamat,
-		CanServeOutside: true,
 	}, nil
 }
 
-// LoadEvaluationSnapshotForAssignment mengunci baris relevan secara konsisten.
-// Gunakan helper ini pada alur write/assign di dalam transaction untuk mencegah race condition
-// saat dua request mencoba menugaskan penghulu ke slot waktu yang sama.
-func (fc *ForwardChainingEngine) LoadEvaluationSnapshotForAssignment(registrationID uint) (*evaluationSnapshot, error) {
-	return fc.loadEvaluationSnapshot(registrationID, true)
-}
-
+// loadEvaluationSnapshot mengambil snapshot data untuk inferensi FC.
+// Parameter lockRows=false (read-only) untuk rekomendasi, true untuk assignment.
 func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, lockRows bool) (*evaluationSnapshot, error) {
 	db := fc.DB
 	var tx *gorm.DB
@@ -727,7 +777,10 @@ func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, loc
 		if hourCounts[penghuluID] == nil {
 			hourCounts[penghuluID] = map[string]int{}
 		}
-		clock := normalizeClock(assignment.Waktu_nikah)
+		clock, clockErr := normalizeClock(assignment.Waktu_nikah)
+		if clockErr != nil {
+			clock = assignment.Waktu_nikah
+		}
 		hourCounts[penghuluID][clock]++
 
 		scheduledAt, err := combineDateAndClock(regFact.TanggalNikah, clock)
@@ -766,8 +819,6 @@ func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, loc
 			CapacityPerDay:  fc.Config.CapacityPerDay,
 			CapacityPerHour: fc.Config.CapacityPerHour,
 			Rating:          p.Rating,
-			BaseLocation:    p.Alamat,
-			CanServeOutside: true,
 		})
 	}
 
@@ -786,7 +837,7 @@ func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, loc
 
 // ==================== RULE ENGINE ====================
 
-func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, candidate *PenghuluFact, state *candidateInferenceState) []inferenceRule {
+func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, candidate *PenghuluFact, state *candidateInferenceState, osrmCache *osrmDistanceCache) []inferenceRule {
 	registration := snapshot.RegistrationFact
 	dayCount := snapshot.DayCounts[candidate.PenghuluID]
 	hourCount := snapshot.HourCounts[candidate.PenghuluID][registration.WaktuNikah]
@@ -886,11 +937,7 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 			Blocking: true,
 			CanFire: func() bool { return state.hasFact(derivedFactKapasitasPerJam) && !state.hasFact(derivedFactLokasiSesuai) },
 			Fire: func() (RuleEvaluation, []DerivedFact) {
-				if registration.TempatNikah == structs.TempatNikahDiLuarKUA && !candidate.CanServeOutside {
-					eval := RuleEvaluation{RuleID: "RULE_007", RuleName: "Cek Kesesuaian Lokasi", IsSatisfied: false, Reason: "Penghulu tidak dapat melayani di luar KUA"}
-					return eval, nil
-				}
-				eval := RuleEvaluation{RuleID: "RULE_007", RuleName: "Cek Kesesuaian Lokasi", IsSatisfied: true, Reason: "Lokasi layanan sesuai", Impact: 5}
+				eval := RuleEvaluation{RuleID: "RULE_007", RuleName: "Cek Kesesuaian Lokasi", IsSatisfied: true, Reason: "Semua penghulu dapat melayani di dalam maupun luar KUA", Impact: 5}
 				return eval, []DerivedFact{{Name: derivedFactLokasiSesuai, Value: true, RuleID: eval.RuleID, Reason: eval.Reason, CreatedAt: time.Now()}}
 			},
 		},
@@ -914,7 +961,7 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 			Blocking: false,
 			CanFire: func() bool { return state.hasFact(derivedFactRatingMemadai) && !state.hasFact(derivedFactJarakMemadai) },
 			Fire: func() (RuleEvaluation, []DerivedFact) {
-				distanceMeters, distanceReason := fc.estimateRouteDistance(snapshot, candidate)
+				distanceMeters, distanceReason := fc.estimateRouteDistance(snapshot, candidate, osrmCache)
 				state.DistanceMeters = distanceMeters
 				eval := RuleEvaluation{RuleID: "RULE_009", RuleName: "Estimasi Jarak", IsSatisfied: true, Reason: distanceReason, Impact: 0}
 				if distanceMeters <= 30000 {
@@ -945,28 +992,19 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 	}
 }
 
-func (fc *ForwardChainingEngine) estimateRouteDistance(snapshot *evaluationSnapshot, candidate *PenghuluFact) (float64, string) {
+func (fc *ForwardChainingEngine) estimateRouteDistance(snapshot *evaluationSnapshot, candidate *PenghuluFact, osrmCache *osrmDistanceCache) (float64, string) {
 	registration := snapshot.RegistrationFact
 	targetLat := registration.Latitude
 	targetLon := registration.Longitude
 	targetFallbackUsed := false
 	if targetLat == 0 && targetLon == 0 {
-		if registration.TempatNikah == structs.TempatNikahDiKUA {
-			targetLat = fc.Config.KuaLatitude
-			targetLon = fc.Config.KuaLongitude
-		} else {
-			targetLat = fc.Config.KuaLatitude
-			targetLon = fc.Config.KuaLongitude
-			targetFallbackUsed = true
-		}
+		targetLat = fc.Config.KuaLatitude
+		targetLon = fc.Config.KuaLongitude
+		targetFallbackUsed = registration.TempatNikah == structs.TempatNikahDiLuarKUA
 	}
 
 	originLat := fc.Config.KuaLatitude
 	originLon := fc.Config.KuaLongitude
-	if snapshot.Holiday && candidate.HomeLatitude != nil && candidate.HomeLongitude != nil {
-		originLat = *candidate.HomeLatitude
-		originLon = *candidate.HomeLongitude
-	}
 
 	type routePoint struct {
 		latitude   float64
@@ -990,10 +1028,7 @@ func (fc *ForwardChainingEngine) estimateRouteDistance(snapshot *evaluationSnaps
 	currentLat := originLat
 	currentLon := originLon
 	for _, point := range points {
-		distance, err := fc.routeDistanceMeters(currentLat, currentLon, point.latitude, point.longitude)
-		if err != nil {
-			distance = haversineMeters(currentLat, currentLon, point.latitude, point.longitude)*1.35 + fc.Config.OSRMFailurePenaltyMeters
-		}
+		 distance := fc.routeDistanceCached(osrmCache, currentLat, currentLon, point.latitude, point.longitude)
 		totalDistance += distance
 		currentLat = point.latitude
 		currentLon = point.longitude
@@ -1006,12 +1041,12 @@ func (fc *ForwardChainingEngine) estimateRouteDistance(snapshot *evaluationSnaps
 	return totalDistance, fmt.Sprintf("Estimasi rute %.2f km", totalDistance/1000.0)
 }
 
-func (fc *ForwardChainingEngine) evaluateCandidate(snapshot *evaluationSnapshot, candidate *PenghuluFact) RuleResult {
+func (fc *ForwardChainingEngine) evaluateCandidate(snapshot *evaluationSnapshot, candidate *PenghuluFact, osrmCache *osrmDistanceCache) RuleResult {
 	state := &candidateInferenceState{
 		Facts:      map[string]bool{},
 		FiredRules: map[string]bool{},
 	}
-	rules := fc.buildRuleBase(snapshot, candidate, state)
+	rules := fc.buildRuleBase(snapshot, candidate, state, osrmCache)
 
 	for iteration := 0; iteration < 10; iteration++ {
 		changed := false
@@ -1124,7 +1159,7 @@ func (fc *ForwardChainingEngine) EvaluateRules(regFact *MarriageRegistrationFact
 		MaxHistoricalWorkload: penghuluFact.JumlahNikah,
 		MinHistoricalWorkload: penghuluFact.JumlahNikah,
 	}
-	result := fc.evaluateCandidate(snapshot, penghuluFact)
+	result := fc.evaluateCandidate(snapshot, penghuluFact, newOSRMDistanceCache())
 	return &result, nil
 }
 
@@ -1135,9 +1170,11 @@ func (fc *ForwardChainingEngine) GetPenghuluRecommendations(registrationID uint)
 		return nil, err
 	}
 
+	osrmCache := newOSRMDistanceCache()
+
 	results := make([]RuleResult, 0, len(snapshot.ActivePenghuluFacts))
 	for _, penghuluFact := range snapshot.ActivePenghuluFacts {
-		results = append(results, fc.evaluateCandidate(snapshot, penghuluFact))
+		results = append(results, fc.evaluateCandidate(snapshot, penghuluFact, osrmCache))
 	}
 
 	passedResults := make([]RuleResult, 0, len(results))
@@ -1151,7 +1188,7 @@ func (fc *ForwardChainingEngine) GetPenghuluRecommendations(registrationID uint)
 	})
 
 	rec := &AssignmentRecommendation{
-		EvaluatedAt:        time.Now(),
+		EvaluatedAt:        time.Now().In(utils.WITA),
 		EvaluationCount:    len(snapshot.ActivePenghuluFacts),
 		EvaluationProcess:  results,
 	}
@@ -1201,9 +1238,11 @@ func (fc *ForwardChainingEngine) GetDetailedEvaluation(registrationID uint) (map
 		return nil, err
 	}
 
+	osrmCache := newOSRMDistanceCache()
+
 	evaluations := make([]map[string]interface{}, 0, len(snapshot.ActivePenghuluFacts))
 	for _, penghuluFact := range snapshot.ActivePenghuluFacts {
-		ruleResult := fc.evaluateCandidate(snapshot, penghuluFact)
+		ruleResult := fc.evaluateCandidate(snapshot, penghuluFact, osrmCache)
 		evaluations = append(evaluations, map[string]interface{}{
 			"penghulu_id":      penghuluFact.PenghuluID,
 			"penghulu_nama":    penghuluFact.NamaPenghulu,
@@ -1240,7 +1279,7 @@ func (fc *ForwardChainingEngine) GetDetailedEvaluation(registrationID uint) (map
 		"penghulu_id":         snapshot.RegistrationFact.PenghuluID,
 		"holiday":             snapshot.Holiday,
 		"holiday_name":        snapshot.HolidayName,
-		"evaluated_at":        time.Now(),
+		"evaluated_at":        time.Now().In(utils.WITA),
 		"penghulu_evaluations": evaluations,
 	}, nil
 }

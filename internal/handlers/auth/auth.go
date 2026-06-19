@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // InDB struct untuk dependency injection
@@ -20,13 +21,13 @@ type InDB struct {
 	DB *gorm.DB
 }
 
-// RegisterRequest struct for user registration
+// RegisterRequest struct for user registration (public)
+// Role selalu "user_biasa" — pembuatan akun staff/penghulu/kepala_kua harus melalui endpoint admin.
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required"`
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
 	Nama     string `json:"nama" binding:"required"`
-	Role     string `json:"role" binding:"required"`
 }
 
 // LoginRequest struct for user login
@@ -50,43 +51,6 @@ func (h *InDB) Register(c *gin.Context) {
 		return
 	}
 
-	// Validate role
-	validRoles := map[string]bool{
-		structs.UserRoleUserBiasa: true,
-		structs.UserRolePenghulu:  true,
-		structs.UserRoleStaff:     true,
-		structs.UserRoleKepalaKUA: true,
-	}
-	if !validRoles[req.Role] {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Role tidak valid",
-			"error":   "Role harus salah satu dari: user_biasa, penghulu, staff, kepala_kua",
-		})
-		return
-	}
-
-	// Check if username already exists
-	var existingUser structs.Users
-	if err := h.DB.Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Username sudah digunakan",
-			"error":   "Username sudah terdaftar",
-		})
-		return
-	}
-
-	// Check if email already exists
-	if err := h.DB.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Email sudah digunakan",
-			"error":   "Email sudah terdaftar",
-		})
-		return
-	}
-
 	// Hash password
 	hashedPassword, err := crypto.HashPassword(req.Password)
 	if err != nil {
@@ -98,23 +62,39 @@ func (h *InDB) Register(c *gin.Context) {
 		return
 	}
 
-	// Generate user_id
-	userID := fmt.Sprintf("USR%d", time.Now().Unix())
+	// Generate user_id dengan UUID-like format untuk menghindari collision
+	userID := fmt.Sprintf("USR-%s", utils.RandString(12))
 
-	// Create user
+	// Create user dalam transaction untuk mencegah race condition
 	user := structs.Users{
 		User_id:    userID,
 		Username:   req.Username,
 		Email:      req.Email,
 		Password:   hashedPassword,
-		Role:       req.Role,
+		Role:       structs.UserRoleUserBiasa,
 		Status:     structs.UserStatusAktif,
 		Nama:       req.Nama,
 		Created_at: time.Now(),
 		Updated_at: time.Now(),
 	}
 
-	if err := h.DB.Create(&user).Error; err != nil {
+	// Transaction: check uniqueness + create atomically
+	if err := h.DB.Transaction(func(tx *gorm.DB) error {
+		// Lock dan cek uniqueness dalam transaction
+		var existing structs.Users
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("username = ? OR email = ?", req.Username, req.Email).
+			First(&existing).Error; err == nil {
+			if existing.Username == req.Username {
+				return fmt.Errorf("username sudah digunakan")
+			}
+			return fmt.Errorf("email sudah terdaftar")
+		}
+		if err := tx.Create(&user).Error; err != nil {
+			return fmt.Errorf("gagal membuat user")
+		}
+		return nil
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "Gagal membuat user",
@@ -308,23 +288,7 @@ func (h *InDB) UploadProfilePhoto(c *gin.Context) {
 		return
 	}
 
-	// Validate file type
-	allowedTypes := map[string]bool{
-		"image/jpeg": true,
-		"image/png":  true,
-		"image/jpg":  true,
-		"image/webp": true,
-	}
-	if !allowedTypes[file.Header.Get("Content-Type")] {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Tipe file tidak didukung",
-			"error":   "Gunakan JPG, PNG, atau WebP",
-		})
-		return
-	}
-
-	// Open file
+	// Validate file type using magic bytes (bukan Content-Type header yang bisa di-spoof)
 	src, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -335,6 +299,36 @@ func (h *InDB) UploadProfilePhoto(c *gin.Context) {
 		return
 	}
 	defer src.Close()
+
+	// Read first 512 bytes for content type detection
+	buf := make([]byte, 512)
+	n, _ := src.Read(buf)
+	if n == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "File kosong",
+		})
+		return
+	}
+	detectedType := http.DetectContentType(buf[:n])
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/webp": true,
+	}
+	if !allowedTypes[detectedType] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Tipe file tidak didukung",
+			"error":   "Gunakan JPG, PNG, atau WebP",
+		})
+		return
+	}
+
+	// Seek back to beginning
+	if seeker, ok := src.(interface{ Seek(int64, int) (int64, error) }); ok {
+		seeker.Seek(0, 0)
+	}
 
 	// Upload to ImgBB
 	photoURL, err := storage.UploadFileFromMultipart(src, file.Filename)

@@ -85,10 +85,9 @@ func SeedPenghulu(db *gorm.DB) error {
 	log.Printf("   User ID: %s", userID)
 	log.Printf("   Username: %s", defaultUsername)
 	log.Printf("   Email: %s", defaultEmail)
-	log.Printf("   Password: %s (⚠️  CHANGE THIS IN PRODUCTION!)", defaultPassword)
 	log.Printf("   Role: %s", structs.UserRolePenghulu)
 	log.Println("")
-	log.Println("⚠️  IMPORTANT: Change the default password after first login!")
+	log.Println("⚠️  IMPORTANT: Default password telah diset. Segera ubah setelah login pertama!")
 	log.Println("")
 
 	return nil

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -112,11 +111,7 @@ func maskPassword(password string) string {
 	if password == "" {
 		return "[EMPTY]"
 	}
-	if len(password) <= 4 {
-		return "****"
-	}
-	// Show first 2 and last 2 characters, mask the rest
-	return password[:2] + strings.Repeat("*", len(password)-4) + password[len(password)-2:]
+	return "********"
 }
 
 // getLogLevel returns appropriate log level based on environment

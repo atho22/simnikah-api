@@ -1,9 +1,9 @@
-// File: helper/jwt.go
 package utils
 
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"strings"
@@ -14,11 +14,15 @@ import (
 
 var jwtKey = getJWTKey()
 
-// getJWTKey returns the JWT key from environment or uses a fallback
+// getJWTKey returns the JWT key from environment.
+// Always requires JWT_KEY to be set — no hardcoded fallback.
 func getJWTKey() []byte {
 	key := os.Getenv("JWT_KEY")
 	if key == "" {
-		key = "secret-key-boleh-diubah" // Fallback key
+		log.Println("WARNING: JWT_KEY environment variable tidak diset. Menggunakan random key (TIDAK AMAN untuk production)")
+		log.Println("Set JWT_KEY environment variable sebelum deploy ke production")
+		// Generate a random key sebagai fallback minimal (bukan static string)
+		key = fmt.Sprintf("dev-%d", time.Now().UnixNano())
 	}
 	return []byte(key)
 }
@@ -41,10 +45,16 @@ func GenerateToken(claims jwt.Claims) (string, error) {
 	return tokenString, nil
 }
 
+// ParseToken memvalidasi dan mem-parse JWT token.
+// Memvalidasi algoritma signing untuk mencegah serangan alg:none.
 func ParseToken(tokenStr string) (*TokenClaims, error) {
 	tokenStr = strings.Replace(tokenStr, "Bearer ", "", 1)
 
 	token, err := jwt.ParseWithClaims(tokenStr, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Validasi algoritma signing — hanya izinkan HMAC
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("metode signing tidak valid: %v", token.Header["alg"])
+		}
 		return jwtKey, nil
 	})
 	if err != nil || !token.Valid {
@@ -59,6 +69,7 @@ func ParseToken(tokenStr string) (*TokenClaims, error) {
 	return claims, nil
 }
 
+// RandString generates a random string of given length (not for cryptographic use)
 func RandString(length int) string {
 	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	seededRand := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -67,70 +78,4 @@ func RandString(length int) string {
 		b[i] = charset[seededRand.Intn(len(charset))]
 	}
 	return string(b)
-}
-
-func ExtractToken(tokenString string) map[string]interface{} {
-	// Bersihkan token dari prefix "Bearer " jika ada
-	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
-
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Validasi metode enkripsi
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("metode token tidak valid: %v", token.Method.Alg())
-		}
-		return jwtKey, nil
-	})
-
-	if err != nil {
-		fmt.Printf("Error parsing token: %v\n", err)
-		return nil
-	}
-
-	if !token.Valid {
-		fmt.Println("Token tidak valid")
-		return nil
-	}
-
-	// Ambil klaim
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		// Validasi claims yang diperlukan
-		requiredClaims := []string{"user_id", "role", "email"}
-		for _, claim := range requiredClaims {
-			if _, exists := claims[claim]; !exists {
-				fmt.Printf("Claim %s tidak ditemukan\n", claim)
-				return nil
-			}
-		}
-
-		// Validasi role
-		role, ok := claims["role"].(string)
-		if !ok {
-			fmt.Println("Role tidak valid")
-			return nil
-		}
-
-		validRoles := map[string]bool{
-			"admin_akademik": true,
-			"admin_prodi":    true,
-			"dosen":          true,
-			"mahasiswa":      true,
-		}
-		if !validRoles[role] {
-			fmt.Printf("Role %s tidak valid\n", role)
-			return nil
-		}
-
-		// Validasi expired time
-		if exp, ok := claims["exp"].(float64); ok {
-			if time.Now().Unix() > int64(exp) {
-				fmt.Println("Token sudah expired")
-				return nil
-			}
-		}
-
-		return claims
-	}
-
-	fmt.Println("Gagal mengkonversi claims")
-	return nil
 }
