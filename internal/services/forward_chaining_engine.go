@@ -6,7 +6,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	neturl "net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -90,6 +89,9 @@ type PenghuluFact struct {
 	CapacityPerDay  int
 	CapacityPerHour int
 	Rating          float64
+	Latitude        float64
+	Longitude       float64
+	HasCoordinates  bool
 }
 
 // ==================== INFERENCE AUDIT ====================
@@ -619,21 +621,18 @@ func (fc *ForwardChainingEngine) routeDistanceCached(cache *osrmDistanceCache, f
 }
 
 func (fc *ForwardChainingEngine) IsHoliday(date time.Time) (bool, string) {
+	if date.Weekday() == time.Saturday {
+		return true, "Sabtu"
+	}
 	if date.Weekday() == time.Sunday {
 		return true, "Minggu"
 	}
-	if fc.Config.GoogleHolidayCalendarID == "" || fc.Config.GoogleAPIKey == "" {
-		return false, ""
-	}
 
-	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).UTC().Format(time.RFC3339)
-	end := time.Date(date.Year(), date.Month(), date.Day(), 23, 59, 59, 0, date.Location()).UTC().Format(time.RFC3339)
 	reqURL := fmt.Sprintf(
-		"https://www.googleapis.com/calendar/v3/calendars/%s/events?timeMin=%s&timeMax=%s&singleEvents=true&key=%s",
-		neturl.QueryEscape(fc.Config.GoogleHolidayCalendarID),
-		neturl.QueryEscape(start),
-		neturl.QueryEscape(end),
-		neturl.QueryEscape(fc.Config.GoogleAPIKey),
+		"https://libur.deno.dev/api?year=%d&month=%d&day=%d",
+		date.Year(),
+		date.Month(),
+		date.Day(),
 	)
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
@@ -654,16 +653,23 @@ func (fc *ForwardChainingEngine) IsHoliday(date time.Time) (bool, string) {
 	}
 
 	var parsed struct {
-		Items []struct {
-			Summary string `json:"summary"`
-		} `json:"items"`
+		Date              string   `json:"date"`
+		IsHoliday         bool     `json:"is_holiday"`
+		IsNationalHoliday bool     `json:"is_national_holiday"`
+		HolidayList       []string `json:"holiday_list"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return false, ""
 	}
-	if len(parsed.Items) > 0 {
-		return true, parsed.Items[0].Summary
+
+	if parsed.IsHoliday {
+		holidayName := "Hari Libur"
+		if len(parsed.HolidayList) > 0 {
+			holidayName = parsed.HolidayList[0]
+		}
+		return true, holidayName
 	}
+
 	return false, ""
 }
 
@@ -720,6 +726,9 @@ func (fc *ForwardChainingEngine) extractPenghuluFactsWithDB(db *gorm.DB, penghul
 		CapacityPerDay:  fc.Config.CapacityPerDay,
 		CapacityPerHour: fc.Config.CapacityPerHour,
 		Rating:          penghulu.Rating,
+		Latitude:        derefFloat(penghulu.Latitude),
+		Longitude:       derefFloat(penghulu.Longitude),
+		HasCoordinates:  penghulu.Latitude != nil && penghulu.Longitude != nil,
 	}, nil
 }
 
@@ -819,6 +828,9 @@ func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, loc
 			CapacityPerDay:  fc.Config.CapacityPerDay,
 			CapacityPerHour: fc.Config.CapacityPerHour,
 			Rating:          p.Rating,
+			Latitude:        derefFloat(p.Latitude),
+			Longitude:       derefFloat(p.Longitude),
+			HasCoordinates:  p.Latitude != nil && p.Longitude != nil,
 		})
 	}
 
@@ -1005,6 +1017,12 @@ func (fc *ForwardChainingEngine) estimateRouteDistance(snapshot *evaluationSnaps
 
 	originLat := fc.Config.KuaLatitude
 	originLon := fc.Config.KuaLongitude
+
+	// Hari libur: penghulu berangkat dari rumah, bukan dari KUA
+	if snapshot.Holiday && candidate.HasCoordinates {
+		originLat = candidate.Latitude
+		originLon = candidate.Longitude
+	}
 
 	type routePoint struct {
 		latitude   float64
@@ -1282,4 +1300,11 @@ func (fc *ForwardChainingEngine) GetDetailedEvaluation(registrationID uint) (map
 		"evaluated_at":        time.Now().In(utils.WITA),
 		"penghulu_evaluations": evaluations,
 	}, nil
+}
+
+func derefFloat(ptr *float64) float64 {
+	if ptr != nil {
+		return *ptr
+	}
+	return 0
 }

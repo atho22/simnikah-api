@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 
 	"simnikah/tests/testhelper"
 
@@ -21,7 +23,10 @@ var (
 func TestMain(m *testing.M) {
 	testDB = testhelper.SetupTestDB()
 	router = testhelper.SetupRouter(testDB)
-	m.Run()
+	code := m.Run()
+	// Save captured API data for report generation
+	testhelper.SaveReport("test_api_data.json")
+	os.Exit(code)
 }
 
 func doRequest(method, path string, body interface{}, token string) *httptest.ResponseRecorder {
@@ -40,7 +45,13 @@ func doRequest(method, path string, body interface{}, token string) *httptest.Re
 	}
 
 	w := httptest.NewRecorder()
+	start := time.Now()
 	router.ServeHTTP(w, req)
+	dur := time.Since(start)
+
+	// Auto-capture for report
+	testhelper.RecordAPI(method, path, body, w, dur)
+
 	return w
 }
 

@@ -140,3 +140,48 @@ func (h *InDB) GetJadwalPenugasan(c *gin.Context) {
 		},
 	})
 }
+
+type updateCoordinatesRequest struct {
+	Latitude  *float64 `json:"latitude" binding:"required"`
+	Longitude *float64 `json:"longitude" binding:"required"`
+}
+
+func (h *InDB) UpdateCoordinates(c *gin.Context) {
+	penghulu, _, ok := h.requirePenghulu(c)
+	if !ok {
+		return
+	}
+
+	var input updateCoordinatesRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Input tidak valid",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	penghulu.Latitude = input.Latitude
+	penghulu.Longitude = input.Longitude
+
+	if err := h.DB.Save(&penghulu).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal memperbarui koordinat",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Koordinat alamat penghulu berhasil diperbarui",
+		"data": gin.H{
+			"id":        penghulu.ID,
+			"nama":      penghulu.Nama_lengkap,
+			"latitude":  *penghulu.Latitude,
+			"longitude": *penghulu.Longitude,
+		},
+	})
+}

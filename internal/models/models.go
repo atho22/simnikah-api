@@ -85,6 +85,8 @@ type Penghulu struct {
 	No_hp        string    `gorm:"size:15" json:"nomor_telepon"`
 	Email        string    `gorm:"size:100" json:"email"`
 	Alamat       string    `gorm:"size:200" json:"alamat"`
+	Latitude     *float64  `json:"latitude"`
+	Longitude    *float64  `json:"longitude"`
 	Status       string    `gorm:"size:20;not null;default:'Aktif'" json:"status"`
 	Jumlah_nikah int       `gorm:"default:0" json:"jumlah_nikah"`
 	Rating       float64   `gorm:"default:0" json:"rating"`

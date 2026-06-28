@@ -289,3 +289,56 @@ func TestKepalaKUA_GetFCConfig(t *testing.T) {
 		t.Error("expected scoring_weights in config")
 	}
 }
+
+func TestPenghulu_UpdateCoordinates(t *testing.T) {
+	testhelper.CleanupDB(testDB)
+
+	// Create user & corresponding penghulu
+	user := testhelper.CreateTestUser(testDB, "penghulu_user", "penghulu@test.com", structs.UserRolePenghulu)
+	testhelper.CreateTestPenghulu(testDB, user.User_id)
+
+	token := testhelper.GenerateTestToken(user.User_id, user.Email, user.Role, user.Nama)
+
+	lat := -3.2913
+	lon := 114.5881
+	body := map[string]interface{}{
+		"latitude":  lat,
+		"longitude": lon,
+	}
+
+	w := doRequest("PUT", "/simnikah/penghulu/coordinates", body, token)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for updating coordinates, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify coordinates are saved in database
+	var dbPenghulu structs.Penghulu
+	if err := testDB.Where("user_id = ?", user.User_id).First(&dbPenghulu).Error; err != nil {
+		t.Fatalf("failed to find penghulu in database: %v", err)
+	}
+
+	if dbPenghulu.Latitude == nil || *dbPenghulu.Latitude != lat {
+		t.Errorf("expected latitude %f, got %v", lat, dbPenghulu.Latitude)
+	}
+
+	if dbPenghulu.Longitude == nil || *dbPenghulu.Longitude != lon {
+		t.Errorf("expected longitude %f, got %v", lon, dbPenghulu.Longitude)
+	}
+}
+
+func TestPenghulu_UpdateCoordinates_ForbiddenForOtherRoles(t *testing.T) {
+	testhelper.CleanupDB(testDB)
+
+	user := testhelper.CreateTestUser(testDB, "catin_user", "catin@test.com", structs.UserRoleUserBiasa)
+	token := testhelper.GenerateTestToken(user.User_id, user.Email, user.Role, user.Nama)
+
+	body := map[string]interface{}{
+		"latitude":  -3.2913,
+		"longitude": 114.5881,
+	}
+
+	w := doRequest("PUT", "/simnikah/penghulu/coordinates", body, token)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for user role catin, got %d", w.Code)
+	}
+}

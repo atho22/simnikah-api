@@ -143,6 +143,7 @@ func main() {
 
 		// ==================== STAGE 4: PENGHULU VIEW ASSIGNMENTS ====================
 		simnikahRoutes.GET("/penghulu/jadwal-penugasan", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("penghulu", "kepala_kua"), penghuluHandler.GetJadwalPenugasan)
+		simnikahRoutes.PUT("/penghulu/coordinates", middleware.AuthMiddleware(), middleware.RoleMiddleware("penghulu"), penghuluHandler.UpdateCoordinates)
 
 		// ==================== KEPALA KUA MANAGEMENT ====================
 		simnikahRoutes.GET("/kepala-kua/available-penghulu", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.ListAvailableOfficers)

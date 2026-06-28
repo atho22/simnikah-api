@@ -1,4 +1,4 @@
-.PHONY: build run test clean dev help
+.PHONY: build run test test-report clean dev help
 
 # Application name
 APP_NAME=simnikah-api
@@ -37,6 +37,12 @@ coverage:
 	@go test -v -coverprofile=coverage.out ./...
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "✅ Coverage report: coverage.html"
+
+# Generate HTML test report
+test-report:
+	@echo "📋 Generating test report..."
+	@go run ./cmd/testreport/
+	@echo "✅ Test report: test_report.html"
 
 # Clean build artifacts
 clean:
@@ -99,6 +105,7 @@ help:
 	@echo "Testing:"
 	@echo "  make test         - Run all tests"
 	@echo "  make coverage     - Run tests with coverage report"
+	@echo "  make test-report  - Generate HTML test report"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make fmt          - Format all Go code"

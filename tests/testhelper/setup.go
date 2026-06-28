@@ -94,6 +94,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 		// Stage 4: Penghulu
 		s.GET("/penghulu/jadwal-penugasan", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("penghulu", "kepala_kua"), penghuluHandler.GetJadwalPenugasan)
+		s.PUT("/penghulu/coordinates", middleware.AuthMiddleware(), middleware.RoleMiddleware("penghulu"), penghuluHandler.UpdateCoordinates)
 
 		// Kepala KUA management
 		s.GET("/kepala-kua/available-penghulu", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.ListAvailableOfficers)
@@ -212,6 +213,15 @@ func CreateTestPendaftaran(db *gorm.DB, pendaftarID string, tanggal time.Time) s
 	}
 	db.Create(&p)
 	return p
+}
+
+// GetSafeFutureDate returns a time.Time 1 month from now that is guaranteed to be a weekday (Mon-Fri)
+func GetSafeFutureDate() time.Time {
+	t := time.Now().AddDate(0, 1, 0)
+	for t.Weekday() == time.Saturday || t.Weekday() == time.Sunday {
+		t = t.AddDate(0, 0, 1)
+	}
+	return t
 }
 
 // ==================== JWT HELPERS ====================

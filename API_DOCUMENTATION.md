@@ -108,6 +108,8 @@ Menunggu Penugasan  ──>  Penghulu Ditugaskan  ──>  Selesai
 | `user_id`       | string(20) | Linked user ID                  |
 | `nip`           | string(30) | NIP                             |
 | `nama_lengkap`  | string(100)| Full name                       |
+| `latitude`      | float64    | Latitude of home address        |
+| `longitude`     | float64    | Longitude of home address       |
 | `status`        | string(20) | `Aktif`, `Nonaktif`             |
 | `jumlah_nikah`  | int        | Historical marriage count       |
 | `rating`        | float64    | Performance rating (0-5)        |
@@ -698,6 +700,37 @@ View assigned tasks with full address, geolocation, and navigation URLs.
 
 ---
 
+### PUT `/simnikah/penghulu/coordinates`
+
+Update the home address coordinates for the currently logged-in Penghulu. These coordinates are used as the origin point for routing and distance calculations on Saturdays, Sundays, and holidays.
+
+**Auth:** Required  
+**Roles:** `penghulu` only
+
+**Request Body:**
+```json
+{
+  "latitude": -3.2913,
+  "longitude": 114.5881
+}
+```
+
+**Response `200 OK`:**
+```json
+{
+  "success": true,
+  "message": "Koordinat alamat penghulu berhasil diperbarui",
+  "data": {
+    "id": 1,
+    "nama": "H. Abdul Rahman, S.Ag",
+    "latitude": -3.2913,
+    "longitude": 114.5881
+  }
+}
+```
+
+---
+
 ## 8. Location & Geocoding
 
 ### POST `/simnikah/location/geocode`
@@ -1142,8 +1175,10 @@ The FC Engine evaluates 10 rules in sequence per penghulu candidate:
 | RULE_006 | Cek Kapasitas Per Jam  | **Yes**  | `tanggal_nikah`, `waktu_nikah` | Hourly capacity not exceeded (default: 1/hour)  |
 | RULE_007 | Cek Kesesuaian Lokasi  | **Yes**  | `tempat_nikah`                 | All penghulu can serve inside/outside KUA       |
 | RULE_008 | Cek Batas Rating       | **Yes**  | — (penghulu.rating)            | Rating >= minimum (default: 3.0)                |
-| RULE_009 | Estimasi Jarak         | No       | `latitude`, `longitude`        | OSRM route distance + Haversine fallback        |
+| RULE_009 | Estimasi Jarak         | No       | `latitude`, `longitude`        | OSRM route distance + Haversine fallback [1]    |
 | RULE_010 | Konklusi Akhir         | No       | —                              | All facts satisfied → recommend                 |
+
+**[1] Catatan untuk RULE_009:** Pada hari kerja, titik awal (`origin`) estimasi jarak selalu menggunakan koordinat kantor KUA. Pada hari libur nasional atau akhir pekan, jika penghulu yang dievaluasi memiliki koordinat rumah (`latitude` & `longitude` tidak null), titik awal estimasi rute akan menggunakan koordinat rumah penghulu tersebut (fallback ke KUA jika tidak diatur).
 
 ### Scoring Formula
 

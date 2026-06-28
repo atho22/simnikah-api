@@ -22,7 +22,7 @@ func TestCatin_CreateRegistration_DiKUA(t *testing.T) {
 	user := testhelper.CreateTestUser(testDB, "catin_reg1", "catin1@test.com", structs.UserRoleUserBiasa)
 	token := testhelper.GenerateTestToken(user.User_id, user.Email, user.Role, user.Nama)
 
-	futureDate := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
+	futureDate := testhelper.GetSafeFutureDate().Format("2006-01-02")
 	body := map[string]interface{}{
 		"nama_suami":    "Ahmad",
 		"umur_suami":    28,
@@ -51,7 +51,7 @@ func TestCatin_CreateRegistration_DiLuarKUA_RequiresAddress(t *testing.T) {
 	user := testhelper.CreateTestUser(testDB, "catin_reg2", "catin2@test.com", structs.UserRoleUserBiasa)
 	token := testhelper.GenerateTestToken(user.User_id, user.Email, user.Role, user.Nama)
 
-	futureDate := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
+	futureDate := testhelper.GetSafeFutureDate().Format("2006-01-02")
 	body := map[string]interface{}{
 		"nama_suami":    "Ahmad",
 		"nama_istri":    "Siti",
@@ -113,7 +113,7 @@ func TestCatin_CreateRegistration_InvalidTimeFormat(t *testing.T) {
 	user := testhelper.CreateTestUser(testDB, "catin_time", "time@test.com", structs.UserRoleUserBiasa)
 	token := testhelper.GenerateTestToken(user.User_id, user.Email, user.Role, user.Nama)
 
-	futureDate := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
+	futureDate := testhelper.GetSafeFutureDate().Format("2006-01-02")
 	body := map[string]interface{}{
 		"nama_suami":    "Ahmad",
 		"nama_istri":    "Siti",
@@ -156,7 +156,7 @@ func TestCatin_CreateRegistration_PendaftarIdFromJWT(t *testing.T) {
 	user := testhelper.CreateTestUser(testDB, "catin_jwt", "jwt@test.com", structs.UserRoleUserBiasa)
 	token := testhelper.GenerateTestToken(user.User_id, user.Email, user.Role, user.Nama)
 
-	futureDate := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
+	futureDate := testhelper.GetSafeFutureDate().Format("2006-01-02")
 	body := map[string]interface{}{
 		"nama_suami":    "Ahmad",
 		"nama_istri":    "Siti",
@@ -190,7 +190,7 @@ func TestCatin_CheckSchedule_Success(t *testing.T) {
 	user := testhelper.CreateTestUser(testDB, "catin_chk", "chk@test.com", structs.UserRoleUserBiasa)
 	token := testhelper.GenerateTestToken(user.User_id, user.Email, user.Role, user.Nama)
 
-	futureDate := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
+	futureDate := testhelper.GetSafeFutureDate().Format("2006-01-02")
 	body := map[string]interface{}{
 		"tanggal_nikah": futureDate,
 		"waktu_nikah":   "10:00",
