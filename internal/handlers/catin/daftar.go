@@ -1,7 +1,10 @@
 package catin
 
 import (
+	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -250,6 +253,314 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 			"latitude":           registration.Latitude,
 			"longitude":          registration.Longitude,
 			"status_pendaftaran": registration.Status_pendaftaran,
+		},
+	})
+}
+
+// GetRegistrationStatus checks the status of the current logged-in catin's registration.
+func (h *InDB) GetRegistrationStatus(c *gin.Context) {
+	pendaftarID, _ := c.Get("user_id")
+	var pendaftarIDStr string
+	if uid, ok := pendaftarID.(string); ok {
+		pendaftarIDStr = uid
+	}
+
+	var pendaftaran structs.PendaftaranNikah
+	err := h.DB.Where("pendaftar_id = ?", pendaftarIDStr).Order("created_at desc").First(&pendaftaran).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "Belum ada pendaftaran",
+				"data": gin.H{
+					"has_registration": false,
+					"can_register":     true,
+					"registration":     nil,
+				},
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal mengambil status pendaftaran",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	canRegister := pendaftaran.Status_pendaftaran == structs.StatusPendaftaranDitolak
+
+	var penghuluObj interface{} = nil
+	if pendaftaran.Penghulu_id != nil {
+		var p structs.Penghulu
+		if err := h.DB.Where("id = ?", *pendaftaran.Penghulu_id).First(&p).Error; err == nil {
+			penghuluObj = gin.H{
+				"id":           p.ID,
+				"nama":         p.Nama_lengkap,
+				"nama_lengkap": p.Nama_lengkap,
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Status pendaftaran berhasil diambil",
+		"data": gin.H{
+			"has_registration": true,
+			"can_register":     canRegister,
+			"registration": gin.H{
+				"id":                 pendaftaran.ID,
+				"nomor_pendaftaran": pendaftaran.Nomor_pendaftaran,
+				"status_pendaftaran": pendaftaran.Status_pendaftaran,
+				"tanggal_nikah":      pendaftaran.Tanggal_nikah.Format("2006-01-02"),
+				"waktu_nikah":        pendaftaran.Waktu_nikah,
+				"tempat_nikah":       pendaftaran.Tempat_nikah,
+				"alamat_akad":        pendaftaran.Alamat_akad,
+				"created_at":         pendaftaran.Created_at,
+				"calon_suami": gin.H{
+					"nama_lengkap": pendaftaran.Nama_suami,
+					"nama_dan_bin": pendaftaran.Nama_suami,
+					"nama":         pendaftaran.Nama_suami,
+				},
+				"calon_istri": gin.H{
+					"nama_lengkap": pendaftaran.Nama_istri,
+					"nama_dan_binti": pendaftaran.Nama_istri,
+					"nama":         pendaftaran.Nama_istri,
+				},
+				"penghulu": penghuluObj,
+			},
+		},
+	})
+}
+
+// GetRegistrationDetail returns details of a single registration.
+func (h *InDB) GetRegistrationDetail(c *gin.Context) {
+	id := c.Param("id")
+
+	pendaftarID, _ := c.Get("user_id")
+	var pendaftarIDStr string
+	if uid, ok := pendaftarID.(string); ok {
+		pendaftarIDStr = uid
+	}
+
+	role, _ := c.Get("role")
+	roleStr, _ := role.(string)
+
+	var pendaftaran structs.PendaftaranNikah
+	if err := h.DB.Where("id = ?", id).First(&pendaftaran).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"message": "Pendaftaran tidak ditemukan",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal mengambil detail pendaftaran",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Security: user_biasa can only view their own registration
+	if roleStr == structs.UserRoleUserBiasa && pendaftaran.Pendaftar_id != pendaftarIDStr {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "Anda tidak memiliki akses untuk melihat pendaftaran ini",
+		})
+		return
+	}
+
+	var penghuluObj interface{} = nil
+	if pendaftaran.Penghulu_id != nil {
+		var p structs.Penghulu
+		if err := h.DB.Where("id = ?", *pendaftaran.Penghulu_id).First(&p).Error; err == nil {
+			penghuluObj = gin.H{
+				"id":           p.ID,
+				"nip":          p.NIP,
+				"nama_lengkap": p.Nama_lengkap,
+				"no_hp":        p.No_hp,
+				"email":        p.Email,
+				"alamat":       p.Alamat,
+				"status":       p.Status,
+			}
+		}
+	}
+
+	var mapsUrl, dirUrl, osmUrl string
+	if pendaftaran.Latitude != nil && pendaftaran.Longitude != nil {
+		mapsUrl = fmt.Sprintf("https://www.google.com/maps/search/?api=1&query=%f,%f", *pendaftaran.Latitude, *pendaftaran.Longitude)
+		dirUrl = fmt.Sprintf("https://www.google.com/maps/dir/?api=1&destination=%f,%f", *pendaftaran.Latitude, *pendaftaran.Longitude)
+		osmUrl = fmt.Sprintf("https://www.openstreetmap.org/?mlat=%f&mlon=%f&zoom=16", *pendaftaran.Latitude, *pendaftaran.Longitude)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Detail pendaftaran berhasil diambil",
+		"data": gin.H{
+			"id":                 pendaftaran.ID,
+			"nomor_pendaftaran": pendaftaran.Nomor_pendaftaran,
+			"pendaftar_id":       pendaftaran.Pendaftar_id,
+			"status_pendaftaran": pendaftaran.Status_pendaftaran,
+			"tanggal_nikah":      pendaftaran.Tanggal_nikah.Format("2006-01-02"),
+			"waktu_nikah":        pendaftaran.Waktu_nikah,
+			"tempat_nikah":       pendaftaran.Tempat_nikah,
+			"alamat_akad":        pendaftaran.Alamat_akad,
+			"latitude":           pendaftaran.Latitude,
+			"longitude":          pendaftaran.Longitude,
+			"created_at":         pendaftaran.Created_at,
+			"updated_at":         pendaftaran.Updated_at,
+			"calon_suami": gin.H{
+				"nama_lengkap": pendaftaran.Nama_suami,
+				"nama_dan_bin": pendaftaran.Nama_suami,
+				"umur":         pendaftaran.Umur_suami,
+			},
+			"calon_istri": gin.H{
+				"nama_lengkap": pendaftaran.Nama_istri,
+				"nama_dan_binti": pendaftaran.Nama_istri,
+				"umur":         pendaftaran.Umur_istri,
+			},
+			"wali_nikah": gin.H{
+				"nama_dan_bin":  "Wali Nikah",
+				"hubungan_wali": "Ayah Kandung",
+			},
+			"penghulu": penghuluObj,
+			"location": gin.H{
+				"latitude":                   pendaftaran.Latitude,
+				"longitude":                  pendaftaran.Longitude,
+				"has_coordinates":            pendaftaran.Latitude != nil && pendaftaran.Longitude != nil,
+				"google_maps_url":            mapsUrl,
+				"google_maps_directions_url": dirUrl,
+				"osm_url":                    osmUrl,
+			},
+		},
+	})
+}
+
+// ListRegistrations lists all registrations (for staff and kepala KUA).
+func (h *InDB) ListRegistrations(c *gin.Context) {
+	status := c.Query("status")
+	search := c.Query("search")
+	
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+	
+	page := 1
+	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+		page = p
+	}
+	
+	limit := 10
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	offset := (page - 1) * limit
+
+	query := h.DB.Model(&structs.PendaftaranNikah{})
+
+	if status != "" {
+		query = query.Where("status_pendaftaran = ?", status)
+	}
+
+	if search != "" {
+		searchTerm := "%" + search + "%"
+		query = query.Where("nama_suami LIKE ? OR nama_istri LIKE ? OR nomor_pendaftaran LIKE ?", searchTerm, searchTerm, searchTerm)
+	}
+
+	var totalRecords int64
+	if err := query.Count(&totalRecords).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal menghitung jumlah pendaftaran",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	var registrations []structs.PendaftaranNikah
+	if err := query.Order("created_at desc").Offset(offset).Limit(limit).Find(&registrations).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal mengambil daftar pendaftaran",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Fetch penghulu names map to avoid N+1 queries
+	var penghuluIDs []uint
+	for _, r := range registrations {
+		if r.Penghulu_id != nil {
+			penghuluIDs = append(penghuluIDs, *r.Penghulu_id)
+		}
+	}
+
+	penghuluMap := make(map[uint]structs.Penghulu)
+	if len(penghuluIDs) > 0 {
+		var penghulus []structs.Penghulu
+		if err := h.DB.Where("id IN ?", penghuluIDs).Find(&penghulus).Error; err == nil {
+			for _, p := range penghulus {
+				penghuluMap[p.ID] = p
+			}
+		}
+	}
+
+	// Format output to match frontend expectations
+	var formattedRegs []gin.H
+	for _, r := range registrations {
+		var penghuluObj interface{} = nil
+		if r.Penghulu_id != nil {
+			if p, ok := penghuluMap[*r.Penghulu_id]; ok {
+				penghuluObj = gin.H{
+					"id":           p.ID,
+					"nama":         p.Nama_lengkap,
+					"nama_lengkap": p.Nama_lengkap,
+				}
+			}
+		}
+
+		formattedRegs = append(formattedRegs, gin.H{
+			"id":                 r.ID,
+			"nomor_pendaftaran": r.Nomor_pendaftaran,
+			"status_pendaftaran": r.Status_pendaftaran,
+			"tanggal_nikah":      r.Tanggal_nikah.Format("2006-01-02"),
+			"waktu_nikah":        r.Waktu_nikah,
+			"tempat_nikah":       r.Tempat_nikah,
+			"alamat_akad":        r.Alamat_akad,
+			"created_at":         r.Created_at,
+			"calon_suami": gin.H{
+				"nama_lengkap": r.Nama_suami,
+				"nama_dan_bin": r.Nama_suami,
+				"nama":         r.Nama_suami,
+			},
+			"calon_istri": gin.H{
+				"nama_lengkap": r.Nama_istri,
+				"nama_dan_binti": r.Nama_istri,
+				"nama":         r.Nama_istri,
+			},
+			"penghulu": penghuluObj,
+		})
+	}
+
+	totalPages := int(math.Ceil(float64(totalRecords) / float64(limit)))
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Daftar pendaftaran berhasil diambil",
+		"data": gin.H{
+			"registrations": formattedRegs,
+			"pagination": gin.H{
+				"current_page":  page,
+				"per_page":      limit,
+				"total_records": totalRecords,
+				"total_pages":   totalPages,
+			},
 		},
 	})
 }

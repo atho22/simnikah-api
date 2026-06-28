@@ -135,6 +135,9 @@ func main() {
 		// ==================== STAGE 1: CATIN CHECK SCHEDULE & REGISTER ====================
 		simnikahRoutes.POST("/check-schedule", middleware.AuthMiddleware(), catinHandler.CheckScheduleAvailability)
 		simnikahRoutes.POST("/pendaftaran", middleware.AuthMiddleware(), catinHandler.CreateRegistration)
+		simnikahRoutes.GET("/pendaftaran/status", middleware.AuthMiddleware(), catinHandler.GetRegistrationStatus)
+		simnikahRoutes.GET("/pendaftaran/:id", middleware.AuthMiddleware(), catinHandler.GetRegistrationDetail)
+		simnikahRoutes.GET("/pendaftaran", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), catinHandler.ListRegistrations)
 
 		// ==================== STAGE 2: FORWARD CHAINING RECOMMENDATION (KEPALA KUA) ====================
 		simnikahRoutes.GET("/kepala-kua/forward-chaining/recommendation/:id", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), kepalaKuaHandler.RecommendPenghuluWithForwardChaining)
