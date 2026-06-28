@@ -1,15 +1,22 @@
 package structs
 
-import "time"
+import (
+	"crypto/rand"
+	"fmt"
+	"math/big"
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // ==================== PENDAFTARAN NIKAH (SCHEDULING-ONLY) ====================
 
 // PendaftaranNikah menyimpan data referensi pasangan (dari Excel Kepala KUA) + data inti penjadwalan.
 // Field Nama_suami/Umur_suami/Nama_istri/Umur_istri adalah DATA REFERENSI display, BUKAN variabel keputusan FC.
 // Variabel keputusan FC hanya: Tanggal_nikah, Waktu_nikah, Tempat_nikah, Latitude, Longitude.
-// Field administratif SIMKAH (Nomor_pendaftaran, Wali_nikah_id, dll) sudah dihapus.
 type PendaftaranNikah struct {
 	ID                 uint       `gorm:"primaryKey" json:"id"`
+	Nomor_pendaftaran  string     `gorm:"size:20;unique;not null" json:"nomor_pendaftaran"`
 	Nama_suami         string     `gorm:"size:100" json:"nama_suami"`                                      // data referensi dari Excel (bukan variabel FC)
 	Umur_suami         int        `gorm:"default:0" json:"umur_suami"`                                     // data referensi dari Excel (bukan variabel FC)
 	Nama_istri         string     `gorm:"size:100" json:"nama_istri"`                                      // data referensi dari Excel (bukan variabel FC)
@@ -25,6 +32,17 @@ type PendaftaranNikah struct {
 	Penghulu_id        *uint      `gorm:"index:idx_pendaftaran_penghulu_id" json:"penghulu_id"`           // ID penghulu yang ditugaskan
 	Created_at         time.Time  `json:"dibuat_pada"`
 	Updated_at         time.Time  `json:"diperbarui_pada"`
+}
+
+// BeforeCreate hook to generate a random nomor_pendaftaran
+func (p *PendaftaranNikah) BeforeCreate(tx *gorm.DB) (err error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(900000))
+	if err != nil {
+		return err
+	}
+	randomDigits := n.Int64() + 100000 // 6 digits random
+	p.Nomor_pendaftaran = fmt.Sprintf("REG-%d-%d", time.Now().Year(), randomDigits)
+	return nil
 }
 
 // PendaftaranJadwal subset ringan untuk rekomendasi, pengecekan slot, dan tampilan jadwal penghulu.
