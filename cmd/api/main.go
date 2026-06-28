@@ -40,6 +40,9 @@ func main() {
 		log.Fatal("Koneksi ke database gagal:", err)
 	}
 
+	// Clean up legacy columns that cause insert errors
+	cleanLegacyColumns(DB)
+
 	// Migrate struct (scheduling-only models)
 	log.Println("Starting database migration...")
 	if err := DB.AutoMigrate(
@@ -321,4 +324,36 @@ func RunReminderNotification(c *gin.Context) {
 		"executed_by": userID,
 		"executed_at": time.Now(),
 	})
+}
+
+// cleanLegacyColumns drops obsolete columns that are NOT NULL in the database but have been removed from Go structs.
+func cleanLegacyColumns(db *gorm.DB) {
+	tableName := "pendaftaran_nikahs"
+	columnsToDrop := []string{
+		"calon_suami_id",
+		"calon_istri_id",
+		"tanggal_pendaftaran",
+		"wali_nikah_id",
+		"penghulu_assigned_by",
+		"penghulu_assigned_at",
+		"disetujui_oleh",
+		"disetujui_pada",
+		"nomor_dispensasi",
+		"status_bimbingan",
+	}
+
+	if !db.Migrator().HasTable(tableName) {
+		return
+	}
+
+	for _, col := range columnsToDrop {
+		if db.Migrator().HasColumn(tableName, col) {
+			log.Printf("🔧 Dropping obsolete column %s from table %s...", col, tableName)
+			if err := db.Migrator().DropColumn(tableName, col); err != nil {
+				log.Printf("⚠️ Warning: failed to drop obsolete column %s: %v", col, err)
+			} else {
+				log.Printf("✅ Obsolete column %s dropped successfully", col)
+			}
+		}
+	}
 }
