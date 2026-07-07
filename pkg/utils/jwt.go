@@ -15,14 +15,12 @@ import (
 var jwtKey = getJWTKey()
 
 // getJWTKey returns the JWT key from environment.
-// Always requires JWT_KEY to be set — no hardcoded fallback.
+// If not set, return nil so callers can detect misconfiguration.
 func getJWTKey() []byte {
 	key := os.Getenv("JWT_KEY")
 	if key == "" {
-		log.Println("WARNING: JWT_KEY environment variable tidak diset. Menggunakan random key (TIDAK AMAN untuk production)")
-		log.Println("Set JWT_KEY environment variable sebelum deploy ke production")
-		// Generate a random key sebagai fallback minimal (bukan static string)
-		key = fmt.Sprintf("dev-%d", time.Now().UnixNano())
+		log.Println("WARNING: JWT_KEY environment variable tidak diset. Set JWT_KEY sebelum deploy ke production.")
+		return nil
 	}
 	return []byte(key)
 }
@@ -37,6 +35,9 @@ type TokenClaims struct {
 }
 
 func GenerateToken(claims jwt.Claims) (string, error) {
+	if len(jwtKey) == 0 {
+		return "", fmt.Errorf("server misconfigured: JWT_KEY environment variable not set")
+	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
@@ -49,6 +50,9 @@ func GenerateToken(claims jwt.Claims) (string, error) {
 // Memvalidasi algoritma signing untuk mencegah serangan alg:none.
 func ParseToken(tokenStr string) (*TokenClaims, error) {
 	tokenStr = strings.Replace(tokenStr, "Bearer ", "", 1)
+	if len(jwtKey) == 0 {
+		return nil, errors.New("server misconfigured: JWT_KEY environment variable not set")
+	}
 
 	token, err := jwt.ParseWithClaims(tokenStr, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// Validasi algoritma signing — hanya izinkan HMAC

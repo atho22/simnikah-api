@@ -29,50 +29,65 @@ import (
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
+// Removed package-level DB to improve dependency injection and testing.
 
-func main() {
-	var err error
-
-	// Initialize database connection
-	DB, err = config.ConnectDB()
+func 	main() {
+	// Initialize database connection (local variable for DI)
+	db, err := config.ConnectDB()
 	if err != nil {
-		log.Fatal("Koneksi ke database gagal:", err)
+		log.Printf("Koneksi ke database gagal: %v", err)
+		os.Exit(1)
 	}
 
-	// Clean up legacy columns that cause insert errors
-	cleanLegacyColumns(DB)
-
-	// Migrate struct (scheduling-only models)
-	log.Println("Starting database migration...")
-	if err := DB.AutoMigrate(
-		&structs.Users{},
-		&structs.StaffKUA{},
-		&structs.Penghulu{},
-		&structs.PendaftaranNikah{},
-		&structs.Notifikasi{},
-	); err != nil {
-		log.Fatal("Database migration failed:", err)
-	}
-	log.Println("Database migration completed successfully")
-
-	// Add database indexes for performance optimization
-	if err := config.AddDatabaseIndexes(DB); err != nil {
-		log.Println("Warning: Failed to add database indexes:", err)
+	// Enforce JWT_KEY presence in production / release mode. Fail-fast if missing.
+	if os.Getenv("JWT_KEY") == "" {
+		env := strings.ToLower(os.Getenv("ENV"))
+		ginModeEnv := os.Getenv("GIN_MODE")
+		if env == "production" || ginModeEnv == "release" {
+			log.Fatal("FATAL: JWT_KEY environment variable is required in production. Aborting startup.")
+		} else {
+			log.Println("WARNING: JWT_KEY not set. Running in insecure/dev mode. Set JWT_KEY before deploying to production.")
+		}
 	}
 
-	// Seed initial data (Kepala KUA, Staff, Penghulu)
-	if err := seeders.SeedKepalaKUA(DB); err != nil {
-		log.Printf("Warning: Failed to seed kepala KUA: %v", err)
-	}
-	if err := seeders.SeedStaff(DB); err != nil {
-		log.Printf("Warning: Failed to seed staff: %v", err)
-	}
-	if err := seeders.SeedPenghulu(DB); err != nil {
-		log.Printf("Warning: Failed to seed penghulu: %v", err)
+	// Optionally run migrations and cleanup when explicitly enabled.
+	// This prevents destructive DDL from running automatically in production.
+	if os.Getenv("RUN_MIGRATIONS") == "true" {
+		cleanLegacyColumns(db)
+
+		// Migrate struct (scheduling-only models)
+		log.Println("Starting database migration...")
+		if err := db.AutoMigrate(
+			&structs.Users{},
+			&structs.StaffKUA{},
+			&structs.Penghulu{},
+			&structs.PendaftaranNikah{},
+			&structs.Notifikasi{},
+		); err != nil {
+			log.Printf("Database migration failed: %v", err)
+			os.Exit(1)
+		}
+		log.Println("Database migration completed successfully")
+
+		// Add database indexes for performance optimization
+		if err := config.AddDatabaseIndexes(db); err != nil {
+			log.Println("Warning: Failed to add database indexes:", err)
+		}
+
+		// Seed initial data (Kepala KUA, Staff, Penghulu)
+		if err := seeders.SeedKepalaKUA(db); err != nil {
+			log.Printf("Warning: Failed to seed kepala KUA: %v", err)
+		}
+		if err := seeders.SeedStaff(db); err != nil {
+			log.Printf("Warning: Failed to seed staff: %v", err)
+		}
+		if err := seeders.SeedPenghulu(db); err != nil {
+			log.Printf("Warning: Failed to seed penghulu: %v", err)
+		}
+	} else {
+		log.Println("RUN_MIGRATIONS not set to 'true' — skipping AutoMigrate, index creation, and seeding")
 	}
 
-	// Set Gin to release mode in production
 	ginMode := os.Getenv("GIN_MODE")
 	if ginMode == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -98,17 +113,17 @@ func main() {
 	}
 	r.Use(cors.New(corsConfig))
 
-	// Initialize handlers
-	authHandler := &auth.InDB{DB: DB}
-	catinHandler := &catin.InDB{DB: DB}
-	staffHandler := &staff.InDB{DB: DB}
-	penghuluHandler := &penghulu.InDB{DB: DB}
-	kepalaKuaHandler := &kepala_kua.InDB{DB: DB}
-	notificationHandler := &notification.InDB{DB: DB}
-	dashboardHandler := &dashboard.InDB{DB: DB}
+	// Initialize handlers (use local db variable)
+	authHandler := &auth.InDB{DB: db}
+	catinHandler := &catin.InDB{DB: db}
+	staffHandler := &staff.InDB{DB: db}
+	penghuluHandler := &penghulu.InDB{DB: db}
+	kepalaKuaHandler := &kepala_kua.InDB{DB: db}
+	notificationHandler := &notification.InDB{DB: db}
+	dashboardHandler := &dashboard.InDB{DB: db}
 
 	// Start cron job untuk pengingat notifikasi
-	cronJobService := services.NewCronJobService(DB)
+	cronJobService := services.NewCronJobService(db)
 	cronJobService.StartReminderCronJobWithSchedule(8, 0) // Setiap hari jam 08:00
 
 	// Health check endpoint
@@ -175,9 +190,8 @@ func main() {
 		simnikahRoutes.PUT("/notifikasi/:id/status", middleware.AuthMiddleware(), notificationHandler.UpdateNotificationStatus)
 		simnikahRoutes.PUT("/notifikasi/mark-all-read", middleware.AuthMiddleware(), notificationHandler.MarkAllAsRead)
 		simnikahRoutes.DELETE("/notifikasi/:id", middleware.AuthMiddleware(), notificationHandler.DeleteNotification)
-		simnikahRoutes.GET("/notifikasi/stats", middleware.AuthMiddleware(), notificationHandler.GetNotificationStats)
 		simnikahRoutes.POST("/notifikasi/send-to-role", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), notificationHandler.SendNotificationToRole)
-		simnikahRoutes.POST("/notifikasi/run-reminder", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), RunReminderNotification)
+		simnikahRoutes.POST("/notifikasi/run-reminder", middleware.AuthMiddleware(), middleware.MultiRoleMiddleware("staff", "kepala_kua"), RunReminderNotification(db))
 
 		// ==================== DASHBOARD ROUTES ====================
 		simnikahRoutes.GET("/dashboard/kepala-kua", middleware.AuthMiddleware(), middleware.RoleMiddleware("kepala_kua"), dashboardHandler.GetKepalaKUADashboard)
@@ -224,7 +238,8 @@ func main() {
 		log.Printf("Environment: %s", os.Getenv("GIN_MODE"))
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			log.Printf("Failed to start server: %v", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -239,7 +254,8 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+		log.Printf("Server forced to shutdown: %v", err)
+		os.Exit(1)
 	}
 
 	log.Println("Server exited gracefully")
@@ -299,34 +315,36 @@ func getAllowedOrigins() []string {
 }
 
 // RunReminderNotification menjalankan pengingat notifikasi secara manual (untuk testing)
-func RunReminderNotification(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "Unauthorized",
-			"error":   "User ID tidak ditemukan",
-		})
-		return
-	}
+func RunReminderNotification(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "Unauthorized",
+				"error":   "User ID tidak ditemukan",
+			})
+			return
+		}
 
-	notificationService := services.NewNotificationService(DB)
-	err := notificationService.SendReminderNotification()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Gagal menjalankan pengingat notifikasi",
-			"error":   err.Error(),
-		})
-		return
-	}
+		notificationService := services.NewNotificationService(db)
+		err := notificationService.SendReminderNotification()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Gagal menjalankan pengingat notifikasi",
+				"error":   err.Error(),
+			})
+			return
+		}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success":     true,
-		"message":     "Pengingat notifikasi berhasil dijalankan",
-		"executed_by": userID,
-		"executed_at": time.Now(),
-	})
+		c.JSON(http.StatusOK, gin.H{
+			"success":     true,
+			"message":     "Pengingat notifikasi berhasil dijalankan",
+			"executed_by": userID,
+			"executed_at": time.Now(),
+		})
+	}
 }
 
 // cleanLegacyColumns drops obsolete columns that are NOT NULL in the database but have been removed from Go structs.

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -54,6 +55,7 @@ type FCConfig struct {
 	OSRMFailurePenaltyMeters  float64
 	DistancePenaltyPerKm      float64
 	HTTPTimeout               time.Duration
+	DBTimeout                 time.Duration
 	GoogleHolidayCalendarID   string
 	GoogleAPIKey              string
 	ScoringWeights            ScoringWeights
@@ -200,27 +202,32 @@ func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckIn
 	startOfDay := time.Date(tanggalNikah.Year(), tanggalNikah.Month(), tanggalNikah.Day(), 0, 0, 0, 0, tanggalNikah.Location())
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
+	// Use DB context with timeout for all DB operations in this function
+	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
+	defer cancel()
+	db := fc.DB.WithContext(ctx)
+
 	var totalBooked int64
-	if err := fc.DB.Model(&structs.PendaftaranNikah{}).
+	if err := db.Model(&structs.PendaftaranNikah{}).
 		Where("tanggal_nikah = ? AND waktu_nikah = ? AND status_pendaftaran NOT IN ?", tanggalNikah, waktuNikah, []string{structs.StatusPendaftaranDitolak}).
 		Count(&totalBooked).Error; err != nil {
 		return nil, fmt.Errorf("gagal menghitung total jadwal: %w", err)
 	}
 
 	var bookedInKUA int64
-	if err := fc.DB.Model(&structs.PendaftaranNikah{}).
+	if err := db.Model(&structs.PendaftaranNikah{}).
 		Where("tanggal_nikah = ? AND waktu_nikah = ? AND tempat_nikah = ? AND status_pendaftaran NOT IN ?", tanggalNikah, waktuNikah, structs.TempatNikahDiKUA, []string{structs.StatusPendaftaranDitolak}).
 		Count(&bookedInKUA).Error; err != nil {
 		return nil, fmt.Errorf("gagal menghitung jadwal KUA: %w", err)
 	}
 
 	var penghulus []structs.Penghulu
-	if err := fc.DB.Where("status = ?", structs.PenghuluStatusAktif).Find(&penghulus).Error; err != nil {
+	if err := db.Where("status = ?", structs.PenghuluStatusAktif).Find(&penghulus).Error; err != nil {
 		return nil, fmt.Errorf("gagal mengambil data penghulu aktif: %w", err)
 	}
 
 	var dayRegistrations []structs.PendaftaranNikah
-	if err := fc.DB.Where("tanggal_nikah >= ? AND tanggal_nikah < ? AND status_pendaftaran NOT IN ?", startOfDay, endOfDay, []string{structs.StatusPendaftaranDitolak}).Find(&dayRegistrations).Error; err != nil {
+	if err := db.Where("tanggal_nikah >= ? AND tanggal_nikah < ? AND status_pendaftaran NOT IN ?", startOfDay, endOfDay, []string{structs.StatusPendaftaranDitolak}).Find(&dayRegistrations).Error; err != nil {
 		return nil, fmt.Errorf("gagal mengambil jadwal harian: %w", err)
 	}
 
@@ -310,14 +317,18 @@ func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckIn
 }
 
 func (fc *ForwardChainingEngine) ListApprovedAssignmentsForPenghulu(userID string, includeCompleted bool) ([]structs.PendaftaranJadwal, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
+	defer cancel()
+	db := fc.DB.WithContext(ctx)
+
 	var penghulu structs.Penghulu
-	if err := fc.DB.Where("user_id = ? AND status = ?", userID, structs.PenghuluStatusAktif).First(&penghulu).Error; err != nil {
+	if err := db.Where("user_id = ? AND status = ?", userID, structs.PenghuluStatusAktif).First(&penghulu).Error; err != nil {
 		return nil, err
 	}
 
-	query := fc.DB.Where("penghulu_id = ? AND status_pendaftaran = ?", penghulu.ID, structs.StatusPendaftaranPenghuluDitugaskan)
+	query := db.Where("penghulu_id = ? AND status_pendaftaran = ?", penghulu.ID, structs.StatusPendaftaranPenghuluDitugaskan)
 	if includeCompleted {
-		query = fc.DB.Where("penghulu_id = ? AND status_pendaftaran IN ?", penghulu.ID, []string{structs.StatusPendaftaranPenghuluDitugaskan, structs.StatusPendaftaranSelesai})
+		query = db.Where("penghulu_id = ? AND status_pendaftaran IN ?", penghulu.ID, []string{structs.StatusPendaftaranPenghuluDitugaskan, structs.StatusPendaftaranSelesai})
 	}
 
 	var assignments []structs.PendaftaranJadwal
@@ -460,6 +471,9 @@ func normalizeFCConfig(cfg FCConfig) FCConfig {
 	if cfg.HTTPTimeout <= 0 {
 		cfg.HTTPTimeout = 6 * time.Second
 	}
+	if cfg.DBTimeout <= 0 {
+		cfg.DBTimeout = 5 * time.Second
+	}
 	return cfg
 }
 
@@ -575,6 +589,11 @@ func (fc *ForwardChainingEngine) routeDistanceMeters(fromLat, fromLon, toLat, to
 		return 0, err
 	}
 
+	// Attach a request context with timeout to avoid hanging requests
+	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.HTTPTimeout)
+	defer cancel()
+	req = req.WithContext(ctx)
+
 	resp, err := fc.HTTPClient.Do(req)
 	if err != nil {
 		return 0, err
@@ -639,6 +658,12 @@ func (fc *ForwardChainingEngine) IsHoliday(date time.Time) (bool, string) {
 	if err != nil {
 		return false, ""
 	}
+
+	// Use context with timeout for external holiday API
+	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.HTTPTimeout)
+	defer cancel()
+	req = req.WithContext(ctx)
+
 	resp, err := fc.HTTPClient.Do(req)
 	if err != nil {
 		return false, ""
@@ -676,7 +701,9 @@ func (fc *ForwardChainingEngine) IsHoliday(date time.Time) (bool, string) {
 // ==================== FACT EXTRACTION ====================
 
 func (fc *ForwardChainingEngine) ExtractMarriageRegistrationFacts(registrationID uint) (*MarriageRegistrationFact, error) {
-	return fc.extractMarriageRegistrationFactsWithDB(fc.DB, registrationID)
+	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
+	defer cancel()
+	return fc.extractMarriageRegistrationFactsWithDB(fc.DB.WithContext(ctx), registrationID)
 }
 
 func (fc *ForwardChainingEngine) extractMarriageRegistrationFactsWithDB(db *gorm.DB, registrationID uint) (*MarriageRegistrationFact, error) {
@@ -709,7 +736,9 @@ func (fc *ForwardChainingEngine) extractMarriageRegistrationFactsWithDB(db *gorm
 }
 
 func (fc *ForwardChainingEngine) ExtractPenghuluFacts(penghuluID uint) (*PenghuluFact, error) {
-	return fc.extractPenghuluFactsWithDB(fc.DB, penghuluID)
+	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
+	defer cancel()
+	return fc.extractPenghuluFactsWithDB(fc.DB.WithContext(ctx), penghuluID)
 }
 
 func (fc *ForwardChainingEngine) extractPenghuluFactsWithDB(db *gorm.DB, penghuluID uint) (*PenghuluFact, error) {
@@ -735,10 +764,14 @@ func (fc *ForwardChainingEngine) extractPenghuluFactsWithDB(db *gorm.DB, penghul
 // loadEvaluationSnapshot mengambil snapshot data untuk inferensi FC.
 // Parameter lockRows=false (read-only) untuk rekomendasi, true untuk assignment.
 func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, lockRows bool) (*evaluationSnapshot, error) {
-	db := fc.DB
+	// Create a DB context with timeout for snapshot loading to avoid long-running locks
+	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
+	defer cancel()
+
+	db := fc.DB.WithContext(ctx)
 	var tx *gorm.DB
 	if lockRows {
-		tx = fc.DB.Begin()
+		tx = db.Begin()
 		if tx.Error != nil {
 			return nil, tx.Error
 		}
@@ -1157,7 +1190,12 @@ func (fc *ForwardChainingEngine) EvaluateRules(regFact *MarriageRegistrationFact
 	dayCounts := map[uint]int{}
 	hourCounts := map[uint]map[string]int{}
 	assignmentsByPenghulu := map[uint][]scheduledAssignment{}
-	if err := fc.DB.Model(&structs.PendaftaranNikah{}).
+	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
+	defer cancel()
+
+	db := fc.DB.WithContext(ctx)
+
+	if err := db.Model(&structs.PendaftaranNikah{}).
 		Where("penghulu_id = ? AND tanggal_nikah >= ? AND tanggal_nikah < ? AND status_pendaftaran NOT IN ?", penghuluFact.PenghuluID,
 			time.Date(regFact.TanggalNikah.Year(), regFact.TanggalNikah.Month(), regFact.TanggalNikah.Day(), 0, 0, 0, 0, regFact.TanggalNikah.Location()),
 			time.Date(regFact.TanggalNikah.Year(), regFact.TanggalNikah.Month(), regFact.TanggalNikah.Day(), 0, 0, 0, 0, regFact.TanggalNikah.Location()).Add(24*time.Hour),
@@ -1183,6 +1221,10 @@ func (fc *ForwardChainingEngine) EvaluateRules(regFact *MarriageRegistrationFact
 
 // GetPenghuluRecommendations mengeksekusi snapshot-based forward chaining satu kali di awal.
 func (fc *ForwardChainingEngine) GetPenghuluRecommendations(registrationID uint) (*AssignmentRecommendation, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
+	defer cancel()
+
+	// snapshot loader will use the provided DB with context
 	snapshot, err := fc.loadEvaluationSnapshot(registrationID, false)
 	if err != nil {
 		return nil, err
@@ -1218,7 +1260,7 @@ func (fc *ForwardChainingEngine) GetPenghuluRecommendations(registrationID uint)
 	}
 
 	var bestPenghulu structs.Penghulu
-	if err := fc.DB.Where("id = ?", passedResults[0].PenghuluID).First(&bestPenghulu).Error; err != nil {
+	if err := fc.DB.WithContext(ctx).Where("id = ?", passedResults[0].PenghuluID).First(&bestPenghulu).Error; err != nil {
 		return nil, fmt.Errorf("gagal mengambil detail penghulu terbaik: %w", err)
 	}
 
@@ -1235,7 +1277,7 @@ func (fc *ForwardChainingEngine) GetPenghuluRecommendations(registrationID uint)
 
 	for i := 1; i < len(passedResults) && i < 3; i++ {
 		var altPenghulu structs.Penghulu
-		if err := fc.DB.Where("id = ?", passedResults[i].PenghuluID).First(&altPenghulu).Error; err != nil {
+		if err := fc.DB.WithContext(ctx).Where("id = ?", passedResults[i].PenghuluID).First(&altPenghulu).Error; err != nil {
 			continue
 		}
 		rec.Alternatives = append(rec.Alternatives, AlternativePenghulu{
