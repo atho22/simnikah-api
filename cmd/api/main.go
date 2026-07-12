@@ -50,42 +50,37 @@ func 	main() {
 		}
 	}
 
-	// Optionally run migrations and cleanup when explicitly enabled.
-	// This prevents destructive DDL from running automatically in production.
-	if os.Getenv("RUN_MIGRATIONS") == "true" {
-		cleanLegacyColumns(db)
+	// Run database migrations and seeding unconditionally on startup to ensure deployment readiness
+	cleanLegacyColumns(db)
 
-		// Migrate struct (scheduling-only models)
-		log.Println("Starting database migration...")
-		if err := db.AutoMigrate(
-			&structs.Users{},
-			&structs.StaffKUA{},
-			&structs.Penghulu{},
-			&structs.PendaftaranNikah{},
-			&structs.Notifikasi{},
-		); err != nil {
-			log.Printf("Database migration failed: %v", err)
-			os.Exit(1)
-		}
-		log.Println("Database migration completed successfully")
+	// Migrate structs (scheduling-only models)
+	log.Println("Starting database migration...")
+	if err := db.AutoMigrate(
+		&structs.Users{},
+		&structs.StaffKUA{},
+		&structs.Penghulu{},
+		&structs.PendaftaranNikah{},
+		&structs.Notifikasi{},
+	); err != nil {
+		log.Printf("Database migration failed: %v", err)
+		os.Exit(1)
+	}
+	log.Println("Database migration completed successfully")
 
-		// Add database indexes for performance optimization
-		if err := config.AddDatabaseIndexes(db); err != nil {
-			log.Println("Warning: Failed to add database indexes:", err)
-		}
+	// Add database indexes for performance optimization
+	if err := config.AddDatabaseIndexes(db); err != nil {
+		log.Println("Warning: Failed to add database indexes:", err)
+	}
 
-		// Seed initial data (Kepala KUA, Staff, Penghulu)
-		if err := seeders.SeedKepalaKUA(db); err != nil {
-			log.Printf("Warning: Failed to seed kepala KUA: %v", err)
-		}
-		if err := seeders.SeedStaff(db); err != nil {
-			log.Printf("Warning: Failed to seed staff: %v", err)
-		}
-		if err := seeders.SeedPenghulu(db); err != nil {
-			log.Printf("Warning: Failed to seed penghulu: %v", err)
-		}
-	} else {
-		log.Println("RUN_MIGRATIONS not set to 'true' — skipping AutoMigrate, index creation, and seeding")
+	// Seed initial data (Kepala KUA, Staff, Penghulu)
+	if err := seeders.SeedKepalaKUA(db); err != nil {
+		log.Printf("Warning: Failed to seed kepala KUA: %v", err)
+	}
+	if err := seeders.SeedStaff(db); err != nil {
+		log.Printf("Warning: Failed to seed staff: %v", err)
+	}
+	if err := seeders.SeedPenghulu(db); err != nil {
+		log.Printf("Warning: Failed to seed penghulu: %v", err)
 	}
 
 	ginMode := os.Getenv("GIN_MODE")
