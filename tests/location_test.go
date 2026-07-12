@@ -285,8 +285,11 @@ func TestKepalaKUA_GetFCConfig(t *testing.T) {
 	if data["minimum_rating"] == nil {
 		t.Error("expected minimum_rating in config")
 	}
-	if data["scoring_weights"] == nil {
-		t.Error("expected scoring_weights in config")
+	if data["selection_criteria"] == nil {
+		t.Error("expected selection_criteria in config")
+	}
+	if data["fairness_imbalance_threshold"] == nil {
+		t.Error("expected fairness_imbalance_threshold in config")
 	}
 }
 

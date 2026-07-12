@@ -49,7 +49,7 @@ func (h *InDB) CheckScheduleAvailability(c *gin.Context) {
 
 	engine := services.NewForwardChainingEngine(h.DB)
 
-	result, err := engine.CheckScheduleAvailability(services.ScheduleCheckInput{
+	result, err := engine.CheckScheduleAvailability(c.Request.Context(), services.ScheduleCheckInput{
 		TanggalNikah: input.TanggalNikah,
 		WaktuNikah:   input.WaktuNikah,
 		TempatNikah:  input.TempatNikah,
@@ -159,7 +159,7 @@ func (h *InDB) CreateRegistration(c *gin.Context) {
 
 	// Cek ketersediaan jadwal via Forward Chaining Engine
 	engine := services.NewForwardChainingEngine(h.DB)
-	scheduleResult, err := engine.CheckScheduleAvailability(services.ScheduleCheckInput{
+	scheduleResult, err := engine.CheckScheduleAvailability(c.Request.Context(), services.ScheduleCheckInput{
 		TanggalNikah: input.TanggalNikah,
 		WaktuNikah:   waktuNikah,
 		TempatNikah:  input.TempatNikah,

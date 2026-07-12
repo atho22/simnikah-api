@@ -11,85 +11,115 @@ import (
 	"gorm.io/gorm"
 )
 
-// SeedPenghulu creates initial penghulu user if not exists
+// SeedPenghulu creates initial penghulu users if they do not exist (minimum 4)
 func SeedPenghulu(db *gorm.DB) error {
-	log.Println("🌱 Seeding Penghulu user...")
+	log.Println("🌱 Seeding default Penghulu users (minimum 4)...")
 
-	// Default penghulu credentials
-	defaultUsername := "penghulu001"
-	defaultEmail := "penghulu@kua.go.id"
-	defaultPassword := "penghulu123" // ⚠️ CHANGE THIS IN PRODUCTION!
-	defaultNama := "Ustadz Haji Ahmad Wijaya"
-	defaultNIP := "197001011990011002"
-
-	// Check if penghulu already exists
-	var existingUser structs.Users
-	err := db.Where("username = ? OR email = ?", defaultUsername, defaultEmail).First(&existingUser).Error
-
-	if err == nil {
-		// User already exists
-		log.Printf("✅ Penghulu user already exists (ID: %s, Username: %s)", existingUser.User_id, existingUser.Username)
-		return nil
+	defaultPenghulus := []struct {
+		Username string
+		Email    string
+		Password string
+		Nama     string
+		NIP      string
+	}{
+		{
+			Username: "penghulu001",
+			Email:    "penghulu@kua.go.id",
+			Password: "penghulu123",
+			Nama:     "Ustadz Haji Ahmad Wijaya",
+			NIP:      "197001011990011002",
+		},
+		{
+			Username: "penghulu002",
+			Email:    "penghulu002@kua.go.id",
+			Password: "penghulu123",
+			Nama:     "Ustadz Muhammad Yusuf",
+			NIP:      "197503122002121003",
+		},
+		{
+			Username: "penghulu003",
+			Email:    "penghulu003@kua.go.id",
+			Password: "penghulu123",
+			Nama:     "Ustadz H. Abdul Rahman",
+			NIP:      "198008202008011004",
+		},
+		{
+			Username: "penghulu004",
+			Email:    "penghulu004@kua.go.id",
+			Password: "penghulu123",
+			Nama:     "Ustadz Syarif Hidayatullah",
+			NIP:      "198512052014031005",
+		},
 	}
 
-	if err != gorm.ErrRecordNotFound {
-		// Database error
-		return fmt.Errorf("error checking existing penghulu: %v", err)
+	baseUnix := time.Now().Unix()
+
+	for i, p := range defaultPenghulus {
+		// Check if penghulu already exists
+		var existingUser structs.Users
+		err := db.Where("username = ? OR email = ?", p.Username, p.Email).First(&existingUser).Error
+
+		if err == nil {
+			// User already exists
+			log.Printf("✅ Penghulu user already exists: %s (ID: %s)", p.Username, existingUser.User_id)
+			continue
+		}
+
+		if err != gorm.ErrRecordNotFound {
+			// Database error
+			return fmt.Errorf("error checking existing penghulu: %v", err)
+		}
+
+		// Generate unique user_id
+		userID := fmt.Sprintf("PNG%d%d", baseUnix, i)
+
+		// Hash password
+		hashedPassword, err := crypto.HashPassword(p.Password)
+		if err != nil {
+			return fmt.Errorf("error hashing password for %s: %v", p.Username, err)
+		}
+
+		// Create user account
+		user := structs.Users{
+			User_id:    userID,
+			Username:   p.Username,
+			Email:      p.Email,
+			Password:   hashedPassword,
+			Role:       structs.UserRolePenghulu,
+			Status:     structs.UserStatusTokenReset, // set to active or standard default status
+			Nama:       p.Nama,
+			Created_at: time.Now(),
+			Updated_at: time.Now(),
+		}
+		// In models, Default status is 'Aktif'
+		user.Status = structs.UserStatusAktif
+
+		if err := db.Create(&user).Error; err != nil {
+			return fmt.Errorf("error creating user %s: %v", p.Username, err)
+		}
+
+		// Create penghulu profile
+		penghuluProfile := structs.Penghulu{
+			User_id:      userID,
+			NIP:          p.NIP,
+			Nama_lengkap: p.Nama,
+			Status:       structs.PenghuluStatusAktif,
+			Jumlah_nikah: 0,
+			Rating:       0.0,
+			Created_at:   time.Now(),
+			Updated_at:   time.Now(),
+		}
+
+		if err := db.Create(&penghuluProfile).Error; err != nil {
+			// Clean up user
+			db.Delete(&user)
+			return fmt.Errorf("error creating profile for %s: %v", p.Username, err)
+		}
+
+		log.Printf("   [+] Created Penghulu user: %s (ID: %s, Username: %s, NIP: %s)", p.Nama, userID, p.Username, p.NIP)
 	}
 
-	// Generate user_id
-	userID := "PNG" + fmt.Sprintf("%d", time.Now().Unix())
-
-	// Hash password
-	hashedPassword, err := crypto.HashPassword(defaultPassword)
-	if err != nil {
-		return fmt.Errorf("error hashing password: %v", err)
-	}
-
-	// Create user account
-	user := structs.Users{
-		User_id:    userID,
-		Username:   defaultUsername,
-		Email:      defaultEmail,
-		Password:   hashedPassword,
-		Role:       structs.UserRolePenghulu,
-		Status:     structs.UserStatusAktif,
-		Nama:       defaultNama,
-		Created_at: time.Now(),
-		Updated_at: time.Now(),
-	}
-
-	if err := db.Create(&user).Error; err != nil {
-		return fmt.Errorf("error creating penghulu user: %v", err)
-	}
-
-	// Create penghulu profile
-	penghulu := structs.Penghulu{
-		User_id:      userID,
-		NIP:          defaultNIP,
-		Nama_lengkap: defaultNama,
-		Status:       structs.PenghuluStatusAktif,
-		Jumlah_nikah: 0,
-		Rating:       0.0,
-		Created_at:   time.Now(),
-		Updated_at:   time.Now(),
-	}
-
-	if err := db.Create(&penghulu).Error; err != nil {
-		// If penghulu creation fails, delete the user
-		db.Delete(&user)
-		return fmt.Errorf("error creating penghulu profile: %v", err)
-	}
-
-	log.Printf("✅ Penghulu user created successfully!")
-	log.Printf("   User ID: %s", userID)
-	log.Printf("   Username: %s", defaultUsername)
-	log.Printf("   Email: %s", defaultEmail)
-	log.Printf("   Role: %s", structs.UserRolePenghulu)
-	log.Println("")
-	log.Println("⚠️  IMPORTANT: Default password telah diset. Segera ubah setelah login pertama!")
-	log.Println("")
-
+	log.Println("✅ Default Penghulu users seeded successfully!")
 	return nil
 }
 

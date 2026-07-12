@@ -25,17 +25,18 @@ type assignPenghuluApprovalRequest struct {
 }
 
 type forwardChainingConfigResponse struct {
-	Source                  string                 `json:"source"`
-	DynamicConfigReady      bool                   `json:"dynamic_config_ready"`
-	MinimumRating           float64                `json:"minimum_rating"`
-	CapacityPerDay          int                    `json:"capacity_per_day"`
-	CapacityPerHour         int                    `json:"capacity_per_hour"`
-	KuaLatitude             float64                `json:"kua_latitude"`
-	KuaLongitude            float64                `json:"kua_longitude"`
-	ScoringWeights          services.ScoringWeights `json:"scoring_weights"`
-	RuleConstraintNotes     []string               `json:"rule_constraint_notes"`
-	SystemConfigTableName   string                 `json:"system_config_table_name"`
-	SystemConfigKeysExample []string               `json:"system_config_keys_example"`
+	Source                  string   `json:"source"`
+	DynamicConfigReady      bool     `json:"dynamic_config_ready"`
+	MinimumRating           float64  `json:"minimum_rating"`
+	CapacityPerDay          int      `json:"capacity_per_day"`
+	CapacityPerHour         int      `json:"capacity_per_hour"`
+	KuaLatitude             float64  `json:"kua_latitude"`
+	KuaLongitude            float64  `json:"kua_longitude"`
+	FairnessThreshold       int      `json:"fairness_imbalance_threshold"`
+	SelectionCriteria       []string `json:"selection_criteria"`
+	RuleConstraintNotes     []string `json:"rule_constraint_notes"`
+	SystemConfigTableName   string   `json:"system_config_table_name"`
+	SystemConfigKeysExample []string `json:"system_config_keys_example"`
 }
 
 func (h *InDB) parseRegistrationID(c *gin.Context) (uint, error) {
@@ -117,7 +118,7 @@ func (h *InDB) RecommendPenghuluWithForwardChaining(c *gin.Context) {
 	}
 
 	fcEngine := services.NewForwardChainingEngine(h.DB)
-	recommendation, err := fcEngine.GetPenghuluRecommendations(registrationID)
+	recommendation, err := fcEngine.GetPenghuluRecommendations(c.Request.Context(), registrationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -138,8 +139,6 @@ func (h *InDB) RecommendPenghuluWithForwardChaining(c *gin.Context) {
 		"data": gin.H{
 			"recommended_penghulu_id":   recommendation.RecommendedPenghuluID,
 			"recommended_penghulu_name": recommendedName,
-			"selected_score":            recommendation.SelectedScore,
-			"confidence":                recommendation.Confidence,
 			"decision_reasoning":        recommendation.DecisionReasoning,
 			"alternatives":              recommendation.Alternatives,
 			"evaluated_at":              recommendation.EvaluatedAt,
@@ -162,7 +161,7 @@ func (h *InDB) GetDetailedEvaluationReport(c *gin.Context) {
 	}
 
 	fcEngine := services.NewForwardChainingEngine(h.DB)
-	evaluation, err := fcEngine.GetDetailedEvaluation(registrationID)
+	evaluation, err := fcEngine.GetDetailedEvaluation(c.Request.Context(), registrationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -282,9 +281,9 @@ func (h *InDB) AssignPenghuluWithApproval(c *gin.Context) {
 
 	now := time.Now()
 	updates := map[string]interface{}{
-		"penghulu_id":           input.PenghuluID,
-		"status_pendaftaran":    structs.StatusPendaftaranPenghuluDitugaskan,
-		"updated_at":            now,
+		"penghulu_id":        input.PenghuluID,
+		"status_pendaftaran": structs.StatusPendaftaranPenghuluDitugaskan,
+		"updated_at":         now,
 	}
 
 	if err := tx.Model(&structs.PendaftaranNikah{}).
@@ -344,23 +343,23 @@ func (h *InDB) GetForwardChainingConfig(c *gin.Context) {
 		CapacityPerHour:    fcEngine.Config.CapacityPerHour,
 		KuaLatitude:        fcEngine.Config.KuaLatitude,
 		KuaLongitude:       fcEngine.Config.KuaLongitude,
-		ScoringWeights:     fcEngine.Config.ScoringWeights,
+		FairnessThreshold:  fcEngine.Config.FairnessImbalanceThreshold,
+		SelectionCriteria: []string{
+			"1. Ketersediaan jadwal: penghulu tidak boleh memiliki jadwal bentrok pada jam yang diminta (blocking rule)",
+			"2. Jarak terdekat: dari kandidat yang tersedia, pilih yang paling dekat ke lokasi akad (prioritas utama)",
+			"3. Pemerataan beban bulan berjalan: aktif sebagai tiebreaker jika selisih jumlah nikah bulan ini >= threshold",
+		},
 		RuleConstraintNotes: []string{
-			"Flow ini hanya memakai constraint jadwal: status penghulu, bentrok slot, kapasitas harian, kapasitas per jam, dan lokasi nikah",
+			"Sistem ini menggunakan pure forward chaining tanpa scoring numerik",
+			"Seleksi penghulu sepenuhnya deterministik berdasarkan urutan prioritas fakta",
+			"Pemerataan beban dihitung dari jumlah pernikahan pada bulan berjalan (bukan kumulatif)",
 			"Sumber dinamis yang direkomendasikan: tabel system_configs",
-			"Contoh key: forward_chaining.capacity_per_day, forward_chaining.capacity_per_hour, forward_chaining.minimum_rating",
-			"Nilai engine saat ini tetap menjadi fallback jika config DB belum tersedia",
 		},
 		SystemConfigTableName: "system_configs",
 		SystemConfigKeysExample: []string{
-			"forward_chaining.minimum_rating",
 			"forward_chaining.capacity_per_day",
 			"forward_chaining.capacity_per_hour",
-			"forward_chaining.weights.rating",
-			"forward_chaining.weights.availability",
-			"forward_chaining.weights.fairness",
-			"forward_chaining.weights.location_match",
-			"forward_chaining.weights.distance",
+			"forward_chaining.fairness_imbalance_threshold",
 		},
 	}
 

@@ -403,7 +403,8 @@ func TestFC_Config_FieldsComplete(t *testing.T) {
 		"capacity_per_hour",
 		"kua_latitude",
 		"kua_longitude",
-		"scoring_weights",
+		"fairness_imbalance_threshold",
+		"selection_criteria",
 		"rule_constraint_notes",
 	}
 	for _, field := range requiredFields {

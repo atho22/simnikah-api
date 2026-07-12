@@ -124,7 +124,7 @@ func (h *InDB) CreateRegistrationForUser(c *gin.Context) {
 
 	// Cek ketersediaan jadwal via Forward Chaining Engine (sama seperti catin handler)
 	engine := services.NewForwardChainingEngine(h.DB)
-	scheduleResult, scheduleErr := engine.CheckScheduleAvailability(services.ScheduleCheckInput{
+	scheduleResult, scheduleErr := engine.CheckScheduleAvailability(c.Request.Context(), services.ScheduleCheckInput{
 		TanggalNikah: input.TanggalNikah,
 		WaktuNikah:   strings.TrimSpace(input.WaktuNikah),
 		TempatNikah:  input.TempatNikah,

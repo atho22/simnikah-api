@@ -39,34 +39,38 @@ const (
 	allowedTimeFormat            = "15:04"
 )
 
+type holidayResult struct {
+	IsHoliday   bool
+	HolidayName string
+}
+
+type holidayCache struct {
+	mu    sync.RWMutex
+	cache map[string]holidayResult
+}
+
 type ForwardChainingEngine struct {
-	DB         *gorm.DB
-	Config     FCConfig
-	HTTPClient *http.Client
+	DB           *gorm.DB
+	Config       FCConfig
+	HTTPClient   *http.Client
+	holidayCache *holidayCache
 }
 
 type FCConfig struct {
-	MinimumRating             float64
-	CapacityPerDay            int
-	CapacityPerHour           int
-	KuaLatitude               float64
-	KuaLongitude              float64
-	OSRMBaseURL               string
-	OSRMFailurePenaltyMeters  float64
-	DistancePenaltyPerKm      float64
-	HTTPTimeout               time.Duration
-	DBTimeout                 time.Duration
-	GoogleHolidayCalendarID   string
-	GoogleAPIKey              string
-	ScoringWeights            ScoringWeights
-}
-
-type ScoringWeights struct {
-	RatingWeight        float64
-	AvailabilityWeight   float64
-	FairnessWeight      float64
-	LocationMatchWeight float64
-	DistanceWeight      float64
+	MinimumRating            float64
+	CapacityPerDay           int
+	CapacityPerHour          int
+	KuaLatitude              float64
+	KuaLongitude             float64
+	OSRMBaseURL              string
+	OSRMFailurePenaltyMeters float64
+	HTTPTimeout              time.Duration
+	DBTimeout                time.Duration
+	GoogleHolidayCalendarID  string
+	GoogleAPIKey             string
+	// FairnessImbalanceThreshold adalah selisih minimum jumlah nikah bulan berjalan
+	// antar penghulu agar aturan pemerataan beban aktif sebagai tiebreaker.
+	FairnessImbalanceThreshold int
 }
 
 // ==================== FACTS ====================
@@ -84,16 +88,16 @@ type MarriageRegistrationFact struct {
 }
 
 type PenghuluFact struct {
-	PenghuluID      uint
-	NamaPenghulu    string
-	StatusAktif     string
-	JumlahNikah     int
-	CapacityPerDay  int
-	CapacityPerHour int
-	Rating          float64
-	Latitude        float64
-	Longitude       float64
-	HasCoordinates  bool
+	PenghuluID         uint
+	NamaPenghulu       string
+	StatusAktif        string
+	JumlahNikah        int  // total sepanjang masa (tidak dipakai untuk fairness)
+	JumlahNikahBulan   int  // jumlah nikah bulan berjalan (untuk pemerataan beban)
+	CapacityPerDay     int
+	CapacityPerHour    int
+	Latitude           float64
+	Longitude          float64
+	HasCoordinates     bool
 }
 
 // ==================== INFERENCE AUDIT ====================
@@ -103,7 +107,6 @@ type RuleEvaluation struct {
 	RuleName    string
 	IsSatisfied bool
 	Reason      string
-	Impact      float64
 }
 
 type DerivedFact struct {
@@ -116,12 +119,11 @@ type DerivedFact struct {
 
 type RuleResult struct {
 	PenghuluID     uint
-	EvaluatedRules  []RuleEvaluation
-	DerivedFacts    []DerivedFact
-	AllRulesPassed  bool
-	Score           float64
-	DistanceMeters  float64
-	Conclusion      string
+	EvaluatedRules []RuleEvaluation
+	DerivedFacts   []DerivedFact
+	AllRulesPassed bool
+	DistanceMeters float64
+	Conclusion     string
 }
 
 // ==================== RECOMMENDATIONS ====================
@@ -129,20 +131,19 @@ type RuleResult struct {
 type AssignmentRecommendation struct {
 	RecommendedPenghuluID uint
 	RecommendedPenghulu   *structs.Penghulu
-	SelectedScore         float64
 	Alternatives          []AlternativePenghulu
 	EvaluationProcess     []RuleResult
 	DecisionReasoning     string
-	Confidence            float64
 	EvaluatedAt           time.Time
 	EvaluationCount       int
 }
 
 type AlternativePenghulu struct {
-	PenghuluID   uint
-	NamaPenghulu string
-	Score        float64
-	Reason       string
+	PenghuluID         uint
+	NamaPenghulu       string
+	DistanceMeters     float64
+	JumlahNikahBulan   int
+	Reason             string
 }
 
 // ==================== SCHEDULING-ONLY API ====================
@@ -182,7 +183,7 @@ type ScheduleCheckResult struct {
 	Alternatives        []ScheduleCandidate `json:"alternatives"`
 }
 
-func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckInput) (*ScheduleCheckResult, error) {
+func (fc *ForwardChainingEngine) CheckScheduleAvailability(ctx context.Context, input ScheduleCheckInput) (*ScheduleCheckResult, error) {
 	tanggalNikah, err := time.Parse("2006-01-02", strings.TrimSpace(input.TanggalNikah))
 	if err != nil {
 		return nil, fmt.Errorf("format tanggal_nikah harus YYYY-MM-DD")
@@ -198,14 +199,14 @@ func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckIn
 		tempatNikah = structs.TempatNikahDiKUA
 	}
 
-	isHoliday, holidayName := fc.IsHoliday(tanggalNikah)
+	// Use DB context with timeout for all DB operations in this function
+	dbCtx, cancel := context.WithTimeout(ctx, fc.Config.DBTimeout)
+	defer cancel()
+	db := fc.DB.WithContext(dbCtx)
+
+	isHoliday, holidayName := fc.IsHoliday(dbCtx, tanggalNikah)
 	startOfDay := time.Date(tanggalNikah.Year(), tanggalNikah.Month(), tanggalNikah.Day(), 0, 0, 0, 0, tanggalNikah.Location())
 	endOfDay := startOfDay.Add(24 * time.Hour)
-
-	// Use DB context with timeout for all DB operations in this function
-	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
-	defer cancel()
-	db := fc.DB.WithContext(ctx)
 
 	var totalBooked int64
 	if err := db.Model(&structs.PendaftaranNikah{}).
@@ -248,9 +249,16 @@ func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckIn
 		}
 	}
 
-	totalCapacity := int64(len(penghulus) * fc.Config.CapacityPerDay)
-
-	slotRemaining := totalCapacity - totalBooked
+	// Hitung slotRemaining secara dinamis sesuai tipe lokasi (KUA vs luar KUA)
+	var slotRemaining int64
+	if tempatNikah == structs.TempatNikahDiKUA {
+		slotRemaining = 1 - bookedInKUA
+		if rem := 4 - totalBooked; rem < slotRemaining {
+			slotRemaining = rem
+		}
+	} else {
+		slotRemaining = 4 - totalBooked
+	}
 	if slotRemaining < 0 {
 		slotRemaining = 0
 	}
@@ -273,9 +281,9 @@ func (fc *ForwardChainingEngine) CheckScheduleAvailability(input ScheduleCheckIn
 		return result, nil
 	}
 
-	if totalBooked >= totalCapacity {
+	if totalBooked >= 4 {
 		result.Available = false
-		result.Reason = "Semua slot penghulu pada jam tersebut sudah penuh"
+		result.Reason = "Semua slot pernikahan pada jam tersebut sudah penuh"
 		return result, nil
 	}
 
@@ -353,15 +361,17 @@ type scheduledAssignment struct {
 }
 
 type evaluationSnapshot struct {
-	RegistrationFact    *MarriageRegistrationFact
-	Holiday             bool
-	HolidayName         string
-	ActivePenghuluFacts []*PenghuluFact
-	DayCounts           map[uint]int
-	HourCounts          map[uint]map[string]int
+	RegistrationFact      *MarriageRegistrationFact
+	Holiday               bool
+	HolidayName           string
+	ActivePenghuluFacts   []*PenghuluFact
+	ActivePenghulusMap    map[uint]*structs.Penghulu
+	DayCounts             map[uint]int
+	HourCounts            map[uint]map[string]int
 	AssignmentsByPenghulu map[uint][]scheduledAssignment
-	MaxHistoricalWorkload int
-	MinHistoricalWorkload int
+	// Workload bulan berjalan (sesuai bulan tanggal_nikah yang diminta)
+	MaxMonthlyWorkload    int
+	MinMonthlyWorkload    int
 }
 
 type candidateInferenceState struct {
@@ -372,7 +382,6 @@ type candidateInferenceState struct {
 	Rejected       bool
 	RejectReason   string
 	DistanceMeters float64
-	Score          float64
 }
 
 type inferenceRule struct {
@@ -413,24 +422,17 @@ func (c *osrmDistanceCache) set(fromLat, fromLon, toLat, toLon, distance float64
 
 func NewForwardChainingEngine(db *gorm.DB) *ForwardChainingEngine {
 	return NewForwardChainingEngineWithConfig(db, FCConfig{
-		MinimumRating:            3.0,
-		CapacityPerDay:           3,
-		CapacityPerHour:          1,
-		KuaLatitude:              defaultKUALatitude,
-		KuaLongitude:             defaultKUALongitude,
-		OSRMBaseURL:              "https://router.project-osrm.org",
-		OSRMFailurePenaltyMeters: 1500,
-		DistancePenaltyPerKm:     8,
-		HTTPTimeout:              6 * time.Second,
-		GoogleHolidayCalendarID:  os.Getenv("GOOGLE_HOLIDAYS_CALENDAR_ID"),
-		GoogleAPIKey:             os.Getenv("GOOGLE_API_KEY"),
-		ScoringWeights: ScoringWeights{
-			RatingWeight:        0.35,
-			AvailabilityWeight:   0.25,
-			FairnessWeight:       0.20,
-			LocationMatchWeight:  0.10,
-			DistanceWeight:       0.10,
-		},
+		MinimumRating:              3.0,
+		CapacityPerDay:             3,
+		CapacityPerHour:            1,
+		KuaLatitude:                defaultKUALatitude,
+		KuaLongitude:               defaultKUALongitude,
+		OSRMBaseURL:                "https://router.project-osrm.org",
+		OSRMFailurePenaltyMeters:   1500,
+		HTTPTimeout:                6 * time.Second,
+		GoogleHolidayCalendarID:    os.Getenv("GOOGLE_HOLIDAYS_CALENDAR_ID"),
+		GoogleAPIKey:               os.Getenv("GOOGLE_API_KEY"),
+		FairnessImbalanceThreshold: 3, // selisih >= 3 nikah/bulan → pemerataan beban aktif
 	})
 }
 
@@ -441,6 +443,9 @@ func NewForwardChainingEngineWithConfig(db *gorm.DB, cfg FCConfig) *ForwardChain
 		Config: cfg,
 		HTTPClient: &http.Client{
 			Timeout: cfg.HTTPTimeout,
+		},
+		holidayCache: &holidayCache{
+			cache: make(map[string]holidayResult),
 		},
 	}
 }
@@ -465,14 +470,14 @@ func normalizeFCConfig(cfg FCConfig) FCConfig {
 	if cfg.OSRMFailurePenaltyMeters <= 0 {
 		cfg.OSRMFailurePenaltyMeters = 1500
 	}
-	if cfg.DistancePenaltyPerKm <= 0 {
-		cfg.DistancePenaltyPerKm = 8
-	}
 	if cfg.HTTPTimeout <= 0 {
 		cfg.HTTPTimeout = 6 * time.Second
 	}
 	if cfg.DBTimeout <= 0 {
 		cfg.DBTimeout = 5 * time.Second
+	}
+	if cfg.FairnessImbalanceThreshold <= 0 {
+		cfg.FairnessImbalanceThreshold = 3
 	}
 	return cfg
 }
@@ -639,12 +644,22 @@ func (fc *ForwardChainingEngine) routeDistanceCached(cache *osrmDistanceCache, f
 	return distance
 }
 
-func (fc *ForwardChainingEngine) IsHoliday(date time.Time) (bool, string) {
+func (fc *ForwardChainingEngine) IsHoliday(ctx context.Context, date time.Time) (bool, string) {
 	if date.Weekday() == time.Saturday {
 		return true, "Sabtu"
 	}
 	if date.Weekday() == time.Sunday {
 		return true, "Minggu"
+	}
+
+	key := date.Format("2006-01-02")
+
+	// Check cache
+	fc.holidayCache.mu.RLock()
+	cached, found := fc.holidayCache.cache[key]
+	fc.holidayCache.mu.RUnlock()
+	if found {
+		return cached.IsHoliday, cached.HolidayName
 	}
 
 	reqURL := fmt.Sprintf(
@@ -654,15 +669,10 @@ func (fc *ForwardChainingEngine) IsHoliday(date time.Time) (bool, string) {
 		date.Day(),
 	)
 
-	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return false, ""
 	}
-
-	// Use context with timeout for external holiday API
-	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.HTTPTimeout)
-	defer cancel()
-	req = req.WithContext(ctx)
 
 	resp, err := fc.HTTPClient.Do(req)
 	if err != nil {
@@ -687,15 +697,24 @@ func (fc *ForwardChainingEngine) IsHoliday(date time.Time) (bool, string) {
 		return false, ""
 	}
 
-	if parsed.IsHoliday {
-		holidayName := "Hari Libur"
+	isHoliday := parsed.IsHoliday
+	holidayName := ""
+	if isHoliday {
+		holidayName = "Hari Libur"
 		if len(parsed.HolidayList) > 0 {
 			holidayName = parsed.HolidayList[0]
 		}
-		return true, holidayName
 	}
 
-	return false, ""
+	// Save to cache
+	fc.holidayCache.mu.Lock()
+	fc.holidayCache.cache[key] = holidayResult{
+		IsHoliday:   isHoliday,
+		HolidayName: holidayName,
+	}
+	fc.holidayCache.mu.Unlock()
+
+	return isHoliday, holidayName
 }
 
 // ==================== FACT EXTRACTION ====================
@@ -754,7 +773,6 @@ func (fc *ForwardChainingEngine) extractPenghuluFactsWithDB(db *gorm.DB, penghul
 		JumlahNikah:     penghulu.Jumlah_nikah,
 		CapacityPerDay:  fc.Config.CapacityPerDay,
 		CapacityPerHour: fc.Config.CapacityPerHour,
-		Rating:          penghulu.Rating,
 		Latitude:        derefFloat(penghulu.Latitude),
 		Longitude:       derefFloat(penghulu.Longitude),
 		HasCoordinates:  penghulu.Latitude != nil && penghulu.Longitude != nil,
@@ -763,12 +781,11 @@ func (fc *ForwardChainingEngine) extractPenghuluFactsWithDB(db *gorm.DB, penghul
 
 // loadEvaluationSnapshot mengambil snapshot data untuk inferensi FC.
 // Parameter lockRows=false (read-only) untuk rekomendasi, true untuk assignment.
-func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, lockRows bool) (*evaluationSnapshot, error) {
-	// Create a DB context with timeout for snapshot loading to avoid long-running locks
-	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
+func (fc *ForwardChainingEngine) loadEvaluationSnapshot(ctx context.Context, registrationID uint, lockRows bool) (*evaluationSnapshot, error) {
+	dbCtx, cancel := context.WithTimeout(ctx, fc.Config.DBTimeout)
 	defer cancel()
 
-	db := fc.DB.WithContext(ctx)
+	db := fc.DB.WithContext(dbCtx)
 	var tx *gorm.DB
 	if lockRows {
 		tx = db.Begin()
@@ -786,7 +803,7 @@ func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, loc
 		return nil, err
 	}
 
-	holiday, holidayName := fc.IsHoliday(regFact.TanggalNikah)
+	holiday, holidayName := fc.IsHoliday(dbCtx, regFact.TanggalNikah)
 
 	var penghulus []structs.Penghulu
 	if err := db.Where("status = ?", structs.PenghuluStatusAktif).Find(&penghulus).Error; err != nil {
@@ -796,21 +813,44 @@ func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, loc
 	startOfDay := time.Date(regFact.TanggalNikah.Year(), regFact.TanggalNikah.Month(), regFact.TanggalNikah.Day(), 0, 0, 0, 0, regFact.TanggalNikah.Location())
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
+	// Batas bulan berjalan sesuai tanggal_nikah yang diminta
+	startOfMonth := time.Date(regFact.TanggalNikah.Year(), regFact.TanggalNikah.Month(), 1, 0, 0, 0, 0, regFact.TanggalNikah.Location())
+	startOfNextMonth := startOfMonth.AddDate(0, 1, 0)
+
 	query := db.Model(&structs.PendaftaranNikah{}).
 		Where("id <> ? AND tanggal_nikah >= ? AND tanggal_nikah < ? AND status_pendaftaran NOT IN ?", registrationID, startOfDay, endOfDay, []string{structs.StatusPendaftaranDitolak})
 	if lockRows {
 		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
 	}
 
-	var assignments []structs.PendaftaranNikah
-	if err := query.Find(&assignments).Error; err != nil {
+	var dayAssignments []structs.PendaftaranNikah
+	if err := query.Find(&dayAssignments).Error; err != nil {
 		return nil, fmt.Errorf("gagal mengambil jadwal harian: %w", err)
+	}
+
+	// Hitung beban bulan berjalan per penghulu
+	type monthlyCount struct {
+		PenghuluID uint
+		Count      int
+	}
+	var monthlyCounts []monthlyCount
+	if err := db.Model(&structs.PendaftaranNikah{}).
+		Select("penghulu_id, count(*) as count").
+		Where("penghulu_id IS NOT NULL AND tanggal_nikah >= ? AND tanggal_nikah < ? AND status_pendaftaran NOT IN ?",
+			startOfMonth, startOfNextMonth, []string{structs.StatusPendaftaranDitolak}).
+		Group("penghulu_id").
+		Scan(&monthlyCounts).Error; err != nil {
+		return nil, fmt.Errorf("gagal menghitung beban bulanan: %w", err)
+	}
+	monthlyWorkloadMap := make(map[uint]int, len(monthlyCounts))
+	for _, mc := range monthlyCounts {
+		monthlyWorkloadMap[mc.PenghuluID] = mc.Count
 	}
 
 	dayCounts := map[uint]int{}
 	hourCounts := map[uint]map[string]int{}
 	assignmentsByPenghulu := map[uint][]scheduledAssignment{}
-	for _, assignment := range assignments {
+	for _, assignment := range dayAssignments {
 		if assignment.Penghulu_id == nil {
 			continue
 		}
@@ -839,31 +879,35 @@ func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, loc
 		})
 	}
 
-	minWorkload := 0
-	maxWorkload := 0
+	// Hitung min/max beban bulan berjalan antar semua penghulu aktif
+	minMonthly := 0
+	maxMonthly := 0
 	for i, penghulu := range penghulus {
-		if i == 0 || penghulu.Jumlah_nikah < minWorkload {
-			minWorkload = penghulu.Jumlah_nikah
+		mw := monthlyWorkloadMap[penghulu.ID]
+		if i == 0 || mw < minMonthly {
+			minMonthly = mw
 		}
-		if penghulu.Jumlah_nikah > maxWorkload {
-			maxWorkload = penghulu.Jumlah_nikah
+		if mw > maxMonthly {
+			maxMonthly = mw
 		}
 	}
 
 	activeFacts := make([]*PenghuluFact, 0, len(penghulus))
-	for _, penghulu := range penghulus {
-		p := penghulu
+	activePenghulusMap := make(map[uint]*structs.Penghulu)
+	for i := range penghulus {
+		p := &penghulus[i]
+		activePenghulusMap[p.ID] = p
 		activeFacts = append(activeFacts, &PenghuluFact{
-			PenghuluID:      p.ID,
-			NamaPenghulu:    p.Nama_lengkap,
-			StatusAktif:     p.Status,
-			JumlahNikah:     p.Jumlah_nikah,
-			CapacityPerDay:  fc.Config.CapacityPerDay,
-			CapacityPerHour: fc.Config.CapacityPerHour,
-			Rating:          p.Rating,
-			Latitude:        derefFloat(p.Latitude),
-			Longitude:       derefFloat(p.Longitude),
-			HasCoordinates:  p.Latitude != nil && p.Longitude != nil,
+			PenghuluID:       p.ID,
+			NamaPenghulu:     p.Nama_lengkap,
+			StatusAktif:      p.Status,
+			JumlahNikah:      p.Jumlah_nikah,
+			JumlahNikahBulan: monthlyWorkloadMap[p.ID],
+			CapacityPerDay:   fc.Config.CapacityPerDay,
+			CapacityPerHour:  fc.Config.CapacityPerHour,
+			Latitude:         derefFloat(p.Latitude),
+			Longitude:        derefFloat(p.Longitude),
+			HasCoordinates:   p.Latitude != nil && p.Longitude != nil,
 		})
 	}
 
@@ -872,11 +916,12 @@ func (fc *ForwardChainingEngine) loadEvaluationSnapshot(registrationID uint, loc
 		Holiday:               holiday,
 		HolidayName:           holidayName,
 		ActivePenghuluFacts:   activeFacts,
+		ActivePenghulusMap:    activePenghulusMap,
 		DayCounts:             dayCounts,
 		HourCounts:            hourCounts,
 		AssignmentsByPenghulu: assignmentsByPenghulu,
-		MaxHistoricalWorkload: maxWorkload,
-		MinHistoricalWorkload: minWorkload,
+		MaxMonthlyWorkload:    maxMonthly,
+		MinMonthlyWorkload:    minMonthly,
 	}, nil
 }
 
@@ -895,7 +940,7 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 			CanFire: func() bool { return !state.hasFact(derivedFactAdminApproved) && !state.Rejected },
 			Fire: func() (RuleEvaluation, []DerivedFact) {
 				if isAllowedAssignmentStatus(registration.StatusPendaftaran) {
-					eval := RuleEvaluation{RuleID: "RULE_001", RuleName: "Validasi Administrasi", IsSatisfied: true, Reason: "Status pendaftaran memenuhi syarat penugasan", Impact: 10}
+					eval := RuleEvaluation{RuleID: "RULE_001", RuleName: "Validasi Administrasi", IsSatisfied: true, Reason: "Status pendaftaran memenuhi syarat penugasan"}
 					return eval, []DerivedFact{{Name: derivedFactAdminApproved, Value: true, RuleID: eval.RuleID, Reason: eval.Reason, CreatedAt: time.Now()}}
 				}
 				eval := RuleEvaluation{RuleID: "RULE_001", RuleName: "Validasi Administrasi", IsSatisfied: false, Reason: fmt.Sprintf("Status pendaftaran %s belum siap untuk penugasan", registration.StatusPendaftaran)}
@@ -909,7 +954,7 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 			CanFire: func() bool { return state.hasFact(derivedFactAdminApproved) && !state.hasFact(derivedFactPenghuluAktif) },
 			Fire: func() (RuleEvaluation, []DerivedFact) {
 				if candidate.StatusAktif == structs.PenghuluStatusAktif {
-					eval := RuleEvaluation{RuleID: "RULE_002", RuleName: "Validasi Status Penghulu", IsSatisfied: true, Reason: "Penghulu aktif", Impact: 10}
+					eval := RuleEvaluation{RuleID: "RULE_002", RuleName: "Validasi Status Penghulu", IsSatisfied: true, Reason: "Penghulu aktif"}
 					return eval, []DerivedFact{{Name: derivedFactPenghuluAktif, Value: true, RuleID: eval.RuleID, Reason: eval.Reason, CreatedAt: time.Now()}}
 				}
 				eval := RuleEvaluation{RuleID: "RULE_002", RuleName: "Validasi Status Penghulu", IsSatisfied: false, Reason: fmt.Sprintf("Penghulu berstatus %s", candidate.StatusAktif)}
@@ -930,7 +975,7 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 					reason = fmt.Sprintf("Tanggal jatuh pada hari libur: %s", snapshot.HolidayName)
 					value = true
 				}
-				eval := RuleEvaluation{RuleID: "RULE_003", RuleName: "Konteks Hari Libur", IsSatisfied: true, Reason: reason, Impact: 0}
+				eval := RuleEvaluation{RuleID: "RULE_003", RuleName: "Konteks Hari Libur", IsSatisfied: true, Reason: reason}
 				return eval, []DerivedFact{{Name: "Konteks Hari", Value: value, RuleID: eval.RuleID, Reason: reason, CreatedAt: time.Now()}, {Name: factName, Value: value, RuleID: eval.RuleID, Reason: reason, CreatedAt: time.Now()}}
 			},
 		},
@@ -940,11 +985,11 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 			Blocking: true,
 			CanFire: func() bool { return state.hasFact(derivedFactPenghuluAktif) && !state.hasFact(derivedFactJadwalBebas) },
 			Fire: func() (RuleEvaluation, []DerivedFact) {
-				if dayCount == 0 || hourCount == 0 {
-					eval := RuleEvaluation{RuleID: "RULE_004", RuleName: "Cek Konflik Jadwal", IsSatisfied: true, Reason: "Tidak ada bentrok pada slot waktu yang sama", Impact: 20}
+				if hourCount < candidate.CapacityPerHour {
+					eval := RuleEvaluation{RuleID: "RULE_004", RuleName: "Cek Konflik Jadwal", IsSatisfied: true, Reason: "Kapasitas slot jam masih tersedia untuk penghulu ini"}
 					return eval, []DerivedFact{{Name: derivedFactJadwalBebas, Value: true, RuleID: eval.RuleID, Reason: eval.Reason, CreatedAt: time.Now()}}
 				}
-				eval := RuleEvaluation{RuleID: "RULE_004", RuleName: "Cek Konflik Jadwal", IsSatisfied: false, Reason: fmt.Sprintf("Penghulu sudah terisi pada %s pukul %s", registration.TanggalNikah.Format("02-01-2006"), registration.WaktuNikah)}
+				eval := RuleEvaluation{RuleID: "RULE_004", RuleName: "Cek Konflik Jadwal", IsSatisfied: false, Reason: fmt.Sprintf("Penghulu sudah penuh pada slot jam %s (%d/%d)", registration.WaktuNikah, hourCount, candidate.CapacityPerHour)}
 				return eval, nil
 			},
 		},
@@ -955,7 +1000,7 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 			CanFire: func() bool { return state.hasFact(derivedFactJadwalBebas) && !state.hasFact(derivedFactKapasitasHarian) },
 			Fire: func() (RuleEvaluation, []DerivedFact) {
 				if dayCount < candidate.CapacityPerDay {
-					eval := RuleEvaluation{RuleID: "RULE_005", RuleName: "Cek Kapasitas Harian", IsSatisfied: true, Reason: fmt.Sprintf("Kapasitas harian tersedia (%d/%d)", dayCount, candidate.CapacityPerDay), Impact: 15}
+					eval := RuleEvaluation{RuleID: "RULE_005", RuleName: "Cek Kapasitas Harian", IsSatisfied: true, Reason: fmt.Sprintf("Kapasitas harian tersedia (%d/%d)", dayCount, candidate.CapacityPerDay)}
 					return eval, []DerivedFact{{Name: derivedFactKapasitasHarian, Value: true, RuleID: eval.RuleID, Reason: eval.Reason, CreatedAt: time.Now()}}
 				}
 				eval := RuleEvaluation{RuleID: "RULE_005", RuleName: "Cek Kapasitas Harian", IsSatisfied: false, Reason: fmt.Sprintf("Kapasitas harian penuh (%d/%d)", dayCount, candidate.CapacityPerDay)}
@@ -969,7 +1014,7 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 			CanFire: func() bool { return state.hasFact(derivedFactKapasitasHarian) && !state.hasFact(derivedFactKapasitasPerJam) },
 			Fire: func() (RuleEvaluation, []DerivedFact) {
 				if hourCount < candidate.CapacityPerHour {
-					eval := RuleEvaluation{RuleID: "RULE_006", RuleName: "Cek Kapasitas Per Jam", IsSatisfied: true, Reason: fmt.Sprintf("Kapasitas per jam tersedia (%d/%d)", hourCount, candidate.CapacityPerHour), Impact: 25}
+					eval := RuleEvaluation{RuleID: "RULE_006", RuleName: "Cek Kapasitas Per Jam", IsSatisfied: true, Reason: fmt.Sprintf("Kapasitas per jam tersedia (%d/%d)", hourCount, candidate.CapacityPerHour)}
 					return eval, []DerivedFact{{Name: derivedFactKapasitasPerJam, Value: true, RuleID: eval.RuleID, Reason: eval.Reason, CreatedAt: time.Now()}}
 				}
 				eval := RuleEvaluation{RuleID: "RULE_006", RuleName: "Cek Kapasitas Per Jam", IsSatisfied: false, Reason: fmt.Sprintf("Kapasitas per jam penuh (%d/%d)", hourCount, candidate.CapacityPerHour)}
@@ -982,33 +1027,19 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 			Blocking: true,
 			CanFire: func() bool { return state.hasFact(derivedFactKapasitasPerJam) && !state.hasFact(derivedFactLokasiSesuai) },
 			Fire: func() (RuleEvaluation, []DerivedFact) {
-				eval := RuleEvaluation{RuleID: "RULE_007", RuleName: "Cek Kesesuaian Lokasi", IsSatisfied: true, Reason: "Semua penghulu dapat melayani di dalam maupun luar KUA", Impact: 5}
+				eval := RuleEvaluation{RuleID: "RULE_007", RuleName: "Cek Kesesuaian Lokasi", IsSatisfied: true, Reason: "Semua penghulu dapat melayani di dalam maupun luar KUA"}
 				return eval, []DerivedFact{{Name: derivedFactLokasiSesuai, Value: true, RuleID: eval.RuleID, Reason: eval.Reason, CreatedAt: time.Now()}}
-			},
-		},
-		{
-			ID:       "RULE_008",
-			Name:     "Cek Batas Rating",
-			Blocking: true,
-			CanFire: func() bool { return state.hasFact(derivedFactLokasiSesuai) && !state.hasFact(derivedFactRatingMemadai) },
-			Fire: func() (RuleEvaluation, []DerivedFact) {
-				if candidate.Rating >= fc.Config.MinimumRating {
-					eval := RuleEvaluation{RuleID: "RULE_008", RuleName: "Cek Batas Rating", IsSatisfied: true, Reason: fmt.Sprintf("Rating %.2f memenuhi minimum %.2f", candidate.Rating, fc.Config.MinimumRating), Impact: 30}
-					return eval, []DerivedFact{{Name: derivedFactRatingMemadai, Value: true, RuleID: eval.RuleID, Reason: eval.Reason, CreatedAt: time.Now()}}
-				}
-				eval := RuleEvaluation{RuleID: "RULE_008", RuleName: "Cek Batas Rating", IsSatisfied: false, Reason: fmt.Sprintf("Rating %.2f di bawah minimum %.2f", candidate.Rating, fc.Config.MinimumRating)}
-				return eval, nil
 			},
 		},
 		{
 			ID:       "RULE_009",
 			Name:     "Estimasi Jarak",
 			Blocking: false,
-			CanFire: func() bool { return state.hasFact(derivedFactRatingMemadai) && !state.hasFact(derivedFactJarakMemadai) },
+			CanFire: func() bool { return state.hasFact(derivedFactLokasiSesuai) && !state.hasFact(derivedFactJarakMemadai) },
 			Fire: func() (RuleEvaluation, []DerivedFact) {
 				distanceMeters, distanceReason := fc.estimateRouteDistance(snapshot, candidate, osrmCache)
 				state.DistanceMeters = distanceMeters
-				eval := RuleEvaluation{RuleID: "RULE_009", RuleName: "Estimasi Jarak", IsSatisfied: true, Reason: distanceReason, Impact: 0}
+				eval := RuleEvaluation{RuleID: "RULE_009", RuleName: "Estimasi Jarak", IsSatisfied: true, Reason: distanceReason}
 				if distanceMeters <= 30000 {
 					return eval, []DerivedFact{{Name: derivedFactJarakMemadai, Value: true, RuleID: eval.RuleID, Reason: distanceReason, CreatedAt: time.Now()}}
 				}
@@ -1026,11 +1057,11 @@ func (fc *ForwardChainingEngine) buildRuleBase(snapshot *evaluationSnapshot, can
 					state.hasFact(derivedFactKapasitasHarian) &&
 					state.hasFact(derivedFactKapasitasPerJam) &&
 					state.hasFact(derivedFactLokasiSesuai) &&
-					state.hasFact(derivedFactRatingMemadai) &&
+					state.hasFact(derivedFactJarakMemadai) &&
 					!state.hasFact(derivedFactDirekomendasikan)
 			},
 			Fire: func() (RuleEvaluation, []DerivedFact) {
-				eval := RuleEvaluation{RuleID: "RULE_010", RuleName: "Konklusi Akhir", IsSatisfied: true, Reason: "Semua fakta pendukung telah terpenuhi, penghulu dapat direkomendasikan", Impact: 0}
+				eval := RuleEvaluation{RuleID: "RULE_010", RuleName: "Konklusi Akhir", IsSatisfied: true, Reason: "Semua fakta pendukung telah terpenuhi, penghulu dapat direkomendasikan"}
 				return eval, []DerivedFact{{Name: derivedFactDirekomendasikan, Value: true, RuleID: eval.RuleID, Reason: eval.Reason, CreatedAt: time.Now()}}
 			},
 		},
@@ -1128,7 +1159,7 @@ func (fc *ForwardChainingEngine) evaluateCandidate(snapshot *evaluationSnapshot,
 	}
 
 	result := RuleResult{
-		PenghuluID:    candidate.PenghuluID,
+		PenghuluID:     candidate.PenghuluID,
 		EvaluatedRules: state.Evaluations,
 		DerivedFacts:   state.DerivedFacts,
 		AllRulesPassed: !state.Rejected && state.hasFact(derivedFactDirekomendasikan),
@@ -1137,47 +1168,93 @@ func (fc *ForwardChainingEngine) evaluateCandidate(snapshot *evaluationSnapshot,
 
 	if state.Rejected {
 		result.Conclusion = state.RejectReason
-		result.Score = 0
 		return result
 	}
 
 	if state.hasFact(derivedFactDirekomendasikan) {
-		result.Conclusion = "Penghulu direkomendasikan"
+		result.Conclusion = "Penghulu memenuhi seluruh fakta: jadwal bebas, jarak layak, dan syarat administrasi terpenuhi"
 	} else {
 		result.Conclusion = "Belum memenuhi seluruh fakta untuk rekomendasi akhir"
 	}
-
-	result.Score = fc.calculateScore(snapshot, candidate, state.DistanceMeters)
 	return result
 }
 
-func (fc *ForwardChainingEngine) calculateScore(snapshot *evaluationSnapshot, candidate *PenghuluFact, distanceMeters float64) float64 {
-	registration := snapshot.RegistrationFact
-	dayCount := snapshot.DayCounts[candidate.PenghuluID]
-
-	ratingScore := clampFloat(candidate.Rating/5.0, 0, 1) * 100 * fc.Config.ScoringWeights.RatingWeight
-
-	availabilityRatio := 1.0
-	if candidate.CapacityPerDay > 0 {
-		availabilityRatio = 1.0 - (float64(dayCount) / float64(candidate.CapacityPerDay))
-	}
-	availabilityScore := clampFloat(availabilityRatio, 0, 1) * 100 * fc.Config.ScoringWeights.AvailabilityWeight
-
-	fairnessRatio := 1.0
-	if snapshot.MaxHistoricalWorkload > snapshot.MinHistoricalWorkload {
-		fairnessRatio = 1.0 - (float64(candidate.JumlahNikah-snapshot.MinHistoricalWorkload) / float64(snapshot.MaxHistoricalWorkload-snapshot.MinHistoricalWorkload))
-	}
-	fairnessScore := clampFloat(fairnessRatio, 0, 1) * 100 * fc.Config.ScoringWeights.FairnessWeight
-
-	locationScore := 100.0 * fc.Config.ScoringWeights.LocationMatchWeight
-	if registration.TempatNikah == structs.TempatNikahDiLuarKUA {
-		locationScore = 85.0 * fc.Config.ScoringWeights.LocationMatchWeight
+// selectBestCandidate memilih penghulu terbaik dari daftar kandidat yang lulus semua aturan blocking.
+// Seleksi murni berbasis fakta tanpa scoring numerik:
+//  1. Prioritas utama  : jarak lokasi akad paling dekat (ascending distance)
+//  2. Tiebreaker       : pemerataan beban bulan berjalan — hanya aktif jika
+//     selisih jumlah_nikah_bulan antar penghulu >= FairnessImbalanceThreshold
+func (fc *ForwardChainingEngine) selectBestCandidate(
+	passedResults []RuleResult,
+	snapshot *evaluationSnapshot,
+) (best RuleResult, alternatives []RuleResult) {
+	if len(passedResults) == 0 {
+		return RuleResult{}, nil
 	}
 
-	distanceScoreBase := math.Max(0, 100-(distanceMeters/1000.0)*fc.Config.DistancePenaltyPerKm)
-	distanceScore := distanceScoreBase * fc.Config.ScoringWeights.DistanceWeight
+	// Urutkan ascending berdasarkan jarak
+	sort.Slice(passedResults, func(i, j int) bool {
+		return passedResults[i].DistanceMeters < passedResults[j].DistanceMeters
+	})
 
-	return ratingScore + availabilityScore + fairnessScore + locationScore + distanceScore
+	// Cek apakah ada ketimpangan beban bulan berjalan
+	hasImbalance := snapshot.MaxMonthlyWorkload-snapshot.MinMonthlyWorkload >= fc.Config.FairnessImbalanceThreshold
+
+	if !hasImbalance {
+		// Tidak ada ketimpangan → pilih langsung yang paling dekat
+		return passedResults[0], passedResults[1:]
+	}
+
+	// Ada ketimpangan → terapkan tiebreaker beban bulan berjalan
+	// Kandidat yang paling dekat dijadikan acuan, kandidat lain yang
+	// jaraknya sama (selisih < 500 m) dipertimbangkan untuk fairness.
+	const distanceTieTolerance = 500.0 // meter
+	minDist := passedResults[0].DistanceMeters
+
+	// Kumpulkan kandidat yang jaraknya dalam toleransi jarak terpendek
+	tiedIdx := []int{0}
+	for i := 1; i < len(passedResults); i++ {
+		if passedResults[i].DistanceMeters-minDist <= distanceTieTolerance {
+			tiedIdx = append(tiedIdx, i)
+		} else {
+			break // sudah terurut ascending, tidak perlu lanjut
+		}
+	}
+
+	if len(tiedIdx) == 1 {
+		// Hanya satu kandidat dalam toleransi → langsung dipilih
+		return passedResults[0], passedResults[1:]
+	}
+
+	// Di antara kandidat yang jaraknya setara, pilih yang beban bulannya paling sedikit
+	bestIdx := tiedIdx[0]
+	for _, idx := range tiedIdx[1:] {
+		pid := passedResults[idx].PenghuluID
+		bestPid := passedResults[bestIdx].PenghuluID
+		if fc.monthlyWorkload(snapshot, pid) < fc.monthlyWorkload(snapshot, bestPid) {
+			bestIdx = idx
+		}
+	}
+
+	// Susun ulang: best di depan, sisanya jadi alternatif
+	result := passedResults[bestIdx]
+	rest := make([]RuleResult, 0, len(passedResults)-1)
+	for i, r := range passedResults {
+		if i != bestIdx {
+			rest = append(rest, r)
+		}
+	}
+	return result, rest
+}
+
+// monthlyWorkload mengembalikan jumlah nikah bulan berjalan untuk penghulu tertentu.
+func (fc *ForwardChainingEngine) monthlyWorkload(snapshot *evaluationSnapshot, penghuluID uint) int {
+	for _, fact := range snapshot.ActivePenghuluFacts {
+		if fact.PenghuluID == penghuluID {
+			return fact.JumlahNikahBulan
+		}
+	}
+	return 0
 }
 
 // ==================== PUBLIC EVALUATION APIS ====================
@@ -1212,79 +1289,96 @@ func (fc *ForwardChainingEngine) EvaluateRules(regFact *MarriageRegistrationFact
 		DayCounts:             dayCounts,
 		HourCounts:            hourCounts,
 		AssignmentsByPenghulu: assignmentsByPenghulu,
-		MaxHistoricalWorkload: penghuluFact.JumlahNikah,
-		MinHistoricalWorkload: penghuluFact.JumlahNikah,
+		MaxMonthlyWorkload:    penghuluFact.JumlahNikahBulan,
+		MinMonthlyWorkload:    penghuluFact.JumlahNikahBulan,
 	}
 	result := fc.evaluateCandidate(snapshot, penghuluFact, newOSRMDistanceCache())
 	return &result, nil
 }
 
-// GetPenghuluRecommendations mengeksekusi snapshot-based forward chaining satu kali di awal.
-func (fc *ForwardChainingEngine) GetPenghuluRecommendations(registrationID uint) (*AssignmentRecommendation, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), fc.Config.DBTimeout)
-	defer cancel()
-
-	// snapshot loader will use the provided DB with context
-	snapshot, err := fc.loadEvaluationSnapshot(registrationID, false)
+// GetPenghuluRecommendations mengeksekusi forward chaining murni berbasis fakta.
+// Tidak ada scoring numerik. Seleksi dilakukan oleh:
+//  1. Aturan blocking (jadwal, kapasitas, status) → filter kandidat tidak layak
+//  2. Jarak lokasi akad paling dekat → prioritas utama seleksi
+//  3. Pemerataan beban bulan berjalan → tiebreaker jika ada ketimpangan beban
+func (fc *ForwardChainingEngine) GetPenghuluRecommendations(ctx context.Context, registrationID uint) (*AssignmentRecommendation, error) {
+	snapshot, err := fc.loadEvaluationSnapshot(ctx, registrationID, false)
 	if err != nil {
 		return nil, err
 	}
 
 	osrmCache := newOSRMDistanceCache()
 
-	results := make([]RuleResult, 0, len(snapshot.ActivePenghuluFacts))
-	for _, penghuluFact := range snapshot.ActivePenghuluFacts {
-		results = append(results, fc.evaluateCandidate(snapshot, penghuluFact, osrmCache))
+	results := make([]RuleResult, len(snapshot.ActivePenghuluFacts))
+	var wg sync.WaitGroup
+	for i, penghuluFact := range snapshot.ActivePenghuluFacts {
+		wg.Add(1)
+		go func(idx int, fact *PenghuluFact) {
+			defer wg.Done()
+			results[idx] = fc.evaluateCandidate(snapshot, fact, osrmCache)
+		}(i, penghuluFact)
 	}
+	wg.Wait()
 
+	// Pisahkan kandidat yang lulus semua aturan blocking
 	passedResults := make([]RuleResult, 0, len(results))
 	for _, result := range results {
 		if result.AllRulesPassed {
 			passedResults = append(passedResults, result)
 		}
 	}
-	sort.Slice(passedResults, func(i, j int) bool {
-		return passedResults[i].Score > passedResults[j].Score
-	})
 
 	rec := &AssignmentRecommendation{
-		EvaluatedAt:        time.Now().In(utils.WITA),
-		EvaluationCount:    len(snapshot.ActivePenghuluFacts),
-		EvaluationProcess:  results,
+		EvaluatedAt:       time.Now().In(utils.WITA),
+		EvaluationCount:   len(snapshot.ActivePenghuluFacts),
+		EvaluationProcess: results,
 	}
 
 	if len(passedResults) == 0 {
 		rec.DecisionReasoning = "Tidak ada penghulu yang memenuhi seluruh fakta hasil inference cycle"
-		rec.Confidence = 0
 		return rec, nil
 	}
 
-	var bestPenghulu structs.Penghulu
-	if err := fc.DB.WithContext(ctx).Where("id = ?", passedResults[0].PenghuluID).First(&bestPenghulu).Error; err != nil {
-		return nil, fmt.Errorf("gagal mengambil detail penghulu terbaik: %w", err)
+	// Seleksi murni berbasis fakta: jarak terdekat → pemerataan beban bulan berjalan
+	best, rest := fc.selectBestCandidate(passedResults, snapshot)
+
+	bestPenghulu, ok := snapshot.ActivePenghulusMap[best.PenghuluID]
+	if !ok {
+		return nil, fmt.Errorf("gagal mengambil detail penghulu terbaik dari snapshot")
 	}
 
-	rec.RecommendedPenghuluID = passedResults[0].PenghuluID
-	rec.RecommendedPenghulu = &bestPenghulu
-	rec.SelectedScore = passedResults[0].Score
-	rec.Confidence = clampFloat(50+(passedResults[0].Score/2), 0, 99)
-	rec.DecisionReasoning = fmt.Sprintf(
-		"Forward chaining menetapkan %s sebagai kandidat terbaik dengan score %.2f, jarak %.2f km, dan seluruh fakta utama terpenuhi.",
+	hasImbalance := snapshot.MaxMonthlyWorkload-snapshot.MinMonthlyWorkload >= fc.Config.FairnessImbalanceThreshold
+	reasonParts := fmt.Sprintf(
+		"Forward chaining memilih %s berdasarkan: (1) jadwal bebas dari konflik, (2) jarak terdekat ke lokasi akad %.2f km",
 		bestPenghulu.Nama_lengkap,
-		passedResults[0].Score,
-		passedResults[0].DistanceMeters/1000.0,
+		best.DistanceMeters/1000.0,
 	)
+	if hasImbalance {
+		reasonParts += fmt.Sprintf(
+			", (3) pemerataan beban bulan berjalan aktif — beban penghulu terpilih %d nikah/bulan (selisih min-max: %d-%d)",
+			fc.monthlyWorkload(snapshot, best.PenghuluID),
+			snapshot.MinMonthlyWorkload,
+			snapshot.MaxMonthlyWorkload,
+		)
+	} else {
+		reasonParts += " (pemerataan beban tidak aktif: beban bulan berjalan merata)"
+	}
 
-	for i := 1; i < len(passedResults) && i < 3; i++ {
-		var altPenghulu structs.Penghulu
-		if err := fc.DB.WithContext(ctx).Where("id = ?", passedResults[i].PenghuluID).First(&altPenghulu).Error; err != nil {
+	rec.RecommendedPenghuluID = best.PenghuluID
+	rec.RecommendedPenghulu = bestPenghulu
+	rec.DecisionReasoning = reasonParts
+
+	for i := 0; i < len(rest) && i < 3; i++ {
+		altPenghulu, ok := snapshot.ActivePenghulusMap[rest[i].PenghuluID]
+		if !ok {
 			continue
 		}
 		rec.Alternatives = append(rec.Alternatives, AlternativePenghulu{
-			PenghuluID:   passedResults[i].PenghuluID,
-			NamaPenghulu: altPenghulu.Nama_lengkap,
-			Score:        passedResults[i].Score,
-			Reason:       fmt.Sprintf("Score %.2f, jarak %.2f km", passedResults[i].Score, passedResults[i].DistanceMeters/1000.0),
+			PenghuluID:       rest[i].PenghuluID,
+			NamaPenghulu:     altPenghulu.Nama_lengkap,
+			DistanceMeters:   rest[i].DistanceMeters,
+			JumlahNikahBulan: fc.monthlyWorkload(snapshot, rest[i].PenghuluID),
+			Reason:           fmt.Sprintf("Jarak %.2f km, beban bulan berjalan %d nikah", rest[i].DistanceMeters/1000.0, fc.monthlyWorkload(snapshot, rest[i].PenghuluID)),
 		})
 	}
 
@@ -1292,55 +1386,66 @@ func (fc *ForwardChainingEngine) GetPenghuluRecommendations(registrationID uint)
 }
 
 // GetDetailedEvaluation menampilkan trace inference per penghulu secara terurut.
-func (fc *ForwardChainingEngine) GetDetailedEvaluation(registrationID uint) (map[string]interface{}, error) {
-	snapshot, err := fc.loadEvaluationSnapshot(registrationID, false)
+func (fc *ForwardChainingEngine) GetDetailedEvaluation(ctx context.Context, registrationID uint) (map[string]any, error) {
+	snapshot, err := fc.loadEvaluationSnapshot(ctx, registrationID, false)
 	if err != nil {
 		return nil, err
 	}
 
 	osrmCache := newOSRMDistanceCache()
 
-	evaluations := make([]map[string]interface{}, 0, len(snapshot.ActivePenghuluFacts))
-	for _, penghuluFact := range snapshot.ActivePenghuluFacts {
-		ruleResult := fc.evaluateCandidate(snapshot, penghuluFact, osrmCache)
-		evaluations = append(evaluations, map[string]interface{}{
-			"penghulu_id":      penghuluFact.PenghuluID,
-			"penghulu_nama":    penghuluFact.NamaPenghulu,
-			"rating":           penghuluFact.Rating,
-			"jumlah_nikah":     penghuluFact.JumlahNikah,
-			"status":           penghuluFact.StatusAktif,
-			"all_rules_passed": ruleResult.AllRulesPassed,
-			"score":            ruleResult.Score,
-			"distance_meters":  ruleResult.DistanceMeters,
-			"conclusion":       ruleResult.Conclusion,
-			"evaluated_rules":  ruleResult.EvaluatedRules,
-			"derived_facts":    ruleResult.DerivedFacts,
-		})
+	evaluations := make([]map[string]any, len(snapshot.ActivePenghuluFacts))
+	var wg sync.WaitGroup
+	for i, penghuluFact := range snapshot.ActivePenghuluFacts {
+		wg.Add(1)
+		go func(idx int, fact *PenghuluFact) {
+			defer wg.Done()
+			ruleResult := fc.evaluateCandidate(snapshot, fact, osrmCache)
+			evaluations[idx] = map[string]any{
+				"penghulu_id":          fact.PenghuluID,
+				"penghulu_nama":        fact.NamaPenghulu,
+				"jumlah_nikah":         fact.JumlahNikah,
+				"jumlah_nikah_bulan":   fact.JumlahNikahBulan,
+				"status":               fact.StatusAktif,
+				"all_rules_passed":     ruleResult.AllRulesPassed,
+				"distance_meters":      ruleResult.DistanceMeters,
+				"conclusion":           ruleResult.Conclusion,
+				"evaluated_rules":      ruleResult.EvaluatedRules,
+				"derived_facts":        ruleResult.DerivedFacts,
+			}
+		}(i, penghuluFact)
 	}
+	wg.Wait()
 
+	// Urutkan: yang lulus aturan lebih dulu, kemudian berdasarkan jarak ascending
 	sort.Slice(evaluations, func(i, j int) bool {
 		passedI := evaluations[i]["all_rules_passed"].(bool)
 		passedJ := evaluations[j]["all_rules_passed"].(bool)
 		if passedI != passedJ {
 			return passedI
 		}
-		return evaluations[i]["score"].(float64) > evaluations[j]["score"].(float64)
+		return evaluations[i]["distance_meters"].(float64) < evaluations[j]["distance_meters"].(float64)
 	})
 
-	return map[string]interface{}{
-		"registration_id":     registrationID,
-		"tanggal_nikah":       snapshot.RegistrationFact.TanggalNikah,
-		"waktu_nikah":         snapshot.RegistrationFact.WaktuNikah,
-		"tempat_nikah":        snapshot.RegistrationFact.TempatNikah,
-		"alamat_nikah":        snapshot.RegistrationFact.AlamatNikah,
-		"latitude":            snapshot.RegistrationFact.Latitude,
-		"longitude":           snapshot.RegistrationFact.Longitude,
-		"status_pendaftaran":  snapshot.RegistrationFact.StatusPendaftaran,
-		"penghulu_id":         snapshot.RegistrationFact.PenghuluID,
-		"holiday":             snapshot.Holiday,
-		"holiday_name":        snapshot.HolidayName,
-		"evaluated_at":        time.Now().In(utils.WITA),
-		"penghulu_evaluations": evaluations,
+	hasImbalance := snapshot.MaxMonthlyWorkload-snapshot.MinMonthlyWorkload >= fc.Config.FairnessImbalanceThreshold
+
+	return map[string]any{
+		"registration_id":           registrationID,
+		"tanggal_nikah":             snapshot.RegistrationFact.TanggalNikah,
+		"waktu_nikah":               snapshot.RegistrationFact.WaktuNikah,
+		"tempat_nikah":              snapshot.RegistrationFact.TempatNikah,
+		"alamat_nikah":              snapshot.RegistrationFact.AlamatNikah,
+		"latitude":                  snapshot.RegistrationFact.Latitude,
+		"longitude":                 snapshot.RegistrationFact.Longitude,
+		"status_pendaftaran":        snapshot.RegistrationFact.StatusPendaftaran,
+		"penghulu_id":               snapshot.RegistrationFact.PenghuluID,
+		"holiday":                   snapshot.Holiday,
+		"holiday_name":              snapshot.HolidayName,
+		"evaluated_at":              time.Now().In(utils.WITA),
+		"min_beban_bulan":           snapshot.MinMonthlyWorkload,
+		"max_beban_bulan":           snapshot.MaxMonthlyWorkload,
+		"pemerataan_beban_aktif":    hasImbalance,
+		"penghulu_evaluations":      evaluations,
 	}, nil
 }
 
