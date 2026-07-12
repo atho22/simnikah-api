@@ -86,13 +86,11 @@ func SeedPenghulu(db *gorm.DB) error {
 			Email:      p.Email,
 			Password:   hashedPassword,
 			Role:       structs.UserRolePenghulu,
-			Status:     structs.UserStatusTokenReset, // set to active or standard default status
+			Status:     structs.UserStatusAktif,
 			Nama:       p.Nama,
 			Created_at: time.Now(),
 			Updated_at: time.Now(),
 		}
-		// In models, Default status is 'Aktif'
-		user.Status = structs.UserStatusAktif
 
 		if err := db.Create(&user).Error; err != nil {
 			return fmt.Errorf("error creating user %s: %v", p.Username, err)
